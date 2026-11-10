@@ -1,0 +1,1079 @@
+{
+  "schema_version": "0.3.0-draft",
+  "package_id": "PKG-FIC",
+  "project": {
+    "id": "PRJ-FIC",
+    "title": "山顶的便签",
+    "mode": "studio",
+    "content_kind": "fiction",
+    "targets": [
+      "video",
+      "audio"
+    ],
+    "target_duration_seconds": 42,
+    "source_ids": [
+      "SRC-FIC"
+    ],
+    "scope": {
+      "label": "本示例定义的完整作品",
+      "expected_episode_count": 1,
+      "expected_scene_count": 2,
+      "expected_required_beat_count": 6
+    }
+  },
+  "active_revision_id": "REV-FIC-001",
+  "adopted_revision_id": null,
+  "revisions": [
+    {
+      "id": "REV-FIC-001",
+      "number": 1,
+      "parent_revision_id": null,
+      "status": "draft",
+      "note": "自拟设计样例，未由真实用户审定。"
+    }
+  ],
+  "sources": [
+    {
+      "id": "SRC-FIC",
+      "kind": "original",
+      "title": "山顶的便签·原创微故事",
+      "origin_uri": null,
+      "capture_state": "provided",
+      "coverage": "full_selected_content",
+      "usage_basis": "original",
+      "selected_content": "傍晚，阿禾在旧书店摊开地图，林澄发现父亲留下的便签，说自己记得那条山路。次日两人到达山顶长椅。阿禾说他们替父亲看到了。林澄把便签收入口袋，迎着晨光微笑。",
+      "note": "本报告自拟原创，人物和情节均虚构。"
+    }
+  ],
+  "locations": [
+    {
+      "id": "LOC-BOOKSHOP",
+      "name": "旧书店",
+      "description": "木桌靠窗，傍晚暖光。"
+    },
+    {
+      "id": "LOC-HILL",
+      "name": "山顶观景台",
+      "description": "一张木长椅，清晨远山。"
+    }
+  ],
+  "characters": [
+    {
+      "id": "CHAR-LIN",
+      "name": "林澄",
+      "role": "寻找父亲留下的山路记忆",
+      "voice_reference_id": "AR-VOICE-CHAR-LIN"
+    },
+    {
+      "id": "CHAR-AHE",
+      "name": "阿禾",
+      "role": "陪伴林澄的朋友",
+      "voice_reference_id": "AR-VOICE-CHAR-AHE"
+    },
+    {
+      "id": "CHAR-FNARRATOR",
+      "name": "故事旁白",
+      "role": "纯音频版的画外讲述者，不进入画面",
+      "voice_reference_id": "AR-FNARRATOR"
+    }
+  ],
+  "scene_occurrences": [
+    {
+      "id": "SC-F01",
+      "sequence": 1,
+      "title": "找到便签",
+      "location_id": "LOC-BOOKSHOP",
+      "character_ids": [
+        "CHAR-LIN",
+        "CHAR-AHE",
+        "CHAR-FNARRATOR"
+      ],
+      "script_text": "阿禾摊开地图。林澄看见父亲署名的便签，抬头说：这条路，我记得。",
+      "start_state": "地图合拢，便签夹在其中。",
+      "end_state": "林澄记起山路，决定前往。",
+      "episode_id": "EP-FIC001"
+    },
+    {
+      "id": "SC-F02",
+      "sequence": 2,
+      "title": "抵达山顶",
+      "location_id": "LOC-HILL",
+      "character_ids": [
+        "CHAR-LIN",
+        "CHAR-AHE",
+        "CHAR-FNARRATOR"
+      ],
+      "script_text": "二人来到木长椅旁。阿禾说：我们替他看到了。林澄收起便签，望向晨光。",
+      "start_state": "二人刚到观景台，林澄手持便签。",
+      "end_state": "便签已收入口袋，二人并肩看远山。",
+      "episode_id": "EP-FIC001"
+    }
+  ],
+  "beats": [
+    {
+      "id": "BEAT-F01",
+      "scene_id": "SC-F01",
+      "sequence": 1,
+      "kind": "action",
+      "required": true,
+      "summary": "阿禾摊开地图",
+      "source_refs": [
+        {
+          "source_id": "SRC-FIC",
+          "locator": "原创微故事·书店",
+          "relationship": "original"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-F02",
+      "scene_id": "SC-F01",
+      "sequence": 2,
+      "kind": "action",
+      "required": true,
+      "summary": "林澄发现父亲署名的便签",
+      "source_refs": [
+        {
+          "source_id": "SRC-FIC",
+          "locator": "原创微故事·书店",
+          "relationship": "original"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-F03",
+      "scene_id": "SC-F01",
+      "sequence": 3,
+      "kind": "dialogue",
+      "required": true,
+      "summary": "林澄说这条路自己记得",
+      "source_refs": [
+        {
+          "source_id": "SRC-FIC",
+          "locator": "原创微故事·书店",
+          "relationship": "original"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-F04",
+      "scene_id": "SC-F02",
+      "sequence": 1,
+      "kind": "action",
+      "required": true,
+      "summary": "二人来到山顶长椅旁",
+      "source_refs": [
+        {
+          "source_id": "SRC-FIC",
+          "locator": "原创微故事·山顶",
+          "relationship": "original"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-F05",
+      "scene_id": "SC-F02",
+      "sequence": 2,
+      "kind": "dialogue",
+      "required": true,
+      "summary": "阿禾说他们替父亲看到了",
+      "source_refs": [
+        {
+          "source_id": "SRC-FIC",
+          "locator": "原创微故事·山顶",
+          "relationship": "original"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-F06",
+      "scene_id": "SC-F02",
+      "sequence": 3,
+      "kind": "action",
+      "required": true,
+      "summary": "林澄收起便签并望向晨光",
+      "source_refs": [
+        {
+          "source_id": "SRC-FIC",
+          "locator": "原创微故事·山顶",
+          "relationship": "original"
+        }
+      ]
+    }
+  ],
+  "dialogue_lines": [
+    {
+      "id": "LINE-F03",
+      "scene_id": "SC-F01",
+      "beat_id": "BEAT-F03",
+      "speaker_id": "CHAR-LIN",
+      "kind": "dialogue",
+      "text": "这条路，我记得。",
+      "delivery": "轻声，停顿后确定地说"
+    },
+    {
+      "id": "LINE-F05",
+      "scene_id": "SC-F02",
+      "beat_id": "BEAT-F05",
+      "speaker_id": "CHAR-AHE",
+      "kind": "dialogue",
+      "text": "我们替他看到了。",
+      "delivery": "温和，留出收尾停顿"
+    },
+    {
+      "id": "LINE-FN01",
+      "scene_id": "SC-F01",
+      "beat_id": "BEAT-F01",
+      "speaker_id": "CHAR-FNARRATOR",
+      "kind": "narration",
+      "text": "傍晚，阿禾在旧书店摊开一张地图。",
+      "delivery": "自然讲述；只用于纯音频版"
+    },
+    {
+      "id": "LINE-FN02",
+      "scene_id": "SC-F01",
+      "beat_id": "BEAT-F02",
+      "speaker_id": "CHAR-FNARRATOR",
+      "kind": "narration",
+      "text": "地图里夹着一张便签，林澄认出了父亲的署名。",
+      "delivery": "自然讲述；只用于纯音频版"
+    },
+    {
+      "id": "LINE-FN04",
+      "scene_id": "SC-F02",
+      "beat_id": "BEAT-F04",
+      "speaker_id": "CHAR-FNARRATOR",
+      "kind": "narration",
+      "text": "第二天清晨，两人来到山顶的木长椅旁。",
+      "delivery": "自然讲述；只用于纯音频版"
+    },
+    {
+      "id": "LINE-FN06",
+      "scene_id": "SC-F02",
+      "beat_id": "BEAT-F06",
+      "speaker_id": "CHAR-FNARRATOR",
+      "kind": "narration",
+      "text": "林澄把便签收入口袋，迎着晨光微笑。",
+      "delivery": "自然讲述；只用于纯音频版"
+    }
+  ],
+  "assets": [
+    {
+      "id": "AS-VOICE-CHAR-LIN",
+      "media_type": "audio",
+      "status": "planned",
+      "description": "林澄的原创角色声音参考计划"
+    },
+    {
+      "id": "AS-IMAGE-CHAR-LIN",
+      "media_type": "image",
+      "status": "planned",
+      "description": "林澄的角色身份参考计划"
+    },
+    {
+      "id": "AS-VOICE-CHAR-AHE",
+      "media_type": "audio",
+      "status": "planned",
+      "description": "阿禾的原创角色声音参考计划"
+    },
+    {
+      "id": "AS-IMAGE-CHAR-AHE",
+      "media_type": "image",
+      "status": "planned",
+      "description": "阿禾的角色身份参考计划"
+    },
+    {
+      "id": "AS-LOC-BOOKSHOP",
+      "media_type": "image",
+      "status": "planned",
+      "description": "旧书店的空间参考计划"
+    },
+    {
+      "id": "AS-LOC-HILL",
+      "media_type": "image",
+      "status": "planned",
+      "description": "山顶观景台的空间参考计划"
+    },
+    {
+      "id": "AS-FNARRATOR",
+      "media_type": "audio",
+      "status": "planned",
+      "description": "纯音频版原创旁白声音计划"
+    }
+  ],
+  "asset_references": [
+    {
+      "id": "AR-VOICE-CHAR-LIN",
+      "mode": "planned",
+      "asset_id": "AS-VOICE-CHAR-LIN",
+      "purpose": "voice",
+      "controls": "林澄的原创角色声音参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "AR-IMAGE-CHAR-LIN",
+      "mode": "planned",
+      "asset_id": "AS-IMAGE-CHAR-LIN",
+      "purpose": "identity",
+      "controls": "林澄的角色身份参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "AR-VOICE-CHAR-AHE",
+      "mode": "planned",
+      "asset_id": "AS-VOICE-CHAR-AHE",
+      "purpose": "voice",
+      "controls": "阿禾的原创角色声音参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "AR-IMAGE-CHAR-AHE",
+      "mode": "planned",
+      "asset_id": "AS-IMAGE-CHAR-AHE",
+      "purpose": "identity",
+      "controls": "阿禾的角色身份参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "AR-LOC-BOOKSHOP",
+      "mode": "planned",
+      "asset_id": "AS-LOC-BOOKSHOP",
+      "purpose": "location",
+      "controls": "旧书店的空间参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "AR-LOC-HILL",
+      "mode": "planned",
+      "asset_id": "AS-LOC-HILL",
+      "purpose": "location",
+      "controls": "山顶观景台的空间参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "AR-FNARRATOR",
+      "mode": "planned",
+      "asset_id": "AS-FNARRATOR",
+      "purpose": "voice",
+      "controls": "纯音频版原创旁白声音计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    }
+  ],
+  "shots": [
+    {
+      "id": "SHOT-F01",
+      "scene_id": "SC-F01",
+      "sequence": 1,
+      "beat_refs": [
+        "BEAT-F01"
+      ],
+      "visual_purpose": "阿禾摊开地图",
+      "start_state": "地图合拢",
+      "action": "阿禾摊开地图",
+      "end_state": "地图摊平",
+      "camera": {
+        "shot_size": "中景",
+        "angle": "平视",
+        "movement": "固定观察主要动作"
+      },
+      "asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-BOOKSHOP"
+      ],
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 6,
+        "basis": "estimated"
+      }
+    },
+    {
+      "id": "SHOT-F02",
+      "scene_id": "SC-F01",
+      "sequence": 2,
+      "beat_refs": [
+        "BEAT-F02"
+      ],
+      "visual_purpose": "林澄发现父亲署名的便签",
+      "start_state": "地图已展开，便签露出一角",
+      "action": "林澄发现父亲署名的便签",
+      "end_state": "林澄认出署名",
+      "camera": {
+        "shot_size": "特写",
+        "angle": "平视",
+        "movement": "固定观察主要动作"
+      },
+      "asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-BOOKSHOP"
+      ],
+      "timing": {
+        "start_seconds": 6,
+        "duration_seconds": 8,
+        "basis": "estimated"
+      }
+    },
+    {
+      "id": "SHOT-F03",
+      "scene_id": "SC-F01",
+      "sequence": 3,
+      "beat_refs": [
+        "BEAT-F03"
+      ],
+      "visual_purpose": "林澄说这条路自己记得",
+      "start_state": "林澄低头看便签",
+      "action": "林澄说这条路自己记得",
+      "end_state": "林澄抬头说完台词",
+      "camera": {
+        "shot_size": "近景",
+        "angle": "平视",
+        "movement": "固定观察主要动作"
+      },
+      "asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-BOOKSHOP"
+      ],
+      "timing": {
+        "start_seconds": 14,
+        "duration_seconds": 7,
+        "basis": "estimated"
+      }
+    },
+    {
+      "id": "SHOT-F04",
+      "scene_id": "SC-F02",
+      "sequence": 4,
+      "beat_refs": [
+        "BEAT-F04"
+      ],
+      "visual_purpose": "二人来到山顶长椅旁",
+      "start_state": "二人步入观景台",
+      "action": "二人来到山顶长椅旁",
+      "end_state": "二人在长椅旁站定",
+      "camera": {
+        "shot_size": "远景",
+        "angle": "平视",
+        "movement": "固定观察主要动作"
+      },
+      "asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-HILL"
+      ],
+      "timing": {
+        "start_seconds": 21,
+        "duration_seconds": 6,
+        "basis": "estimated"
+      }
+    },
+    {
+      "id": "SHOT-F05",
+      "scene_id": "SC-F02",
+      "sequence": 5,
+      "beat_refs": [
+        "BEAT-F05"
+      ],
+      "visual_purpose": "阿禾说他们替父亲看到了",
+      "start_state": "二人在长椅旁站定",
+      "action": "阿禾说他们替父亲看到了",
+      "end_state": "阿禾说完台词并看向林澄",
+      "camera": {
+        "shot_size": "双人中景",
+        "angle": "平视",
+        "movement": "固定观察主要动作"
+      },
+      "asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-HILL"
+      ],
+      "timing": {
+        "start_seconds": 27,
+        "duration_seconds": 8,
+        "basis": "estimated"
+      }
+    },
+    {
+      "id": "SHOT-F06",
+      "scene_id": "SC-F02",
+      "sequence": 6,
+      "beat_refs": [
+        "BEAT-F06"
+      ],
+      "visual_purpose": "林澄收起便签并望向晨光",
+      "start_state": "林澄手持便签",
+      "action": "林澄收起便签并望向晨光",
+      "end_state": "便签收入口袋，林澄望向远山",
+      "camera": {
+        "shot_size": "近景",
+        "angle": "平视",
+        "movement": "固定观察主要动作"
+      },
+      "asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-HILL"
+      ],
+      "timing": {
+        "start_seconds": 35,
+        "duration_seconds": 7,
+        "basis": "estimated"
+      }
+    }
+  ],
+  "panels": [
+    {
+      "id": "PANEL-F01-START",
+      "shot_id": "SHOT-F01",
+      "position": "start",
+      "offset_seconds": 0,
+      "description": "地图合拢；仅为该瞬间的构图计划。",
+      "status": "planned",
+      "asset_ref_id": null
+    },
+    {
+      "id": "PANEL-F02-START",
+      "shot_id": "SHOT-F02",
+      "position": "start",
+      "offset_seconds": 0,
+      "description": "地图已展开，便签露出一角；仅为该瞬间的构图计划。",
+      "status": "planned",
+      "asset_ref_id": null
+    },
+    {
+      "id": "PANEL-F03-START",
+      "shot_id": "SHOT-F03",
+      "position": "start",
+      "offset_seconds": 0,
+      "description": "林澄低头看便签；仅为该瞬间的构图计划。",
+      "status": "planned",
+      "asset_ref_id": null
+    },
+    {
+      "id": "PANEL-F04-START",
+      "shot_id": "SHOT-F04",
+      "position": "start",
+      "offset_seconds": 0,
+      "description": "二人步入观景台；仅为该瞬间的构图计划。",
+      "status": "planned",
+      "asset_ref_id": null
+    },
+    {
+      "id": "PANEL-F05-START",
+      "shot_id": "SHOT-F05",
+      "position": "start",
+      "offset_seconds": 0,
+      "description": "二人在长椅旁站定；仅为该瞬间的构图计划。",
+      "status": "planned",
+      "asset_ref_id": null
+    },
+    {
+      "id": "PANEL-F06-START",
+      "shot_id": "SHOT-F06",
+      "position": "start",
+      "offset_seconds": 0,
+      "description": "林澄手持便签；仅为该瞬间的构图计划。",
+      "status": "planned",
+      "asset_ref_id": null
+    },
+    {
+      "id": "PANEL-F06-END",
+      "shot_id": "SHOT-F06",
+      "position": "end",
+      "offset_seconds": 7,
+      "description": "便签已经收入口袋，林澄面向远山；不再画成手持便签。",
+      "status": "planned",
+      "asset_ref_id": null
+    }
+  ],
+  "audio_tracks": [
+    {
+      "id": "TR-DIALOGUE",
+      "role": "dialogue",
+      "allow_overlap": false
+    },
+    {
+      "id": "TR-NARRATION",
+      "role": "narration",
+      "allow_overlap": false
+    },
+    {
+      "id": "TR-SFX",
+      "role": "sfx",
+      "allow_overlap": false
+    },
+    {
+      "id": "TR-AMBIENCE",
+      "role": "ambience",
+      "allow_overlap": false
+    },
+    {
+      "id": "TR-MUSIC",
+      "role": "music",
+      "allow_overlap": false
+    }
+  ],
+  "audio_cues": [
+    {
+      "id": "CUE-F03",
+      "scene_id": "SC-F01",
+      "kind": "dialogue",
+      "track_id": "TR-DIALOGUE",
+      "beat_refs": [
+        "BEAT-F03"
+      ],
+      "shot_refs": [
+        "SHOT-F03"
+      ],
+      "asset_ref_ids": [
+        "AR-VOICE-CHAR-LIN"
+      ],
+      "timing": {
+        "start_seconds": 15,
+        "duration_seconds": 4,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-LIN",
+      "line_id": "LINE-F03",
+      "text": "这条路，我记得。",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-F05",
+      "scene_id": "SC-F02",
+      "kind": "dialogue",
+      "track_id": "TR-DIALOGUE",
+      "beat_refs": [
+        "BEAT-F05"
+      ],
+      "shot_refs": [
+        "SHOT-F05"
+      ],
+      "asset_ref_ids": [
+        "AR-VOICE-CHAR-AHE"
+      ],
+      "timing": {
+        "start_seconds": 28,
+        "duration_seconds": 5,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-AHE",
+      "line_id": "LINE-F05",
+      "text": "我们替他看到了。",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-PAPER",
+      "scene_id": "SC-F01",
+      "kind": "sfx",
+      "track_id": "TR-SFX",
+      "beat_refs": [],
+      "shot_refs": [
+        "SHOT-F01"
+      ],
+      "asset_ref_ids": [],
+      "timing": {
+        "start_seconds": 1,
+        "duration_seconds": 3,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "sound_intent": "纸张摊开的轻响",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-ROOM",
+      "scene_id": "SC-F01",
+      "kind": "ambience",
+      "track_id": "TR-AMBIENCE",
+      "beat_refs": [],
+      "shot_refs": [
+        "SHOT-F01",
+        "SHOT-F02",
+        "SHOT-F03"
+      ],
+      "asset_ref_ids": [],
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 21,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "sound_intent": "安静书店环境，不加入可辨对白",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-WIND",
+      "scene_id": "SC-F02",
+      "kind": "ambience",
+      "track_id": "TR-AMBIENCE",
+      "beat_refs": [],
+      "shot_refs": [
+        "SHOT-F04",
+        "SHOT-F05",
+        "SHOT-F06"
+      ],
+      "asset_ref_ids": [],
+      "timing": {
+        "start_seconds": 21,
+        "duration_seconds": 21,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "sound_intent": "山顶轻风与远处鸟声",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-MUSIC",
+      "scene_id": null,
+      "kind": "music",
+      "track_id": "TR-MUSIC",
+      "beat_refs": [],
+      "shot_refs": [
+        "SHOT-F01",
+        "SHOT-F02",
+        "SHOT-F03",
+        "SHOT-F04",
+        "SHOT-F05",
+        "SHOT-F06"
+      ],
+      "asset_ref_ids": [],
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 42,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "sound_intent": "原创温暖器乐，跨场连续，台词期间降低音量",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-FN01",
+      "scene_id": "SC-F01",
+      "kind": "narration",
+      "track_id": "TR-NARRATION",
+      "beat_refs": [
+        "BEAT-F01"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-FNARRATOR"
+      ],
+      "timing": {
+        "start_seconds": 1,
+        "duration_seconds": 4,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-FNARRATOR",
+      "line_id": "LINE-FN01",
+      "text": "傍晚，阿禾在旧书店摊开一张地图。",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-FN02",
+      "scene_id": "SC-F01",
+      "kind": "narration",
+      "track_id": "TR-NARRATION",
+      "beat_refs": [
+        "BEAT-F02"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-FNARRATOR"
+      ],
+      "timing": {
+        "start_seconds": 7,
+        "duration_seconds": 5,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-FNARRATOR",
+      "line_id": "LINE-FN02",
+      "text": "地图里夹着一张便签，林澄认出了父亲的署名。",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-FN04",
+      "scene_id": "SC-F02",
+      "kind": "narration",
+      "track_id": "TR-NARRATION",
+      "beat_refs": [
+        "BEAT-F04"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-FNARRATOR"
+      ],
+      "timing": {
+        "start_seconds": 22,
+        "duration_seconds": 4,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-FNARRATOR",
+      "line_id": "LINE-FN04",
+      "text": "第二天清晨，两人来到山顶的木长椅旁。",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    },
+    {
+      "id": "CUE-FN06",
+      "scene_id": "SC-F02",
+      "kind": "narration",
+      "track_id": "TR-NARRATION",
+      "beat_refs": [
+        "BEAT-F06"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-FNARRATOR"
+      ],
+      "timing": {
+        "start_seconds": 36,
+        "duration_seconds": 5,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-FNARRATOR",
+      "line_id": "LINE-FN06",
+      "text": "林澄把便签收入口袋，迎着晨光微笑。",
+      "episode_ids": [
+        "EP-FIC001"
+      ]
+    }
+  ],
+  "render_segments": [
+    {
+      "id": "SEG-FV1",
+      "media_type": "video",
+      "shot_ids": [
+        "SHOT-F01",
+        "SHOT-F02",
+        "SHOT-F03"
+      ],
+      "audio_cue_ids": [
+        "CUE-F03",
+        "CUE-PAPER",
+        "CUE-ROOM",
+        "CUE-MUSIC"
+      ],
+      "required_asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-BOOKSHOP"
+      ],
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 21,
+        "basis": "estimated"
+      },
+      "status": "planned",
+      "target_profile": "unselected-video-provider",
+      "output_asset_id": null
+    },
+    {
+      "id": "SEG-FV2",
+      "media_type": "video",
+      "shot_ids": [
+        "SHOT-F04",
+        "SHOT-F05",
+        "SHOT-F06"
+      ],
+      "audio_cue_ids": [
+        "CUE-F05",
+        "CUE-WIND",
+        "CUE-MUSIC"
+      ],
+      "required_asset_ref_ids": [
+        "AR-IMAGE-CHAR-LIN",
+        "AR-IMAGE-CHAR-AHE",
+        "AR-LOC-HILL"
+      ],
+      "timing": {
+        "start_seconds": 21,
+        "duration_seconds": 21,
+        "basis": "estimated"
+      },
+      "status": "planned",
+      "target_profile": "unselected-video-provider",
+      "output_asset_id": null
+    },
+    {
+      "id": "SEG-FA1",
+      "media_type": "audio",
+      "shot_ids": [],
+      "audio_cue_ids": [
+        "CUE-F03",
+        "CUE-F05",
+        "CUE-PAPER",
+        "CUE-ROOM",
+        "CUE-WIND",
+        "CUE-MUSIC",
+        "CUE-FN01",
+        "CUE-FN02",
+        "CUE-FN04",
+        "CUE-FN06"
+      ],
+      "required_asset_ref_ids": [
+        "AR-VOICE-CHAR-LIN",
+        "AR-VOICE-CHAR-AHE",
+        "AR-FNARRATOR"
+      ],
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 42,
+        "basis": "estimated"
+      },
+      "status": "planned",
+      "target_profile": "unselected-audio-workstation",
+      "output_asset_id": null
+    }
+  ],
+  "adaptation_decisions": [],
+  "coverage": [
+    {
+      "beat_id": "BEAT-F01",
+      "shot_ids": [
+        "SHOT-F01"
+      ],
+      "audio_cue_ids": [
+        "CUE-FN01"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-F02",
+      "shot_ids": [
+        "SHOT-F02"
+      ],
+      "audio_cue_ids": [
+        "CUE-FN02"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-F03",
+      "shot_ids": [
+        "SHOT-F03"
+      ],
+      "audio_cue_ids": [
+        "CUE-F03"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-F04",
+      "shot_ids": [
+        "SHOT-F04"
+      ],
+      "audio_cue_ids": [
+        "CUE-FN04"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-F05",
+      "shot_ids": [
+        "SHOT-F05"
+      ],
+      "audio_cue_ids": [
+        "CUE-F05"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-F06",
+      "shot_ids": [
+        "SHOT-F06"
+      ],
+      "audio_cue_ids": [
+        "CUE-FN06"
+      ],
+      "decision_id": null
+    }
+  ],
+  "export": {
+    "status": "planned",
+    "format": "storyboard-package",
+    "target_adapter": "generic-design-draft",
+    "unsupported_features": [],
+    "notes": [
+      "只有文本计划；没有实际图片、配音或视频。",
+      "尚未导入任何外部制作平台。"
+    ]
+  },
+  "episodes": [
+    {
+      "id": "EP-FIC001",
+      "title": "山顶的便签",
+      "sequence": 1,
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 42,
+        "basis": "estimated"
+      }
+    }
+  ]
+}

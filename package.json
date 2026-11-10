@@ -1,0 +1,16 @@
+{
+  "name": "camery",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "lint": "node scripts/source-policy.mjs",
+    "test:tooling": "node --test scripts/*.test.mjs",
+    "test": "pnpm test:tooling && pnpm -r test",
+    "test:coverage": "pnpm test:tooling && pnpm -r test:coverage",
+    "typecheck": "pnpm -r typecheck",
+    "check": "pnpm lint && pnpm typecheck && pnpm test:coverage",
+    "test:durable:local": "node scripts/durable-integration.mjs"
+  }
+}

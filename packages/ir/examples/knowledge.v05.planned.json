@@ -1,0 +1,389 @@
+{
+  "schema_version": "0.5.0-draft",
+  "package_id": "5AX48WPDS8XKXN1F5SAG37F0ZW",
+  "project": {
+    "id": "2J5656GKRGYC442D0M10A6ZM2X",
+    "title": "为什么月亮有圆缺",
+    "mode": "personal",
+    "content_kind": "knowledge",
+    "rights_status": "unknown",
+    "content_pack_versions": {},
+    "source_ids": [
+      "0QXWD3BCV87CGC1BJS7E5Q5X7J"
+    ],
+    "scope": {
+      "label": "本示例定义的完整作品",
+      "expected_episode_count": 1,
+      "expected_scene_count": 1,
+      "expected_required_beat_count": 4
+    }
+  },
+  "revision": {
+    "number": 1,
+    "status": "candidate",
+    "note": "自拟设计样例，未由真实用户审定。\nMigrated planning candidate; prior adoption/export is retained only in the migration report."
+  },
+  "sources": [
+    {
+      "id": "0QXWD3BCV87CGC1BJS7E5Q5X7J",
+      "version": 1,
+      "kind": "article",
+      "title": "NASA Moon Phases",
+      "origin_uri": "https://science.nasa.gov/moon/moon-phases/",
+      "capture_state": "missing",
+      "coverage": "partial",
+      "usage_basis": "unknown",
+      "selected_content": null,
+      "note": "官方来源定位；本样例没有伪造网页全文快照。脚本是本次自拟解释，仍需编辑核对。"
+    }
+  ],
+  "characters": [
+    {
+      "id": "7GQMWMT5YEXMGFHGJ3E23ZBQ5M",
+      "version": 1,
+      "name": "旁白",
+      "role": "科普讲解者",
+      "default_voice_ref_id": "334FRHBCACA4QJJ1NP5YA2BBFB"
+    }
+  ],
+  "appearances": [],
+  "props": [],
+  "locations": [],
+  "claims": [],
+  "episodes": [
+    {
+      "id": "7CD6HW3TAF305831R5B0W6GJZA",
+      "version": 1,
+      "title": "为什么月亮有圆缺",
+      "order_key": "00000001",
+      "target_seconds": 60
+    }
+  ],
+  "scenes": [
+    {
+      "id": "7MX09WG3D1N8F7XS9MDCZ34KBZ",
+      "version": 1,
+      "episode_id": "7CD6HW3TAF305831R5B0W6GJZA",
+      "order_key": "00000001",
+      "title": "月相与月食的区别",
+      "location_id": null,
+      "character_ids": [
+        "7GQMWMT5YEXMGFHGJ3E23ZBQ5M"
+      ],
+      "script_text": "用纯音频解释普通月相来自观察角度，区分地球影子造成的月食。",
+      "start_state": "听众可能把月相误解为地球阴影。",
+      "end_state": "听众知道月相与月食是不同现象。"
+    }
+  ],
+  "beats": [
+    {
+      "id": "0QVZA1YRHXD7HJYD7R3CN74E6P",
+      "version": 1,
+      "scene_id": "7MX09WG3D1N8F7XS9MDCZ34KBZ",
+      "order_key": "00000001",
+      "kind": "narration",
+      "required": true,
+      "summary": "提出圆缺问题",
+      "source_refs": [
+        {
+          "source_id": "0QXWD3BCV87CGC1BJS7E5Q5X7J",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "adapted"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "5WB4P9X5JMEG1QZV6FBMMWMT6B",
+      "version": 1,
+      "scene_id": "7MX09WG3D1N8F7XS9MDCZ34KBZ",
+      "order_key": "00000002",
+      "kind": "narration",
+      "required": true,
+      "summary": "说明受光面与观察角度",
+      "source_refs": [
+        {
+          "source_id": "0QXWD3BCV87CGC1BJS7E5Q5X7J",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "adapted"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "7ZDBDHDNE14XQRWAG36S1231NJ",
+      "version": 1,
+      "scene_id": "7MX09WG3D1N8F7XS9MDCZ34KBZ",
+      "order_key": "00000003",
+      "kind": "narration",
+      "required": true,
+      "summary": "区分月相和月食",
+      "source_refs": [
+        {
+          "source_id": "0QXWD3BCV87CGC1BJS7E5Q5X7J",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "adapted"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "6746B9GCG7GASQFNSWG37FC537",
+      "version": 1,
+      "scene_id": "7MX09WG3D1N8F7XS9MDCZ34KBZ",
+      "order_key": "00000004",
+      "kind": "narration",
+      "required": true,
+      "summary": "回顾两个概念",
+      "source_refs": [
+        {
+          "source_id": "0QXWD3BCV87CGC1BJS7E5Q5X7J",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "adapted"
+        }
+      ],
+      "claim_ids": []
+    }
+  ],
+  "lines": [
+    {
+      "id": "057WKK9MWQP5XYCYY5K5SSP57S",
+      "version": 1,
+      "beat_id": "0QVZA1YRHXD7HJYD7R3CN74E6P",
+      "order_key": "00000001",
+      "speaker_id": "7GQMWMT5YEXMGFHGJ3E23ZBQ5M",
+      "kind": "narration",
+      "text": "月亮看起来有时圆、有时像弯弯的月牙，这是为什么呢？",
+      "delivery": "清晰、平缓；停顿计入估算窗口",
+      "only_rendition_ids": [
+        "45KJXZ52M5RPAFSAT2NXSW9QEQ"
+      ],
+      "locked": false
+    },
+    {
+      "id": "5H1QBVV83PQ8GHMNJE5FC9A3T8",
+      "version": 1,
+      "beat_id": "5WB4P9X5JMEG1QZV6FBMMWMT6B",
+      "order_key": "00000001",
+      "speaker_id": "7GQMWMT5YEXMGFHGJ3E23ZBQ5M",
+      "kind": "narration",
+      "text": "通常，太阳照亮月球的一半。月球绕地球运动时，我们看见受光部分的角度发生变化。",
+      "delivery": "清晰、平缓；停顿计入估算窗口",
+      "only_rendition_ids": [
+        "45KJXZ52M5RPAFSAT2NXSW9QEQ"
+      ],
+      "locked": false
+    },
+    {
+      "id": "7GNDYCP79HCSDK8EWGKKFT5EBJ",
+      "version": 1,
+      "beat_id": "7ZDBDHDNE14XQRWAG36S1231NJ",
+      "order_key": "00000001",
+      "speaker_id": "7GQMWMT5YEXMGFHGJ3E23ZBQ5M",
+      "kind": "narration",
+      "text": "所以，普通月相的变化来自我们看到了受光面的不同部分；地球的影子遮到月球，对应的是月食。",
+      "delivery": "清晰、平缓；停顿计入估算窗口",
+      "only_rendition_ids": [
+        "45KJXZ52M5RPAFSAT2NXSW9QEQ"
+      ],
+      "locked": false
+    },
+    {
+      "id": "4SWKX5990FZW7B4053KETT0RXB",
+      "version": 1,
+      "beat_id": "6746B9GCG7GASQFNSWG37FC537",
+      "order_key": "00000001",
+      "speaker_id": "7GQMWMT5YEXMGFHGJ3E23ZBQ5M",
+      "kind": "narration",
+      "text": "记住这个区别：月相关注我们怎样看见受光面；月食关注地球影子遮挡月球。",
+      "delivery": "清晰、平缓；停顿计入估算窗口",
+      "only_rendition_ids": [
+        "45KJXZ52M5RPAFSAT2NXSW9QEQ"
+      ],
+      "locked": false
+    }
+  ],
+  "renditions": [
+    {
+      "id": "45KJXZ52M5RPAFSAT2NXSW9QEQ",
+      "version": 1,
+      "label": "Imported audio plan",
+      "readiness": "planned",
+      "kind": "audio"
+    }
+  ],
+  "shots": [],
+  "panels": [],
+  "audio_tracks": [
+    {
+      "id": "6W0322XTK50XXHK0A9EMAEF7FX",
+      "version": 1,
+      "rendition_id": "45KJXZ52M5RPAFSAT2NXSW9QEQ",
+      "role": "narration",
+      "allow_overlap": false
+    }
+  ],
+  "audio_cues": [
+    {
+      "id": "533D9WGST4MWF7T0ANM935WS1Y",
+      "version": 1,
+      "rendition_id": "45KJXZ52M5RPAFSAT2NXSW9QEQ",
+      "episode_id": "7CD6HW3TAF305831R5B0W6GJZA",
+      "track_id": "6W0322XTK50XXHK0A9EMAEF7FX",
+      "asset_ref_ids": [
+        "334FRHBCACA4QJJ1NP5YA2BBFB"
+      ],
+      "anchor": {
+        "ref": "7CD6HW3TAF305831R5B0W6GJZA",
+        "edge": "start",
+        "offset": 0
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "057WKK9MWQP5XYCYY5K5SSP57S",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 12,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "62RN5M747BSHHS93ZMQNPKWK5Z",
+      "version": 1,
+      "rendition_id": "45KJXZ52M5RPAFSAT2NXSW9QEQ",
+      "episode_id": "7CD6HW3TAF305831R5B0W6GJZA",
+      "track_id": "6W0322XTK50XXHK0A9EMAEF7FX",
+      "asset_ref_ids": [
+        "334FRHBCACA4QJJ1NP5YA2BBFB"
+      ],
+      "anchor": {
+        "ref": "7CD6HW3TAF305831R5B0W6GJZA",
+        "edge": "start",
+        "offset": 12
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "5H1QBVV83PQ8GHMNJE5FC9A3T8",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 16,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "06YY0EVCYRD6HKZQDM467D09SY",
+      "version": 1,
+      "rendition_id": "45KJXZ52M5RPAFSAT2NXSW9QEQ",
+      "episode_id": "7CD6HW3TAF305831R5B0W6GJZA",
+      "track_id": "6W0322XTK50XXHK0A9EMAEF7FX",
+      "asset_ref_ids": [
+        "334FRHBCACA4QJJ1NP5YA2BBFB"
+      ],
+      "anchor": {
+        "ref": "7CD6HW3TAF305831R5B0W6GJZA",
+        "edge": "start",
+        "offset": 28
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "7GNDYCP79HCSDK8EWGKKFT5EBJ",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 16,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "344XK2C08T0V4KP1D41T3397AA",
+      "version": 1,
+      "rendition_id": "45KJXZ52M5RPAFSAT2NXSW9QEQ",
+      "episode_id": "7CD6HW3TAF305831R5B0W6GJZA",
+      "track_id": "6W0322XTK50XXHK0A9EMAEF7FX",
+      "asset_ref_ids": [
+        "334FRHBCACA4QJJ1NP5YA2BBFB"
+      ],
+      "anchor": {
+        "ref": "7CD6HW3TAF305831R5B0W6GJZA",
+        "edge": "start",
+        "offset": 44
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "4SWKX5990FZW7B4053KETT0RXB",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 16,
+          "measured": null
+        }
+      }
+    }
+  ],
+  "assets": [
+    {
+      "id": "3NA94D10NS3K29NAYAVFYJQAEC",
+      "version": 1,
+      "media_type": "audio",
+      "description": "待选择的原创旁白声音参考",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    }
+  ],
+  "asset_references": [
+    {
+      "id": "334FRHBCACA4QJJ1NP5YA2BBFB",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "3NA94D10NS3K29NAYAVFYJQAEC",
+      "purpose": "voice",
+      "controls": "待选择的原创旁白声音参考",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    }
+  ],
+  "adaptation_decisions": [],
+  "segments": [
+    {
+      "id": "63FSKVHHCAD0669S7AR1JBR7GM",
+      "version": 1,
+      "rendition_id": "45KJXZ52M5RPAFSAT2NXSW9QEQ",
+      "target_mode": "unselected-audio-workstation",
+      "purpose": "Legacy grouping intent SEG-KA1; reconfirm before production",
+      "planned_duration": 60,
+      "handles": {
+        "head": 0,
+        "tail": 0
+      },
+      "priority": "normal",
+      "continuity_from": null
+    }
+  ],
+  "shot_takes": [],
+  "plot_units": [],
+  "episode_state_snapshots": [],
+  "shot_lineage": [],
+  "locks": []
+}

@@ -1,0 +1,2 @@
+# Migration checksums must remain identical across Windows and Linux checkouts.
+packages/**/src/migrations/*.sql text eol=lf

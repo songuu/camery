@@ -1,0 +1,1356 @@
+{
+  "schema_version": "0.5.0-draft",
+  "package_id": "7TYTRF5HQ5K4J3VDMYRFNE5XW0",
+  "project": {
+    "id": "0B949TQTXYE6BW1TGMBTTP8770",
+    "title": "山顶的便签",
+    "mode": "studio",
+    "content_kind": "fiction",
+    "rights_status": "original",
+    "content_pack_versions": {},
+    "source_ids": [
+      "6SJHRR6B417WDB2FD2DMX36WRQ"
+    ],
+    "scope": {
+      "label": "本示例定义的完整作品",
+      "expected_episode_count": 1,
+      "expected_scene_count": 2,
+      "expected_required_beat_count": 6
+    }
+  },
+  "revision": {
+    "number": 1,
+    "status": "candidate",
+    "note": "自拟设计样例，未由真实用户审定。\nMigrated planning candidate; prior adoption/export is retained only in the migration report."
+  },
+  "sources": [
+    {
+      "id": "6SJHRR6B417WDB2FD2DMX36WRQ",
+      "version": 1,
+      "kind": "original",
+      "title": "山顶的便签·原创微故事",
+      "origin_uri": null,
+      "capture_state": "provided",
+      "coverage": "full_selected_content",
+      "usage_basis": "original",
+      "selected_content": "傍晚，阿禾在旧书店摊开地图，林澄发现父亲留下的便签，说自己记得那条山路。次日两人到达山顶长椅。阿禾说他们替父亲看到了。林澄把便签收入口袋，迎着晨光微笑。",
+      "note": "本报告自拟原创，人物和情节均虚构。"
+    }
+  ],
+  "characters": [
+    {
+      "id": "56FBQVXRBM1ZEJ3S2AS69SX0ED",
+      "version": 1,
+      "name": "林澄",
+      "role": "寻找父亲留下的山路记忆",
+      "default_voice_ref_id": "3T1BV8W0CSRDFWYF070YNR2QZY"
+    },
+    {
+      "id": "28B6QDNQ93NR3CVAGQKBT5N4NT",
+      "version": 1,
+      "name": "阿禾",
+      "role": "陪伴林澄的朋友",
+      "default_voice_ref_id": "51HV3MDZP5DJHDJW6EZP1T1BBH"
+    },
+    {
+      "id": "6AJ098NDCZG6VPASCTA373AWS3",
+      "version": 1,
+      "name": "故事旁白",
+      "role": "纯音频版的画外讲述者，不进入画面",
+      "default_voice_ref_id": "2QPSBXM70W77KFQ7RJGSA53G4S"
+    }
+  ],
+  "appearances": [],
+  "props": [],
+  "locations": [
+    {
+      "id": "7TTSD0028WVQ0H241P6FD6S3VF",
+      "version": 1,
+      "name": "旧书店",
+      "description": "木桌靠窗，傍晚暖光。",
+      "spots": []
+    },
+    {
+      "id": "2ZBD6ED78Y0TKBQ6VB9P13DSMQ",
+      "version": 1,
+      "name": "山顶观景台",
+      "description": "一张木长椅，清晨远山。",
+      "spots": []
+    }
+  ],
+  "claims": [],
+  "episodes": [
+    {
+      "id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "version": 1,
+      "title": "山顶的便签",
+      "order_key": "00000001",
+      "target_seconds": 42
+    }
+  ],
+  "scenes": [
+    {
+      "id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "version": 1,
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "order_key": "00000001",
+      "title": "找到便签",
+      "location_id": "7TTSD0028WVQ0H241P6FD6S3VF",
+      "character_ids": [
+        "56FBQVXRBM1ZEJ3S2AS69SX0ED",
+        "28B6QDNQ93NR3CVAGQKBT5N4NT",
+        "6AJ098NDCZG6VPASCTA373AWS3"
+      ],
+      "script_text": "阿禾摊开地图。林澄看见父亲署名的便签，抬头说：这条路，我记得。",
+      "start_state": "地图合拢，便签夹在其中。",
+      "end_state": "林澄记起山路，决定前往。"
+    },
+    {
+      "id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "version": 1,
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "order_key": "00000002",
+      "title": "抵达山顶",
+      "location_id": "2ZBD6ED78Y0TKBQ6VB9P13DSMQ",
+      "character_ids": [
+        "56FBQVXRBM1ZEJ3S2AS69SX0ED",
+        "28B6QDNQ93NR3CVAGQKBT5N4NT",
+        "6AJ098NDCZG6VPASCTA373AWS3"
+      ],
+      "script_text": "二人来到木长椅旁。阿禾说：我们替他看到了。林澄收起便签，望向晨光。",
+      "start_state": "二人刚到观景台，林澄手持便签。",
+      "end_state": "便签已收入口袋，二人并肩看远山。"
+    }
+  ],
+  "beats": [
+    {
+      "id": "0J2J70HFGNW3WP7EM4ZQK7DJ9F",
+      "version": 1,
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "order_key": "00000001",
+      "kind": "action",
+      "required": true,
+      "summary": "阿禾摊开地图",
+      "source_refs": [
+        {
+          "source_id": "6SJHRR6B417WDB2FD2DMX36WRQ",
+          "locator": "原创微故事·书店",
+          "relationship": "original"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "68MX4RB7K1AA87XS09J9S0SCA2",
+      "version": 1,
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "order_key": "00000002",
+      "kind": "action",
+      "required": true,
+      "summary": "林澄发现父亲署名的便签",
+      "source_refs": [
+        {
+          "source_id": "6SJHRR6B417WDB2FD2DMX36WRQ",
+          "locator": "原创微故事·书店",
+          "relationship": "original"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "58EZGN5EEY7A1BVFF30P00MYMN",
+      "version": 1,
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "order_key": "00000003",
+      "kind": "dialogue",
+      "required": true,
+      "summary": "林澄说这条路自己记得",
+      "source_refs": [
+        {
+          "source_id": "6SJHRR6B417WDB2FD2DMX36WRQ",
+          "locator": "原创微故事·书店",
+          "relationship": "original"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "5CDTJ9YW717CN41K1386XDFY66",
+      "version": 1,
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "order_key": "00000001",
+      "kind": "action",
+      "required": true,
+      "summary": "二人来到山顶长椅旁",
+      "source_refs": [
+        {
+          "source_id": "6SJHRR6B417WDB2FD2DMX36WRQ",
+          "locator": "原创微故事·山顶",
+          "relationship": "original"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "4ZF5PGMNABDWARWHPG8J905FAT",
+      "version": 1,
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "order_key": "00000002",
+      "kind": "dialogue",
+      "required": true,
+      "summary": "阿禾说他们替父亲看到了",
+      "source_refs": [
+        {
+          "source_id": "6SJHRR6B417WDB2FD2DMX36WRQ",
+          "locator": "原创微故事·山顶",
+          "relationship": "original"
+        }
+      ],
+      "claim_ids": []
+    },
+    {
+      "id": "5SG36ZAHW422HZKXVMESHCQN7J",
+      "version": 1,
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "order_key": "00000003",
+      "kind": "action",
+      "required": true,
+      "summary": "林澄收起便签并望向晨光",
+      "source_refs": [
+        {
+          "source_id": "6SJHRR6B417WDB2FD2DMX36WRQ",
+          "locator": "原创微故事·山顶",
+          "relationship": "original"
+        }
+      ],
+      "claim_ids": []
+    }
+  ],
+  "lines": [
+    {
+      "id": "0CYJZ364M8JPEVDR2G473FJYQE",
+      "version": 1,
+      "beat_id": "58EZGN5EEY7A1BVFF30P00MYMN",
+      "order_key": "00000001",
+      "speaker_id": "56FBQVXRBM1ZEJ3S2AS69SX0ED",
+      "kind": "on_screen",
+      "text": "这条路，我记得。",
+      "delivery": "轻声，停顿后确定地说",
+      "only_rendition_ids": [
+        "1S540FE2B4XKWR5C7R7C53NA1W",
+        "4K9JRXC73VFSBGFMF4Z60K9MKN"
+      ],
+      "locked": false
+    },
+    {
+      "id": "1C33XFTV75XQPC9TFE9NR66TV8",
+      "version": 1,
+      "beat_id": "4ZF5PGMNABDWARWHPG8J905FAT",
+      "order_key": "00000001",
+      "speaker_id": "28B6QDNQ93NR3CVAGQKBT5N4NT",
+      "kind": "on_screen",
+      "text": "我们替他看到了。",
+      "delivery": "温和，留出收尾停顿",
+      "only_rendition_ids": [
+        "1S540FE2B4XKWR5C7R7C53NA1W",
+        "4K9JRXC73VFSBGFMF4Z60K9MKN"
+      ],
+      "locked": false
+    },
+    {
+      "id": "3P6MQQHET612B6NZBVV7X53JDZ",
+      "version": 1,
+      "beat_id": "0J2J70HFGNW3WP7EM4ZQK7DJ9F",
+      "order_key": "00000001",
+      "speaker_id": "6AJ098NDCZG6VPASCTA373AWS3",
+      "kind": "narration",
+      "text": "傍晚，阿禾在旧书店摊开一张地图。",
+      "delivery": "自然讲述；只用于纯音频版",
+      "only_rendition_ids": [
+        "4K9JRXC73VFSBGFMF4Z60K9MKN"
+      ],
+      "locked": false
+    },
+    {
+      "id": "2WEKWR69M07WWY7SD0P2GNSS9B",
+      "version": 1,
+      "beat_id": "68MX4RB7K1AA87XS09J9S0SCA2",
+      "order_key": "00000001",
+      "speaker_id": "6AJ098NDCZG6VPASCTA373AWS3",
+      "kind": "narration",
+      "text": "地图里夹着一张便签，林澄认出了父亲的署名。",
+      "delivery": "自然讲述；只用于纯音频版",
+      "only_rendition_ids": [
+        "4K9JRXC73VFSBGFMF4Z60K9MKN"
+      ],
+      "locked": false
+    },
+    {
+      "id": "0683GXX5N35HHCB8AQ86MHB0H0",
+      "version": 1,
+      "beat_id": "5CDTJ9YW717CN41K1386XDFY66",
+      "order_key": "00000001",
+      "speaker_id": "6AJ098NDCZG6VPASCTA373AWS3",
+      "kind": "narration",
+      "text": "第二天清晨，两人来到山顶的木长椅旁。",
+      "delivery": "自然讲述；只用于纯音频版",
+      "only_rendition_ids": [
+        "4K9JRXC73VFSBGFMF4Z60K9MKN"
+      ],
+      "locked": false
+    },
+    {
+      "id": "2H575WERPT0TQYH8N4B3ZKK4AM",
+      "version": 1,
+      "beat_id": "5SG36ZAHW422HZKXVMESHCQN7J",
+      "order_key": "00000001",
+      "speaker_id": "6AJ098NDCZG6VPASCTA373AWS3",
+      "kind": "narration",
+      "text": "林澄把便签收入口袋，迎着晨光微笑。",
+      "delivery": "自然讲述；只用于纯音频版",
+      "only_rendition_ids": [
+        "4K9JRXC73VFSBGFMF4Z60K9MKN"
+      ],
+      "locked": false
+    }
+  ],
+  "renditions": [
+    {
+      "id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "version": 1,
+      "label": "Imported video plan",
+      "readiness": "planned",
+      "kind": "video",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "version": 1,
+      "label": "Imported audio plan",
+      "readiness": "planned",
+      "kind": "audio"
+    }
+  ],
+  "shots": [
+    {
+      "id": "1DB4F8DB01QAP378GWCF79YJBC",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "order_key": "00000001",
+      "beat_refs": [
+        "0J2J70HFGNW3WP7EM4ZQK7DJ9F"
+      ],
+      "visual_purpose": "阿禾摊开地图",
+      "start_state": {
+        "summary": "地图合拢",
+        "characters": []
+      },
+      "action": "阿禾摊开地图",
+      "end_state": {
+        "summary": "地图摊平",
+        "characters": []
+      },
+      "camera": {
+        "shot_size": "medium",
+        "angle": "eye_level",
+        "movement": "static",
+        "lens_mm": null,
+        "note": null
+      },
+      "asset_ref_ids": [
+        "04F0RTXDBVP84PG836M6DTZMMH",
+        "7CAFS1W94NA7AGVR7EJEW19V30",
+        "7DD0SFSS4GYVQ95HJW5DYMG7FF"
+      ],
+      "duration": {
+        "planned": 6,
+        "measured": null
+      },
+      "continuity_break": null
+    },
+    {
+      "id": "3XF1BYSB29JSX00PAMNNQ69X29",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "order_key": "00000002",
+      "beat_refs": [
+        "68MX4RB7K1AA87XS09J9S0SCA2"
+      ],
+      "visual_purpose": "林澄发现父亲署名的便签",
+      "start_state": {
+        "summary": "地图已展开，便签露出一角",
+        "characters": []
+      },
+      "action": "林澄发现父亲署名的便签",
+      "end_state": {
+        "summary": "林澄认出署名",
+        "characters": []
+      },
+      "camera": {
+        "shot_size": "close",
+        "angle": "eye_level",
+        "movement": "static",
+        "lens_mm": null,
+        "note": null
+      },
+      "asset_ref_ids": [
+        "04F0RTXDBVP84PG836M6DTZMMH",
+        "7CAFS1W94NA7AGVR7EJEW19V30",
+        "7DD0SFSS4GYVQ95HJW5DYMG7FF"
+      ],
+      "duration": {
+        "planned": 8,
+        "measured": null
+      },
+      "continuity_break": null
+    },
+    {
+      "id": "7TQJ4V5KE07HCA194BABP90KZ2",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "order_key": "00000003",
+      "beat_refs": [
+        "58EZGN5EEY7A1BVFF30P00MYMN"
+      ],
+      "visual_purpose": "林澄说这条路自己记得",
+      "start_state": {
+        "summary": "林澄低头看便签",
+        "characters": []
+      },
+      "action": "林澄说这条路自己记得",
+      "end_state": {
+        "summary": "林澄抬头说完台词",
+        "characters": []
+      },
+      "camera": {
+        "shot_size": "medium_close",
+        "angle": "eye_level",
+        "movement": "static",
+        "lens_mm": null,
+        "note": null
+      },
+      "asset_ref_ids": [
+        "04F0RTXDBVP84PG836M6DTZMMH",
+        "7CAFS1W94NA7AGVR7EJEW19V30",
+        "7DD0SFSS4GYVQ95HJW5DYMG7FF"
+      ],
+      "duration": {
+        "planned": 7,
+        "measured": null
+      },
+      "continuity_break": null
+    },
+    {
+      "id": "2TP6AHR349F2E2CW2PY4PCB0WS",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "order_key": "00000004",
+      "beat_refs": [
+        "5CDTJ9YW717CN41K1386XDFY66"
+      ],
+      "visual_purpose": "二人来到山顶长椅旁",
+      "start_state": {
+        "summary": "二人步入观景台",
+        "characters": []
+      },
+      "action": "二人来到山顶长椅旁",
+      "end_state": {
+        "summary": "二人在长椅旁站定",
+        "characters": []
+      },
+      "camera": {
+        "shot_size": "wide",
+        "angle": "eye_level",
+        "movement": "static",
+        "lens_mm": null,
+        "note": null
+      },
+      "asset_ref_ids": [
+        "04F0RTXDBVP84PG836M6DTZMMH",
+        "7CAFS1W94NA7AGVR7EJEW19V30",
+        "4TW55RE4SEQD1FTRJ0QJ7FP9HK"
+      ],
+      "duration": {
+        "planned": 6,
+        "measured": null
+      },
+      "continuity_break": null
+    },
+    {
+      "id": "590PAHQHAA1DY007A8PDC3GG2N",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "order_key": "00000005",
+      "beat_refs": [
+        "4ZF5PGMNABDWARWHPG8J905FAT"
+      ],
+      "visual_purpose": "阿禾说他们替父亲看到了",
+      "start_state": {
+        "summary": "二人在长椅旁站定",
+        "characters": []
+      },
+      "action": "阿禾说他们替父亲看到了",
+      "end_state": {
+        "summary": "阿禾说完台词并看向林澄",
+        "characters": []
+      },
+      "camera": {
+        "shot_size": "medium",
+        "angle": "eye_level",
+        "movement": "static",
+        "lens_mm": null,
+        "note": null
+      },
+      "asset_ref_ids": [
+        "04F0RTXDBVP84PG836M6DTZMMH",
+        "7CAFS1W94NA7AGVR7EJEW19V30",
+        "4TW55RE4SEQD1FTRJ0QJ7FP9HK"
+      ],
+      "duration": {
+        "planned": 8,
+        "measured": null
+      },
+      "continuity_break": null
+    },
+    {
+      "id": "46ZBCDG8R008PSPXTBPRZ44CSF",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "order_key": "00000006",
+      "beat_refs": [
+        "5SG36ZAHW422HZKXVMESHCQN7J"
+      ],
+      "visual_purpose": "林澄收起便签并望向晨光",
+      "start_state": {
+        "summary": "林澄手持便签",
+        "characters": []
+      },
+      "action": "林澄收起便签并望向晨光",
+      "end_state": {
+        "summary": "便签收入口袋，林澄望向远山",
+        "characters": []
+      },
+      "camera": {
+        "shot_size": "medium_close",
+        "angle": "eye_level",
+        "movement": "static",
+        "lens_mm": null,
+        "note": null
+      },
+      "asset_ref_ids": [
+        "04F0RTXDBVP84PG836M6DTZMMH",
+        "7CAFS1W94NA7AGVR7EJEW19V30",
+        "4TW55RE4SEQD1FTRJ0QJ7FP9HK"
+      ],
+      "duration": {
+        "planned": 7,
+        "measured": null
+      },
+      "continuity_break": null
+    }
+  ],
+  "panels": [
+    {
+      "id": "2H5T8G3MBV1YD8GNW3RXH8DY70",
+      "version": 1,
+      "shot_id": "1DB4F8DB01QAP378GWCF79YJBC",
+      "description": "地图合拢；仅为该瞬间的构图计划。",
+      "candidate_asset_ref_ids": [],
+      "adopted_asset_ref_id": null,
+      "position": "start"
+    },
+    {
+      "id": "44FKY3SZFPBSGK66R7PQ5CV17H",
+      "version": 1,
+      "shot_id": "3XF1BYSB29JSX00PAMNNQ69X29",
+      "description": "地图已展开，便签露出一角；仅为该瞬间的构图计划。",
+      "candidate_asset_ref_ids": [],
+      "adopted_asset_ref_id": null,
+      "position": "start"
+    },
+    {
+      "id": "66ZN0W3N8E1VT38T5D8AVQ4RBM",
+      "version": 1,
+      "shot_id": "7TQJ4V5KE07HCA194BABP90KZ2",
+      "description": "林澄低头看便签；仅为该瞬间的构图计划。",
+      "candidate_asset_ref_ids": [],
+      "adopted_asset_ref_id": null,
+      "position": "start"
+    },
+    {
+      "id": "2BKXR6XAW7WX179QE01PVT713Y",
+      "version": 1,
+      "shot_id": "2TP6AHR349F2E2CW2PY4PCB0WS",
+      "description": "二人步入观景台；仅为该瞬间的构图计划。",
+      "candidate_asset_ref_ids": [],
+      "adopted_asset_ref_id": null,
+      "position": "start"
+    },
+    {
+      "id": "5FS4YFNCRNKAC5GSMYWT4V0WJY",
+      "version": 1,
+      "shot_id": "590PAHQHAA1DY007A8PDC3GG2N",
+      "description": "二人在长椅旁站定；仅为该瞬间的构图计划。",
+      "candidate_asset_ref_ids": [],
+      "adopted_asset_ref_id": null,
+      "position": "start"
+    },
+    {
+      "id": "3BPRF9HHT77XFH9F9X0C6B23SV",
+      "version": 1,
+      "shot_id": "46ZBCDG8R008PSPXTBPRZ44CSF",
+      "description": "林澄手持便签；仅为该瞬间的构图计划。",
+      "candidate_asset_ref_ids": [],
+      "adopted_asset_ref_id": null,
+      "position": "start"
+    },
+    {
+      "id": "1R7APMY48DG7WK3PAKE123MQQH",
+      "version": 1,
+      "shot_id": "46ZBCDG8R008PSPXTBPRZ44CSF",
+      "description": "便签已经收入口袋，林澄面向远山；不再画成手持便签。",
+      "candidate_asset_ref_ids": [],
+      "adopted_asset_ref_id": null,
+      "position": "end"
+    }
+  ],
+  "audio_tracks": [
+    {
+      "id": "6ENG5G5YWQCXXK9SJMBDE7KW3J",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "role": "dialogue",
+      "allow_overlap": false
+    },
+    {
+      "id": "7X7YY09870M68WM1D0633BG0R5",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "role": "narration",
+      "allow_overlap": false
+    },
+    {
+      "id": "53BQYFKRQWM4N2TA5TX0EZEK3J",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "role": "sfx",
+      "allow_overlap": false
+    },
+    {
+      "id": "5AXT67PMJWRP3GT10QHM9ES7VH",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "role": "ambience",
+      "allow_overlap": false
+    },
+    {
+      "id": "0H7Q0G5V9EHF1CQKF7HYGAJGTE",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "role": "music",
+      "allow_overlap": false
+    },
+    {
+      "id": "6EC8ZX47QYVE5MXTVTCZB547ZX",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "role": "dialogue",
+      "allow_overlap": false
+    },
+    {
+      "id": "4EQMWSMN15W2VA50MY5SP5KFTZ",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "role": "narration",
+      "allow_overlap": false
+    },
+    {
+      "id": "56GZEPNM17HMK5HR7B45XBHZA3",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "role": "sfx",
+      "allow_overlap": false
+    },
+    {
+      "id": "7RR8VST71GE54V3XQM4JVX2WPX",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "role": "ambience",
+      "allow_overlap": false
+    },
+    {
+      "id": "39DHMSJGTJNFZVV8Q4VNZWK3ES",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "role": "music",
+      "allow_overlap": false
+    }
+  ],
+  "audio_cues": [
+    {
+      "id": "3A37DBR5MNX5MBGD7JXS7D54JF",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "6ENG5G5YWQCXXK9SJMBDE7KW3J",
+      "asset_ref_ids": [
+        "3T1BV8W0CSRDFWYF070YNR2QZY"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 15
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "dialogue",
+      "line_id": "0CYJZ364M8JPEVDR2G473FJYQE",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 4,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "2P273C055Z7M2TDRPCY0BP2R0A",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "6EC8ZX47QYVE5MXTVTCZB547ZX",
+      "asset_ref_ids": [
+        "3T1BV8W0CSRDFWYF070YNR2QZY"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 15
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "dialogue",
+      "line_id": "0CYJZ364M8JPEVDR2G473FJYQE",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 4,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "7CTVYD82SKJJNNZZQSJ7AH3NNK",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "6ENG5G5YWQCXXK9SJMBDE7KW3J",
+      "asset_ref_ids": [
+        "51HV3MDZP5DJHDJW6EZP1T1BBH"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 28
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "dialogue",
+      "line_id": "1C33XFTV75XQPC9TFE9NR66TV8",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 5,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "05XGWN7MHESXN5HAC1DWVA6TMK",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "6EC8ZX47QYVE5MXTVTCZB547ZX",
+      "asset_ref_ids": [
+        "51HV3MDZP5DJHDJW6EZP1T1BBH"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 28
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "dialogue",
+      "line_id": "1C33XFTV75XQPC9TFE9NR66TV8",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 5,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "2FJQ6M1ATYPD84TV3JJG17RGRT",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "53BQYFKRQWM4N2TA5TX0EZEK3J",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 1
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "sfx",
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "beat_refs": [],
+      "sound_intent": "纸张摊开的轻响",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 3,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "3ADJFK88T3ME29V90J0D2A467K",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "56GZEPNM17HMK5HR7B45XBHZA3",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 1
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "sfx",
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "beat_refs": [],
+      "sound_intent": "纸张摊开的轻响",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 3,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "6YTD244T7MAA4QSMKDWR3S4XVA",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "5AXT67PMJWRP3GT10QHM9ES7VH",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 0
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "ambience",
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "beat_refs": [],
+      "sound_intent": "安静书店环境，不加入可辨对白",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 21,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "316RPB646EG35F3F31QCB1ZZC9",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "7RR8VST71GE54V3XQM4JVX2WPX",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 0
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "ambience",
+      "scene_id": "4F8P5A10D3DKDKMEC0SKC7ET7Z",
+      "beat_refs": [],
+      "sound_intent": "安静书店环境，不加入可辨对白",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 21,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "4P39GVGWMS9C7FEZSG27Z9VCAW",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "5AXT67PMJWRP3GT10QHM9ES7VH",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 21
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "ambience",
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "beat_refs": [],
+      "sound_intent": "山顶轻风与远处鸟声",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 21,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "6F5M3K6FC3KDGWRM5B4JVNKJCN",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "7RR8VST71GE54V3XQM4JVX2WPX",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 21
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "ambience",
+      "scene_id": "37C9GMPR3SMP59QR3G36B5EYAW",
+      "beat_refs": [],
+      "sound_intent": "山顶轻风与远处鸟声",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 21,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "3653FE3FMAC2WB0C9FAMS5983V",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "0H7Q0G5V9EHF1CQKF7HYGAJGTE",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 0
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "music",
+      "scene_id": null,
+      "beat_refs": [],
+      "sound_intent": "原创温暖器乐，跨场连续，台词期间降低音量",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 42,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "111DF8WA4HFRGV6THYNA57JFS4",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "39DHMSJGTJNFZVV8Q4VNZWK3ES",
+      "asset_ref_ids": [],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 0
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "music",
+      "scene_id": null,
+      "beat_refs": [],
+      "sound_intent": "原创温暖器乐，跨场连续，台词期间降低音量",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 42,
+          "measured": null
+        }
+      },
+      "continues_from": null
+    },
+    {
+      "id": "25Y1MCQ8DNWVYVRN72VY9GSS74",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "4EQMWSMN15W2VA50MY5SP5KFTZ",
+      "asset_ref_ids": [
+        "2QPSBXM70W77KFQ7RJGSA53G4S"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 1
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "3P6MQQHET612B6NZBVV7X53JDZ",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 4,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "36BJ6J4GT076ACT2CVB3NWDBDM",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "4EQMWSMN15W2VA50MY5SP5KFTZ",
+      "asset_ref_ids": [
+        "2QPSBXM70W77KFQ7RJGSA53G4S"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 7
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "2WEKWR69M07WWY7SD0P2GNSS9B",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 5,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "4MVJEAQE5N0KGNH88TE622K4XB",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "4EQMWSMN15W2VA50MY5SP5KFTZ",
+      "asset_ref_ids": [
+        "2QPSBXM70W77KFQ7RJGSA53G4S"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 22
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "0683GXX5N35HHCB8AQ86MHB0H0",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 4,
+          "measured": null
+        }
+      }
+    },
+    {
+      "id": "7T2K6Z5K7M4TXXD45AZJJ5P3WQ",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "episode_id": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+      "track_id": "4EQMWSMN15W2VA50MY5SP5KFTZ",
+      "asset_ref_ids": [
+        "2QPSBXM70W77KFQ7RJGSA53G4S"
+      ],
+      "anchor": {
+        "ref": "2RME6HT3VHGGFTGGWMWT4EAYQ5",
+        "edge": "start",
+        "offset": 36
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "kind": "narration",
+      "line_id": "2H575WERPT0TQYH8N4B3ZKK4AM",
+      "extent": {
+        "kind": "fixed",
+        "duration": {
+          "planned": 5,
+          "measured": null
+        }
+      }
+    }
+  ],
+  "assets": [
+    {
+      "id": "031GKWHGZY6TPK2JK8000Q7C4Y",
+      "version": 1,
+      "media_type": "audio",
+      "description": "林澄的原创角色声音参考计划",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    },
+    {
+      "id": "6N8X9G0HG1FA39YFAHTVNMX72S",
+      "version": 1,
+      "media_type": "image",
+      "description": "林澄的角色身份参考计划",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    },
+    {
+      "id": "6CMZ68RBG2EDFZ4VVHY4FDQFYC",
+      "version": 1,
+      "media_type": "audio",
+      "description": "阿禾的原创角色声音参考计划",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    },
+    {
+      "id": "28ATTG5NFA17YFWPF498S76X2N",
+      "version": 1,
+      "media_type": "image",
+      "description": "阿禾的角色身份参考计划",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    },
+    {
+      "id": "3FZWEEXJ5D33BMVDS394PS7VQ0",
+      "version": 1,
+      "media_type": "image",
+      "description": "旧书店的空间参考计划",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    },
+    {
+      "id": "2FSXSMXHNZP3A0Z3SFSR6JTDGN",
+      "version": 1,
+      "media_type": "image",
+      "description": "山顶观景台的空间参考计划",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    },
+    {
+      "id": "2FGZJV0DP8ESBAAMGHDKZNNN9X",
+      "version": 1,
+      "media_type": "audio",
+      "description": "纯音频版原创旁白声音计划",
+      "origin": "generated",
+      "consent_ref": null,
+      "status": "planned",
+      "file": null
+    }
+  ],
+  "asset_references": [
+    {
+      "id": "3T1BV8W0CSRDFWYF070YNR2QZY",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "031GKWHGZY6TPK2JK8000Q7C4Y",
+      "purpose": "voice",
+      "controls": "林澄的原创角色声音参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "04F0RTXDBVP84PG836M6DTZMMH",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "6N8X9G0HG1FA39YFAHTVNMX72S",
+      "purpose": "character",
+      "controls": "林澄的角色身份参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "51HV3MDZP5DJHDJW6EZP1T1BBH",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "6CMZ68RBG2EDFZ4VVHY4FDQFYC",
+      "purpose": "voice",
+      "controls": "阿禾的原创角色声音参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "7CAFS1W94NA7AGVR7EJEW19V30",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "28ATTG5NFA17YFWPF498S76X2N",
+      "purpose": "character",
+      "controls": "阿禾的角色身份参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "7DD0SFSS4GYVQ95HJW5DYMG7FF",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "3FZWEEXJ5D33BMVDS394PS7VQ0",
+      "purpose": "scene",
+      "controls": "旧书店的空间参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "4TW55RE4SEQD1FTRJ0QJ7FP9HK",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "2FSXSMXHNZP3A0Z3SFSR6JTDGN",
+      "purpose": "scene",
+      "controls": "山顶观景台的空间参考计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    },
+    {
+      "id": "2QPSBXM70W77KFQ7RJGSA53G4S",
+      "version": 1,
+      "mode": "planned",
+      "asset_id": "2FGZJV0DP8ESBAAMGHDKZNNN9X",
+      "purpose": "voice",
+      "controls": "纯音频版原创旁白声音计划",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    }
+  ],
+  "adaptation_decisions": [],
+  "segments": [
+    {
+      "id": "1WBRA2FAYEVF298RA4FA0TARE2",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "target_mode": "unselected-video-provider",
+      "purpose": "Legacy grouping intent SEG-FV1; reconfirm before production",
+      "planned_duration": 21,
+      "handles": {
+        "head": 0,
+        "tail": 0
+      },
+      "priority": "normal",
+      "continuity_from": null
+    },
+    {
+      "id": "54VS33ETFRPZJ85GPZ6GRXBXD1",
+      "version": 1,
+      "rendition_id": "1S540FE2B4XKWR5C7R7C53NA1W",
+      "target_mode": "unselected-video-provider",
+      "purpose": "Legacy grouping intent SEG-FV2; reconfirm before production",
+      "planned_duration": 21,
+      "handles": {
+        "head": 0,
+        "tail": 0
+      },
+      "priority": "normal",
+      "continuity_from": null
+    },
+    {
+      "id": "2S0CB9YE75H2JW1Y3NMAGA838A",
+      "version": 1,
+      "rendition_id": "4K9JRXC73VFSBGFMF4Z60K9MKN",
+      "target_mode": "unselected-audio-workstation",
+      "purpose": "Legacy grouping intent SEG-FA1; reconfirm before production",
+      "planned_duration": 42,
+      "handles": {
+        "head": 0,
+        "tail": 0
+      },
+      "priority": "normal",
+      "continuity_from": null
+    }
+  ],
+  "shot_takes": [],
+  "plot_units": [],
+  "episode_state_snapshots": [],
+  "shot_lineage": [],
+  "locks": []
+}

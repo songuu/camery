@@ -1,0 +1,396 @@
+{
+  "schema_version": "0.3.0-draft",
+  "package_id": "PKG-KNOW",
+  "project": {
+    "id": "PRJ-KNOW",
+    "title": "为什么月亮有圆缺",
+    "mode": "personal",
+    "content_kind": "knowledge",
+    "targets": [
+      "audio"
+    ],
+    "target_duration_seconds": 60,
+    "source_ids": [
+      "SRC-KNOW"
+    ],
+    "scope": {
+      "label": "本示例定义的完整作品",
+      "expected_episode_count": 1,
+      "expected_scene_count": 1,
+      "expected_required_beat_count": 4
+    }
+  },
+  "active_revision_id": "REV-KNOW-001",
+  "adopted_revision_id": null,
+  "revisions": [
+    {
+      "id": "REV-KNOW-001",
+      "number": 1,
+      "parent_revision_id": null,
+      "status": "draft",
+      "note": "自拟设计样例，未由真实用户审定。"
+    }
+  ],
+  "sources": [
+    {
+      "id": "SRC-KNOW",
+      "kind": "web",
+      "title": "NASA Moon Phases",
+      "origin_uri": "https://science.nasa.gov/moon/moon-phases/",
+      "capture_state": "reference_only",
+      "coverage": "reference_only",
+      "usage_basis": "public_reference",
+      "note": "官方来源定位；本样例没有伪造网页全文快照。脚本是本次自拟解释，仍需编辑核对。"
+    }
+  ],
+  "locations": [],
+  "characters": [
+    {
+      "id": "CHAR-NARRATOR",
+      "name": "旁白",
+      "role": "科普讲解者",
+      "voice_reference_id": "AR-KVOICE"
+    }
+  ],
+  "scene_occurrences": [
+    {
+      "id": "SC-K01",
+      "sequence": 1,
+      "title": "月相与月食的区别",
+      "location_id": null,
+      "character_ids": [
+        "CHAR-NARRATOR"
+      ],
+      "script_text": "用纯音频解释普通月相来自观察角度，区分地球影子造成的月食。",
+      "start_state": "听众可能把月相误解为地球阴影。",
+      "end_state": "听众知道月相与月食是不同现象。",
+      "episode_id": "EP-KNOW001"
+    }
+  ],
+  "beats": [
+    {
+      "id": "BEAT-K01",
+      "scene_id": "SC-K01",
+      "sequence": 1,
+      "kind": "explanation",
+      "required": true,
+      "summary": "提出圆缺问题",
+      "source_refs": [
+        {
+          "source_id": "SRC-KNOW",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "fact_basis"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-K02",
+      "scene_id": "SC-K01",
+      "sequence": 2,
+      "kind": "explanation",
+      "required": true,
+      "summary": "说明受光面与观察角度",
+      "source_refs": [
+        {
+          "source_id": "SRC-KNOW",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "fact_basis"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-K03",
+      "scene_id": "SC-K01",
+      "sequence": 3,
+      "kind": "explanation",
+      "required": true,
+      "summary": "区分月相和月食",
+      "source_refs": [
+        {
+          "source_id": "SRC-KNOW",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "fact_basis"
+        }
+      ]
+    },
+    {
+      "id": "BEAT-K04",
+      "scene_id": "SC-K01",
+      "sequence": 4,
+      "kind": "explanation",
+      "required": true,
+      "summary": "回顾两个概念",
+      "source_refs": [
+        {
+          "source_id": "SRC-KNOW",
+          "locator": "NASA Moon Phases：月相原理与月食说明",
+          "relationship": "fact_basis"
+        }
+      ]
+    }
+  ],
+  "dialogue_lines": [
+    {
+      "id": "LINE-K01",
+      "scene_id": "SC-K01",
+      "beat_id": "BEAT-K01",
+      "speaker_id": "CHAR-NARRATOR",
+      "kind": "narration",
+      "text": "月亮看起来有时圆、有时像弯弯的月牙，这是为什么呢？",
+      "delivery": "清晰、平缓；停顿计入估算窗口"
+    },
+    {
+      "id": "LINE-K02",
+      "scene_id": "SC-K01",
+      "beat_id": "BEAT-K02",
+      "speaker_id": "CHAR-NARRATOR",
+      "kind": "narration",
+      "text": "通常，太阳照亮月球的一半。月球绕地球运动时，我们看见受光部分的角度发生变化。",
+      "delivery": "清晰、平缓；停顿计入估算窗口"
+    },
+    {
+      "id": "LINE-K03",
+      "scene_id": "SC-K01",
+      "beat_id": "BEAT-K03",
+      "speaker_id": "CHAR-NARRATOR",
+      "kind": "narration",
+      "text": "所以，普通月相的变化来自我们看到了受光面的不同部分；地球的影子遮到月球，对应的是月食。",
+      "delivery": "清晰、平缓；停顿计入估算窗口"
+    },
+    {
+      "id": "LINE-K04",
+      "scene_id": "SC-K01",
+      "beat_id": "BEAT-K04",
+      "speaker_id": "CHAR-NARRATOR",
+      "kind": "narration",
+      "text": "记住这个区别：月相关注我们怎样看见受光面；月食关注地球影子遮挡月球。",
+      "delivery": "清晰、平缓；停顿计入估算窗口"
+    }
+  ],
+  "assets": [
+    {
+      "id": "AS-KVOICE",
+      "media_type": "audio",
+      "status": "planned",
+      "description": "待选择的原创旁白声音参考"
+    }
+  ],
+  "asset_references": [
+    {
+      "id": "AR-KVOICE",
+      "mode": "planned",
+      "asset_id": "AS-KVOICE",
+      "purpose": "voice",
+      "controls": "待选择的原创旁白声音参考",
+      "must_not_control": "不得改写剧本事实、台词和时长。"
+    }
+  ],
+  "shots": [],
+  "panels": [],
+  "audio_tracks": [
+    {
+      "id": "TR-KNARRATION",
+      "role": "narration",
+      "allow_overlap": false
+    }
+  ],
+  "audio_cues": [
+    {
+      "id": "CUE-K01",
+      "scene_id": "SC-K01",
+      "kind": "narration",
+      "track_id": "TR-KNARRATION",
+      "beat_refs": [
+        "BEAT-K01"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-KVOICE"
+      ],
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 12,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-NARRATOR",
+      "line_id": "LINE-K01",
+      "text": "月亮看起来有时圆、有时像弯弯的月牙，这是为什么呢？",
+      "episode_ids": [
+        "EP-KNOW001"
+      ]
+    },
+    {
+      "id": "CUE-K02",
+      "scene_id": "SC-K01",
+      "kind": "narration",
+      "track_id": "TR-KNARRATION",
+      "beat_refs": [
+        "BEAT-K02"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-KVOICE"
+      ],
+      "timing": {
+        "start_seconds": 12,
+        "duration_seconds": 16,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-NARRATOR",
+      "line_id": "LINE-K02",
+      "text": "通常，太阳照亮月球的一半。月球绕地球运动时，我们看见受光部分的角度发生变化。",
+      "episode_ids": [
+        "EP-KNOW001"
+      ]
+    },
+    {
+      "id": "CUE-K03",
+      "scene_id": "SC-K01",
+      "kind": "narration",
+      "track_id": "TR-KNARRATION",
+      "beat_refs": [
+        "BEAT-K03"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-KVOICE"
+      ],
+      "timing": {
+        "start_seconds": 28,
+        "duration_seconds": 16,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-NARRATOR",
+      "line_id": "LINE-K03",
+      "text": "所以，普通月相的变化来自我们看到了受光面的不同部分；地球的影子遮到月球，对应的是月食。",
+      "episode_ids": [
+        "EP-KNOW001"
+      ]
+    },
+    {
+      "id": "CUE-K04",
+      "scene_id": "SC-K01",
+      "kind": "narration",
+      "track_id": "TR-KNARRATION",
+      "beat_refs": [
+        "BEAT-K04"
+      ],
+      "shot_refs": [],
+      "asset_ref_ids": [
+        "AR-KVOICE"
+      ],
+      "timing": {
+        "start_seconds": 44,
+        "duration_seconds": 16,
+        "basis": "estimated"
+      },
+      "mix": {
+        "gain_db": 0,
+        "fade_in_seconds": 0,
+        "fade_out_seconds": 0
+      },
+      "speaker_id": "CHAR-NARRATOR",
+      "line_id": "LINE-K04",
+      "text": "记住这个区别：月相关注我们怎样看见受光面；月食关注地球影子遮挡月球。",
+      "episode_ids": [
+        "EP-KNOW001"
+      ]
+    }
+  ],
+  "render_segments": [
+    {
+      "id": "SEG-KA1",
+      "media_type": "audio",
+      "shot_ids": [],
+      "audio_cue_ids": [
+        "CUE-K01",
+        "CUE-K02",
+        "CUE-K03",
+        "CUE-K04"
+      ],
+      "required_asset_ref_ids": [
+        "AR-KVOICE"
+      ],
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 60,
+        "basis": "estimated"
+      },
+      "status": "planned",
+      "target_profile": "unselected-audio-workstation",
+      "output_asset_id": null
+    }
+  ],
+  "adaptation_decisions": [],
+  "coverage": [
+    {
+      "beat_id": "BEAT-K01",
+      "shot_ids": [],
+      "audio_cue_ids": [
+        "CUE-K01"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-K02",
+      "shot_ids": [],
+      "audio_cue_ids": [
+        "CUE-K02"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-K03",
+      "shot_ids": [],
+      "audio_cue_ids": [
+        "CUE-K03"
+      ],
+      "decision_id": null
+    },
+    {
+      "beat_id": "BEAT-K04",
+      "shot_ids": [],
+      "audio_cue_ids": [
+        "CUE-K04"
+      ],
+      "decision_id": null
+    }
+  ],
+  "export": {
+    "status": "planned",
+    "format": "storyboard-package",
+    "target_adapter": "generic-design-draft",
+    "unsupported_features": [],
+    "notes": [
+      "只有文本计划；没有实际图片、配音或视频。",
+      "尚未导入任何外部制作平台。"
+    ]
+  },
+  "episodes": [
+    {
+      "id": "EP-KNOW001",
+      "title": "为什么月亮有圆缺",
+      "sequence": 1,
+      "timing": {
+        "start_seconds": 0,
+        "duration_seconds": 60,
+        "basis": "estimated"
+      }
+    }
+  ]
+}

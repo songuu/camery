@@ -1,0 +1,38 @@
+{
+  "camera": {
+    "shot_sizes": {
+      "中景": "medium",
+      "特写": "close",
+      "近景": "medium_close",
+      "远景": "wide",
+      "双人中景": "medium"
+    },
+    "angles": {
+      "平视": "eye_level"
+    },
+    "movements": {
+      "固定观察主要动作": "static"
+    }
+  },
+  "video_aspect_ratio": "16:9",
+  "line_kinds": {
+    "LINE-F03": "on_screen",
+    "LINE-F05": "on_screen"
+  },
+  "asset_origins": {
+    "AS-KVOICE": "generated"
+  },
+  "source_mappings": {
+    "SRC-KNOW": {
+      "kind": "article",
+      "capture_state": "missing",
+      "coverage": "partial"
+    }
+  },
+  "beat_kinds": {
+    "explanation": "narration"
+  },
+  "source_relationships": {
+    "fact_basis": "adapted"
+  }
+}

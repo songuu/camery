@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: camery_test
+          POSTGRES_USER: camery_test
+          POSTGRES_PASSWORD: ci-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U camery_test -d camery_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Activate the repository package manager
+        run: |
+          corepack enable
+          corepack prepare pnpm@12.3.4 --activate
+          pnpm --version
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check source policy, types, tests and coverage gates
+        run: pnpm check
+      - name: Verify PostgreSQL durable execution and process recovery
+        env:
+          CAMERY_TEST_DATABASE_URL: postgresql://camery_test:ci-test-only@127.0.0.1:5432/camery_test
+        run: pnpm --filter @camery/durable test:integration --coverage
+      - name: Validate private infrastructure configuration
+        env:
+          CAMERY_POSTGRES_PASSWORD: ci-config-check-only
+        run: docker compose -f deploy/compose.private.yml config --quiet
