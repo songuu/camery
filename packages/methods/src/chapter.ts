@@ -1,6 +1,33 @@
 import { digest, MethodError } from './data.js';
 import type { MethodPack } from './schema.js';
 import type { MethodExecutor } from './runner.js';
+const CHAPTER_NUMBERS = new Set('0123456789〇零一二三四五六七八九十百千万两');
+const CHAPTER_MARKERS = new Set('章回集');
+const HORIZONTAL_WHITESPACE = new Set(' \t');
+const TITLE_DELIMITERS = new Set(' \t:：、.');
+/** One heading grammar keeps standalone imports and method-pack results aligned. */
+export function recognizeChapterHeading(line: string): string | null {
+  let position = line.startsWith('\uFEFF') ? 1 : 0;
+  let indentation = 0;
+  while (indentation < 3 && position < line.length && HORIZONTAL_WHITESPACE.has(line[position]!)) { position++; indentation++; }
+  if (line[position] !== '第') return null;
+  position++;
+  const numberStart = position;
+  while (position < line.length && CHAPTER_NUMBERS.has(line[position]!)) position++;
+  if (position === numberStart || !CHAPTER_MARKERS.has(line[position] ?? '')) return null;
+  position++;
+  let titleEnd = line.length;
+  while (titleEnd > position && HORIZONTAL_WHITESPACE.has(line[titleEnd - 1]!)) titleEnd--;
+  if (titleEnd === position) return line.replace(/^\uFEFF/, '').trim();
+  let delimiterEnd = position;
+  while (delimiterEnd < line.length && TITLE_DELIMITERS.has(line[delimiterEnd]!)) delimiterEnd++;
+  // A legal split needs >=1 delimiter, 1..80 body code units, then arbitrary horizontal whitespace.
+  // Choosing the earliest feasible body start avoids the regex's overlapping-quantifier backtracking.
+  const bodyStart = Math.max(position + 1, titleEnd - 80);
+  if (bodyStart > delimiterEnd || bodyStart >= line.length) return null;
+  for (let index = bodyStart; index < titleEnd; index++) if (line[index] === '\r' || line[index] === '\n') return null;
+  return line.replace(/^\uFEFF/, '').trim();
+}
 export const chapterPack: MethodPack = {
   manifest: {
     id: 'chapter-segmentation', version: '1.0.0', stage: 'input', inputKinds: ['novel', 'script'], languages: ['zh'], modelTier: 'deterministic', tool: 'chapter.segment',
@@ -23,10 +50,10 @@ export const chapterExecutor: MethodExecutor = {
   async execute(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length !== 1 || typeof input['text'] !== 'string' || !input['text'].trim() || input['text'].length > 1_000_000) throw new MethodError('INVALID_INPUT', 'chapter segmentation');
     const text = input['text']; const headings: { start: number; title: string }[] = [];
-    const heading = /^\uFEFF?[ \t]{0,3}第[0-9〇零一二三四五六七八九十百千万两]+[章回集](?:[ \t:：、.]+[^\r\n]{1,80})?[ \t]*$/;
     for (const line of text.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/g)) {
       const value = line[0].replace(/[\r\n]+$/, '');
-      if (heading.test(value)) { if (headings.length >= 10000) throw new MethodError('INPUT_LIMIT', 'chapter headings'); headings.push({ start: line.index, title: value.replace(/^\uFEFF/, '').trim() }); }
+      const title = recognizeChapterHeading(value);
+      if (title !== null) { if (headings.length >= 10000) throw new MethodError('INPUT_LIMIT', 'chapter headings'); headings.push({ start: line.index, title }); }
     }
     const entries = headings.length ? headings[0]!.start > 0 ? [{ start: 0, title: '' }, ...headings] : headings : [{ start: 0, title: '' }];
     return { sourceDigest: digest(text), offsetUnit: 'utf16', chapters: entries.map((entry, index) => ({ ordinal: index, kind: entry.title ? 'chapter' : 'frontmatter', title: entry.title, start: entry.start, end: entries[index + 1]?.start ?? text.length })), warnings: headings.length ? [] : ['NO_EXPLICIT_HEADINGS'] };
