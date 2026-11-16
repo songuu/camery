@@ -1,0 +1,7 @@
+{
+  "name":"@camery/script","version":"0.1.0","private":true,"type":"module",
+  "exports":{".":"./src/index.ts","./contracts":"./src/contracts.ts"},
+  "scripts":{"test":"vitest run","test:coverage":"vitest run --coverage","typecheck":"tsc --noEmit"},
+  "dependencies":{"@camery/methods":"workspace:*","@camery/model-modes":"workspace:*","zod":"^4.6.7"},
+  "devDependencies":{"@camery/agents":"workspace:*","@camery/durable":"workspace:*","@types/node":"^22.20.5","@vitest/coverage-v8":"^5.1.0","typescript":"^7.0.2","vitest":"^5.1.0"}
+}

@@ -379,6 +379,37 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
 
+  packages/script:
+    dependencies:
+      '@camery/methods':
+        specifier: workspace:*
+        version: link:../methods
+      '@camery/model-modes':
+        specifier: workspace:*
+        version: link:../model-modes
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@camery/agents':
+        specifier: workspace:*
+        version: link:../agents
+      '@camery/durable':
+        specifier: workspace:*
+        version: link:../durable
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      '@vitest/coverage-v8':
+        specifier: ^5.1.0
+        version: 5.1.0(vitest@5.1.0)
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
+
   packages/server:
     dependencies:
       '@camery/access':

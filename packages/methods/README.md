@@ -10,6 +10,8 @@ pnpm test:methods:evals
 
 已接入根 `pnpm check`：测试与四项 ≥95% 覆盖率后，还必须比较黄金基线。方法、Agent、模型模式代码变更都会触发该命令；当前黄金指标只覆盖已实现的章节方法，不冒充尚未接入的 Agent/真实模型质量评测。远端 CI 仍以实际 workflow 为准。
 
+`@camery/methods/json`提供浏览器安全的`snapshotJson/guardJson`逻辑JSON字节边界：逐字段计费后复制、不执行getter、拒绝原型/符号/循环/稀疏数组，并脱敏任意Proxy异常。默认2MiB/8192项数组，可信消费者可显式设置自身限额。Bible和script共用该primitive，领域各自映射错误类型；既有方法canonical/摘要语义不改变。
+
 ## 注册与执行
 
 `MethodRegistry.register(pack)` 校验 manifest、provenance、instructions、rules、examples、cards、evals 并复制数据；全部运行资产进入 digest。同一 id/version 的不同内容拒绝，升级须注册新版本。`resolve(pin)` 返回冻结副本，`route({stage,inputKind,language}, explicitPins)` 只在显式允许的 pin 中选择；无匹配和多匹配都拒绝，不自动选最新版本。

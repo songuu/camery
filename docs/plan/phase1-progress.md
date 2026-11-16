@@ -107,3 +107,13 @@
 - 最终`pnpm check`退出0：2299=20工具+2279普通；442文件策略零问题、lint及12包类型检查通过、12包覆盖率均实际执行。Bible真实PG275（普通265+专项10），server真实PG131（普通116+专项15）；均包含普通测试，不与整仓重复相加。镜像构建、Compose原API2项/原worker1项及新worker无配置安全退出已验证。
 - 代码/TS/安全/数据库审查闭合；修复历史分组ID碰撞、重复新提取ID、403空白和首次状态丢草稿。授权网络下依赖审计退出0。详细命令、哈希、浏览器产物和限制见[应用验收证据](../validation/bible-workbench-2026-11-16.md)。
 - 真实文本模型十章质量和真人评分尚无配置与证据；阶段1其他模块继续按v2.1推进。编辑器、法务、设计伙伴确认按用户指示后补。新常驻服务不自动启用，ComfyUI服务未变更；整阶段1未判完成。远端CI以最终提交的实际Actions为准。
+
+### T1.3 原创开发契约与两阶段执行核心（2026-11-16）
+
+- 按[完整实施与AC](original-development-phase1.md)新增`@camery/script`：创意brief→世界观/人物/主线→显式人工编辑审阅→分集候选。局部身份/引用、精确集数/顺序、主角与主线绑定均有界验证；原始模型候选与编辑审计分开，新的brief/设定不能静默套用旧分集。当前是领域/方法交付，不是完整应用或正式IR采用。
+- 固定原创`original.develop.foundation/episodes@1.0.0`，balanced/development，复用MethodRunner/ModelSession；精确请求/输出/方法/租户/上下文绑定并保留原回执，无隐藏重试。真实协议适配器夹具录制两次，再精确回放同一人工编辑上游；合成协议与live标记测试均不代表真实推理或账单。
+- 真实AgentRuntime/预算workflow/公开DurableWorker组合使用独立阶段task，32704字节设定在默认session限额内通过；进程内journal重放模型/预算分配增量0。128KiB完整decision与1MiB worker输入/输出边界实际测量，超1字节拒绝。typed内存store不证明真实PG/强杀/unknown对账，OD-5仍待实际存储增量。
+- 公共有界JSON primitive移至浏览器安全`@camery/methods/json`供Bible和script共用，保持Bible错误映射及旧canonical/方法摘要语义。真实Bible PG275项回归与现有web/server构建通过。审查关闭并保留红绿：异步授权未观察拒绝、brief追加摘要后超8KiB导致不可恢复、拒绝候选提前读getter、请求前取消缺失not_sent分类。
+- 最终`pnpm check`退出0：2458=20工具+2438普通；478文件策略零问题、lint、13包类型检查（6缓存/7实际）及13包覆盖率全部实际执行；6方法黄金案例与10 Agent基线通过。script126项，覆盖100/98.52/100/100%。核心/TS/安全与组合增量复审通过。
+- 本机日志`%TEMP%/camery-original-core-check-final.log` SHA-256 `97e2fa9ce03c6d80e810d5ff22ef94f67f9d4204e30dad514fb8912a5ae84e53`；共享边界PG日志`%TEMP%/camery-original-shared-bible-pg.log` SHA-256 `1f811b2e74c58a88a0d5acf90de7b761a3c6aa91780aeafc9948819e7105c5d0`。远端结果以本次最终提交的实际Actions为准。
+- 接下来继续逐阶段PG持久化/预算恢复、认证API、可编辑工作台及正式开发对象的ChangeSet接线。真实文本模型质量和人工评分仍需实际配置；编辑器、法务、设计伙伴后补。阶段1与完整T1.3均未判完成，目标范围保持不变。
