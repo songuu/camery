@@ -117,3 +117,13 @@
 - 最终`pnpm check`退出0：2458=20工具+2438普通；478文件策略零问题、lint、13包类型检查（6缓存/7实际）及13包覆盖率全部实际执行；6方法黄金案例与10 Agent基线通过。script126项，覆盖100/98.52/100/100%。核心/TS/安全与组合增量复审通过。
 - 本机日志`%TEMP%/camery-original-core-check-final.log` SHA-256 `97e2fa9ce03c6d80e810d5ff22ef94f67f9d4204e30dad514fb8912a5ae84e53`；共享边界PG日志`%TEMP%/camery-original-shared-bible-pg.log` SHA-256 `1f811b2e74c58a88a0d5acf90de7b761a3c6aa91780aeafc9948819e7105c5d0`。远端结果以本次最终提交的实际Actions为准。
 - 接下来继续逐阶段PG持久化/预算恢复、认证API、可编辑工作台及正式开发对象的ChangeSet接线。真实文本模型质量和人工评分仍需实际配置；编辑器、法务、设计伙伴后补。阶段1与完整T1.3均未判完成，目标范围保持不变。
+
+### T1.3 逐阶段持久化与预算恢复（2026-11-16）
+
+- `@camery/script/node`实现追加brief修订、固定run、原始阶段候选与独立人工审阅；固定brief→run锁序，同身份同语义重试重新授权后返回原审计。目录保留PG微秒游标，运行角色仅四表SELECT/INSERT，安装迁移与运行权限分离。
+- 每阶段独立durable task，复用现有Agent和预算账本。dispatcher先排空原任务物理尾部，再判断业务终态/过期；unknown需显式对账，不换任务ID自动重发。已付旧版本候选保存但不能静默用于新下游；常驻宿主/API/UI仍待接入。
+- 最终`pnpm check`退出0：2569=20工具+2549普通，524文件策略零问题、lint、13包类型检查（12缓存/1实际）、13包覆盖率全部实际执行；6方法golden/10 Agent基线匹配。script237项，覆盖99.49/98.58/100/100%。
+- 最终`pnpm test:script:local -- --coverage`退出0：16文件252项（含普通237，不重复相加），覆盖99.62/98.78/100/100%。真实PG包含并发、范围FK、篡改、审阅新鲜度与重试授权、24项最小角色探针；两阶段确认丢失、新pool恢复、测试自身子进程SIGKILL、unknown不重发及对账后旧brief结果保存。恢复均由正常dispatcher返回原任务，新增模型调用为0。
+- 复审关闭getter读取边界、schema USAGE转授权、FK引用侧索引及REPLICATION身份；最后一项真实PG先红复现再修绿。代码/TypeScript/安全复审通过。此前服务端构建子进程有一次超时，最终整仓同一用例通过，未放宽断言或超时。
+- 日志`%TEMP%/camery-development-persistence-check-final.log` SHA-256 `b13301719a44b9b513cb10831c78568c1e4cf9222e4f6385eac0d181295613d9`；`%TEMP%/camery-development-persistence-pg-coverage-final.log` SHA-256 `412e7b5af3c7db18d2a526fccfa014366d601a3829ef63ce8cc1a6ca4bde0dc9`。远端CI结果以最终提交的Actions为准。
+- 下一项是认证应用、工作台与常驻宿主，再继续正式开发IR/ChangeSet和真实文本模型质量。现有ComfyUI图像连接保持；未配置的真实文本供应方不能以协议夹具替代。完整T1.3与阶段1未完成；编辑器验收、法务签核、设计伙伴确认依用户安排后补。

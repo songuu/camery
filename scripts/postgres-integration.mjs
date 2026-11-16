@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 // This local-only helper reads the ignored phase-0 credential file; the URL goes only to the test child's environment.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const [target, ...args] = process.argv.slice(2);
-if (!['durable', 'versioning', 'agents', 'access', 'server', 'ingest', 'bible', 'private-api', 'private-worker'].includes(target)) throw new Error('Select durable, versioning, agents, access, server, ingest, bible, private-api or private-worker tests');
+if (!['durable', 'versioning', 'agents', 'access', 'server', 'ingest', 'bible', 'script', 'private-api', 'private-worker'].includes(target)) throw new Error('Select durable, versioning, agents, access, server, ingest, bible, script, private-api or private-worker tests');
 const composeTest = target === 'private-api' || target === 'private-worker';
 const packageName = composeTest ? 'server' : target;
 const packageRoot = fileURLToPath(new URL(`../packages/${packageName}/`, import.meta.url));

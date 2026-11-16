@@ -21,6 +21,10 @@ function captureHost(supplied:DevelopmentReviewHost){
     return {identity:freeze(identity),authorize:callback as DevelopmentReviewHost['authorize']};
   }catch{throw new DevelopmentError('FORBIDDEN','human review host');}
 }
+/** Capture host identity and its synchronous predicate before a storage wait; this function grants no permission. */
+export function captureDevelopmentReviewHost(supplied:DevelopmentReviewHost):DevelopmentReviewHost{
+  const host=captureHost(supplied);return Object.freeze({...host.identity,authorize:host.authorize});
+}
 function permit(brief:DevelopmentBrief,stage:DevelopmentStage,supplied:DevelopmentReviewHost){
   const host=captureHost(supplied);if(host.identity.tenantId!==brief.tenantId||host.identity.projectId!==brief.projectId)throw new DevelopmentError('FORBIDDEN','human review scope');
   try{

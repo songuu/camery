@@ -381,28 +381,37 @@ importers:
 
   packages/script:
     dependencies:
-      '@camery/methods':
-        specifier: workspace:*
-        version: link:../methods
-      '@camery/model-modes':
-        specifier: workspace:*
-        version: link:../model-modes
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
-    devDependencies:
       '@camery/agents':
         specifier: workspace:*
         version: link:../agents
       '@camery/durable':
         specifier: workspace:*
         version: link:../durable
+      '@camery/methods':
+        specifier: workspace:*
+        version: link:../methods
+      '@camery/model-modes':
+        specifier: workspace:*
+        version: link:../model-modes
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.23.1
       '@vitest/coverage-v8':
         specifier: ^5.1.0
         version: 5.1.0(vitest@5.1.0)
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
