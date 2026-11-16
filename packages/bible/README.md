@@ -1,6 +1,6 @@
 # StoryBible 候选领域
 
-[T1.2计划与完整验收边界](../../docs/plan/storybible-phase1.md)。当前交付完整来源分块、单块结构化模型适配、跨块合并建议、精确引文及受信宿主驱动的人工确认/拒绝函数。数据库、付费任务编排、认证HTTP和审阅界面尚待接入；纯域函数返回不等于数据库提交、真实模型质量或真人已经审阅。
+[T1.2计划与完整验收边界](../../docs/plan/storybible-phase1.md)。当前交付完整来源分块、单块结构化模型适配、跨块合并建议、精确引文及受信宿主驱动的人工确认/拒绝函数；[PostgreSQL和预算任务适配](POSTGRES.md)现已接入。认证HTTP、常驻服务的pump/会话配置和审阅界面尚待接入；库与协议通过不等于真实模型质量或真人已经审阅。
 
 | 接口 | 行为 |
 |---|---|
@@ -21,12 +21,13 @@ JSON边界先逐步计数逻辑字节并建立普通数据快照，再序列化�
 
 宿主必须从认证结果提供身份、从可信存储读取候选及当前来源；不能把客户端自报`human`、digest或ModelReceipt当授权。同步`authorize`仅返回字面`true`才通过。确认得到独立`ConfirmedBible`，还没有正式IR集合/ULID映射；未来写IR仍走既有ChangeSet/采用服务。
 
-每块ModelSession记录实际使用量，未知token保留null，live调用失败保留unknown以待对账，已完成模型返回但领域引文非法保留completed。畸形宿主返回无法辨识evidence时保守unknown。模型回执是宿主一致性记录，不是远程签名。该适配器本身不限制跨块总费用，不是生产付费工作流；生产必须接现有AgentRuntime、预算账本和durable逐块步骤，不能普通for循环后声称有恢复/计费保证。
+每块ModelSession记录实际使用量，未知token保留null，live调用失败保留unknown以待对账，已完成模型返回但领域引文非法保留completed。畸形宿主返回无法辨识evidence时保守unknown。模型回执是宿主一致性记录，不是远程签名。单独调用`extractChunk`不提供跨块费用保护；受信宿主应使用Node适配器的逐块Agent/预算/durable路径，不能普通for循环后声称有恢复/计费保证。
 
 ```sh
 pnpm --filter @camery/bible test:coverage
 pnpm --filter @camery/bible typecheck
+pnpm test:bible:local --coverage
 pnpm check
 ```
 
-十章原创用例经真实OpenAI连接器的进程内协议夹具录制，再严格离线回放，覆盖分块→候选→明确分组→确认/拒绝。它不调用真实模型、不产生真实账单，也不证明真人确认或数据库崩溃恢复。现有ComfyUI实机出图能力与文本抽取模型是不同的验收项。
+十章原创用例经真实OpenAI连接器的进程内协议夹具录制，再严格离线回放，覆盖分块→候选→明确分组→确认/拒绝。它不调用真实模型、不产生真实账单，也不证明真人确认。独立PG专项实际验证预算、SIGKILL、新连接恢复、丢确认及未知结果对账。现有ComfyUI实机出图能力与文本抽取模型是不同的验收项。

@@ -30,25 +30,25 @@ async function lint(source, extension) {
   }
 }
 
-test('lint rejects JavaScript correctness errors with actionable diagnostics', async () => {
+await test('lint rejects JavaScript correctness errors with actionable diagnostics', async () => {
   const result = await lint('const value = 1; value = 2; console.log(value);\n', 'mjs');
   assert.equal(result.status, 1, result.output);
   assert.match(result.output, /no-const-assign/);
 });
 
-test('lint rejects an unhandled TypeScript promise using actual type analysis', async () => {
+await test('lint rejects an unhandled TypeScript promise using actual type analysis', async () => {
   const result = await lint('async function save(): Promise<void> {}\nsave();\n', 'ts');
   assert.equal(result.status, 1, result.output);
   assert.match(result.output, /no-floating-promises/);
 });
 
-test('lint rejects an async callback assigned to a synchronous contract', async () => {
+await test('lint rejects an async callback assigned to a synchronous contract', async () => {
   const result = await lint('const save: () => void = async () => {};\nsave();\n', 'ts');
   assert.equal(result.status, 1, result.output);
   assert.match(result.output, /no-misused-promises/);
 });
 
-test('lint accepts explicitly handled promises and valid JavaScript', async () => {
+await test('lint accepts explicitly handled promises and valid JavaScript', async () => {
   const typed = await lint('async function save(): Promise<void> {}\nvoid save().catch(() => {});\n', 'ts');
   assert.equal(typed.status, 0, typed.output);
   const script = await lint('const value = 1; console.log(value);\n', 'mjs');

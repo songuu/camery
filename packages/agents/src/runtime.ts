@@ -19,7 +19,7 @@ const Action = z.discriminatedUnion('kind', [
 ]);
 export { Action as AgentActionSchema };
 export type AgentAction = z.infer<typeof Action>;
-const ModelBinding = z.strictObject({ tenantId: Name, connectionId: Name, modeDigest: Pin.shape.digest, modelIdentity: Name, modelTier: z.enum(['economy', 'balanced', 'quality']), pricing: PricingSchema.optional() });
+const ModelBinding = z.strictObject({ tenantId: Name, connectionId: Name, modeDigest: Pin.shape.digest, modelIdentity: Name, modelTier: z.enum(['economy', 'balanced', 'quality']), pricing: PricingSchema.optional(), receiptOutput: z.enum(['action-envelope','finish-output']).optional() });
 const Driver = z.strictObject({ identity: Name, digest: Pin.shape.digest, evidence: z.enum(['deterministic', 'synthetic_replay', 'live_model']), reservation: ReservationSchema, currency: BudgetSchema.shape.currency, model: ModelBinding.optional() });
 export interface DecisionRequest { trusted: { agent: MethodPin; instructions: string; tools: unknown[]; objectIds: readonly string[] }; untrustedSource: Json; observations: Json[] }
 export interface DecisionContext { tenantId: string; taskId: string; idempotencyKey: string; signal: AbortSignal }
@@ -103,7 +103,16 @@ export class AgentRuntime {
       let minimum = { tokens: 0, costMicros: 0 };
       if (value.kind === 'result') {
         const receipt = value.modelCall; const model = kind === 'decision' ? this.profile.model : undefined;
-        if ((model !== undefined) !== (receipt !== undefined) || (receipt && model && (receipt.tenantId !== model.tenantId || receipt.connectionId !== model.connectionId || receipt.modeDigest !== model.modeDigest || receipt.modelIdentity !== model.modelIdentity || receipt.evidence !== this.profile.evidence || receipt.callId !== expected?.callId || receipt.inputDigest !== expected?.inputDigest || receipt.outputDigest !== digest({ action: value.output })))) throw new AgentError('MODEL_RECEIPT_INVALID', external ? 'unknown' : 'not_applicable');
+        let expectedOutputDigest: string | undefined;
+        if (receipt && model) {
+          if (model.receiptOutput === 'finish-output') {
+            // A method receipt binds its raw candidate, never a synthesized tool/question envelope.
+            const action = Action.safeParse(value.output);
+            if (!action.success || action.data.kind !== 'finish') throw new AgentError('MODEL_RECEIPT_INVALID',external?'unknown':'not_applicable');
+            expectedOutputDigest = digest(action.data.output);
+          } else expectedOutputDigest = digest({action:value.output});
+        }
+        if ((model !== undefined) !== (receipt !== undefined) || (receipt && model && (receipt.tenantId !== model.tenantId || receipt.connectionId !== model.connectionId || receipt.modeDigest !== model.modeDigest || receipt.modelIdentity !== model.modelIdentity || receipt.evidence !== this.profile.evidence || receipt.callId !== expected?.callId || receipt.inputDigest !== expected?.inputDigest || receipt.outputDigest !== expectedOutputDigest))) throw new AgentError('MODEL_RECEIPT_INVALID', external ? 'unknown' : 'not_applicable');
         if (receipt && model) {
           const metered = meterModelUsage(receipt.usage, model.pricing, external); minimum = metered.minimum;
           if (canonical(value.usage) !== canonical(metered.usage)) throw new AgentError('MODEL_RECEIPT_INVALID', external ? 'unknown' : 'not_applicable');

@@ -3,6 +3,7 @@ export * from './runtime.js';
 export * from './collaboration.js';
 export * from './producer.js';
 export * from './model-driver.js';
+export * from './method-driver.js';
 export * from './budget.js';
 export * from './review-loop.js';
 export * from './task-service.js';

@@ -66,7 +66,7 @@ function run(directory, task, options = [], environment = process.env) {
 }
 const counts = async (directory, name) => JSON.parse(await readFile(path.join(directory, 'packages', name, '.counts.json'), 'utf8'));
 
-test('real Turbo cache hits and invalidation follow source, upstream, root config, content and runtime', { timeout: 120000 }, async () => {
+await test('real Turbo cache hits and invalidation follow source, upstream, root config, content and runtime', { timeout: 120000 }, async () => {
   const directory = await fixture();
   try {
     const check = (environment = process.env) => {
@@ -103,7 +103,7 @@ test('real Turbo cache hits and invalidation follow source, upstream, root confi
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test('real test, coverage, evaluation and build tasks execute on every invocation', { timeout: 120000 }, async () => {
+await test('real test, coverage, evaluation and build tasks execute on every invocation', { timeout: 120000 }, async () => {
   const directory = await fixture();
   try {
     for (const task of ['test', 'test:coverage', 'eval:check', 'build']) {

@@ -37,6 +37,8 @@ const table = importScriptTable('场景,角色,对白\n办公室,小林,你好�
 
 安装者使用已有 PostgreSQL 管理连接显式执行 `migrateIngest(pool)`；安装路径有事务 advisory lock 和历史 checksum 检查。运行时不自动迁移。API 显式启用来源服务时，启动前通过 `verifyIngestRuntimeRole` 核对独立最小权限 LOGIN；权限及部署步骤见服务端说明。
 
+`readSourceDocument(client,{tenantId,projectId,documentId,kind})`供Bible等受信应用在已有事务及来源advisory锁内复用同一连接读取完整来源，返回document/revision。它不另连pool、开事务、commit或授予权限，只有SELECT，不要求来源UPDATE；仍复用旧小说/剧本codec校验作用域、revision和原始字节摘要。调用者必须先获取相同`JSON.stringify(['camery_ingest',tenantId,projectId,documentId])`事务锁，不要持锁再调用另连pool的store.read。
+
 ```ts
 import { PostgresDocumentStore } from '@camery/ingest/node';
 

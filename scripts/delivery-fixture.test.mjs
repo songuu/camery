@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { connectedOffset, frameTime, generateFixture, makeEdl, makeFcpxml, parseArguments, timecode } from './delivery-fixture.mjs';
 
-test('25fps fixture timecodes use exact frames and reject unsupported values', () => {
+await test('25fps fixture timecodes use exact frames and reject unsupported values', () => {
   assert.equal(timecode(0), '00:00:00:00');
   assert.equal(timecode(25), '00:00:01:00');
   assert.equal(timecode(1526), '00:01:01:01');
@@ -13,14 +13,14 @@ test('25fps fixture timecodes use exact frames and reject unsupported values', (
   for (const value of [-1, 0.5, NaN, Infinity, 24 * 3600 * 25]) assert.throws(() => timecode(value), /frame/);
 });
 
-test('connected audio offset uses the parent source timeline rather than record time', () => {
+await test('connected audio offset uses the parent source timeline rather than record time', () => {
   const parent = { sourceIn: 25, recordIn: 0 };
   assert.equal(connectedOffset(parent, 0), 25);
   assert.equal(connectedOffset(parent, 10), 35);
   assert.equal(connectedOffset({ sourceIn: 0, recordIn: 50 }, 75), 25);
 });
 
-test('FCPXML encodes nonadjacent reuse and continuous detached audio without path or XML corruption', () => {
+await test('FCPXML encodes nonadjacent reuse and continuous detached audio without path or XML corruption', () => {
   const directory = path.resolve('fixture 空格 & quoted');
   const xml = makeFcpxml(directory, 'Camery "A&B"');
   assert.match(xml, /<fcpxml version="1\.10">/);
@@ -36,7 +36,7 @@ test('FCPXML encodes nonadjacent reuse and continuous detached audio without pat
   assert.match(xml, /ref="r4" lane="-1" offset="25\/25s" start="0\/25s" duration="150\/25s"/);
 });
 
-test('CMX3600 has three video-only events with matching source filenames and exclusive out points', () => {
+await test('CMX3600 has three video-only events with matching source filenames and exclusive out points', () => {
   const edl = makeEdl();
   assert.match(edl, /FCM: NON-DROP FRAME/);
   assert.match(edl, /001  RED00001 V     C        00:00:01:00 00:00:03:00 00:00:00:00 00:00:02:00/);
@@ -47,14 +47,14 @@ test('CMX3600 has three video-only events with matching source filenames and exc
   assert.ok(!/^\d{3}.*\sA\s/m.test(edl));
 });
 
-test('CLI requires explicitly installed tools and accepts no hidden installation or unknown options', () => {
+await test('CLI requires explicitly installed tools and accepts no hidden installation or unknown options', () => {
   assert.throws(() => parseArguments([]), /ffmpeg.*ffprobe/);
   assert.throws(() => parseArguments(['--ffmpeg=x', '--ffprobe=y', '--install']), /Unknown/);
   assert.throws(() => parseArguments(['--ffmpeg=x', '--ffmpeg=z', '--ffprobe=y']), /Duplicate/);
   assert.deepEqual(parseArguments(['--ffmpeg=x', '--ffprobe=y', '--output=z']), { ffmpeg: 'x', ffprobe: 'y', output: 'z' });
 });
 
-test('generation refuses an existing output directory before attempting any executable', async () => {
+await test('generation refuses an existing output directory before attempting any executable', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'camery-delivery-refuse-'));
   try {
     await writeFile(path.join(directory, 'sentinel.txt'), 'keep user data');

@@ -63,7 +63,7 @@ export interface RejectedBible {
 }
 export class BibleError extends Error {
   override readonly name = 'BibleError';
-  constructor(readonly code: 'INVALID_INPUT'|'INPUT_LIMIT'|'INVALID_EVIDENCE'|'CONFLICT'|'FORBIDDEN'|'INCOMPLETE'|'MODEL_FAILED', readonly operation: string) {
+  constructor(readonly code: 'INVALID_INPUT'|'INPUT_LIMIT'|'INVALID_EVIDENCE'|'CONFLICT'|'FORBIDDEN'|'INCOMPLETE'|'MODEL_FAILED'|'NOT_FOUND'|'STORAGE_FAILED', readonly operation: string) {
     super(`StoryBible ${operation} failed (${code})`);
   }
 }

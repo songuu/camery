@@ -26,6 +26,7 @@
     "dev:web": "pnpm --filter @camery/web dev",
     "test:server:local": "node scripts/postgres-integration.mjs server",
     "test:ingest:local": "node scripts/postgres-integration.mjs ingest",
+    "test:bible:local": "node scripts/postgres-integration.mjs bible",
     "test:private-api:local": "node scripts/postgres-integration.mjs private-api",
     "test:private-worker:local": "node scripts/postgres-integration.mjs private-worker"
   },

@@ -20,6 +20,18 @@ function storedCheckpoint(snapshot: NovelSnapshot, input: unknown, readerId: str
     return checkpoint;
   } catch { throw new ImportError('STORAGE_FAILED', 'stored checkpoint'); }
 }
+/** Caller owns the transaction and source advisory lock; readers need no row-lock UPDATE privilege. */
+export async function readNovelSnapshotInTransaction(client: PoolClient, input: DocumentScope, lockRow = false): Promise<NovelSnapshot | undefined> {
+  const scope = documentScope(input);
+  const result = await client.query<{ snapshot: unknown; revision: string }>(`SELECT snapshot,revision::text FROM camery_ingest.documents WHERE tenant_id=$1 AND project_id=$2 AND document_id=$3${lockRow ? ' FOR UPDATE' : ''}`, keys(scope));
+  const row = result.rows[0];
+  if (!row) return undefined;
+  let state: NovelSnapshot;
+  try { state = validateNovelSnapshot(row.snapshot); } catch { throw new ImportError('STORAGE_FAILED', 'stored document'); }
+  if (state.tenantId !== scope.tenantId || state.projectId !== scope.projectId || state.documentId !== scope.documentId || String(state.revision) !== row.revision)
+    throw new ImportError('STORAGE_FAILED', 'stored scope');
+  return state;
+}
 /** Trusted application service only: supplied identities are not authentication or project grants. */
 export class PostgresDocumentStore {
   constructor(private readonly pool: Pool) {}
@@ -28,22 +40,11 @@ export class PostgresDocumentStore {
     return documentTransaction(this.pool, scope, action);
   }
 
-  private async load(client: PoolClient, scope: DocumentScope): Promise<NovelSnapshot | undefined> {
-    const result = await client.query<{ snapshot: unknown; revision: string }>('SELECT snapshot,revision::text FROM camery_ingest.documents WHERE tenant_id=$1 AND project_id=$2 AND document_id=$3 FOR UPDATE', keys(scope));
-    const row = result.rows[0];
-    if (!row) return undefined;
-    let state: NovelSnapshot;
-    try { state = validateNovelSnapshot(row.snapshot); } catch { throw new ImportError('STORAGE_FAILED', 'stored document'); }
-    if (state.tenantId !== scope.tenantId || state.projectId !== scope.projectId || state.documentId !== scope.documentId || String(state.revision) !== row.revision)
-      throw new ImportError('STORAGE_FAILED', 'stored scope');
-    return state;
-  }
-
   async append(input: unknown) {
     const command = captureNovelBatch(input);
     const scope = scopeFrom(command);
     return this.transaction(scope, async client => {
-      const previous = await this.load(client, scope);
+      const previous = await readNovelSnapshotInTransaction(client, scope, true);
       const result = appendNovelBatch(previous, command);
       if (!result.duplicate) await client.query('INSERT INTO camery_ingest.documents(tenant_id,project_id,document_id,revision,snapshot) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(tenant_id,project_id,document_id) DO UPDATE SET revision=EXCLUDED.revision,snapshot=EXCLUDED.snapshot', [...keys(scope), result.snapshot.revision, JSON.stringify(result.snapshot)]);
       return result;
@@ -55,7 +56,7 @@ export class PostgresDocumentStore {
     if (!parsed.success) throw new ImportError('INVALID_INPUT', 'read');
     const scope = scopeFrom(parsed.data);
     return this.transaction(scope, async client => {
-      const snapshot = await this.load(client, scope);
+      const snapshot = await readNovelSnapshotInTransaction(client, scope, true);
       if (!snapshot) throw new ImportError('NOT_FOUND', 'document');
       const row = await client.query<{ checkpoint: unknown }>('SELECT checkpoint FROM camery_ingest.reading_checkpoints WHERE tenant_id=$1 AND project_id=$2 AND document_id=$3 AND reader_id=$4', [...keys(scope), parsed.data.readerId]);
       const saved = row.rows[0];
@@ -68,7 +69,7 @@ export class PostgresDocumentStore {
     const command = captureReadingProgress(input);
     const scope = scopeFrom(command);
     return this.transaction(scope, async client => {
-      const snapshot = await this.load(client, scope);
+      const snapshot = await readNovelSnapshotInTransaction(client, scope, true);
       if (!snapshot) throw new ImportError('NOT_FOUND', 'document');
       const saved = await client.query<{ checkpoint: unknown }>('SELECT checkpoint FROM camery_ingest.reading_checkpoints WHERE tenant_id=$1 AND project_id=$2 AND document_id=$3 AND reader_id=$4 FOR UPDATE', [...keys(scope), command.readerId]);
       const existing = saved.rows[0];

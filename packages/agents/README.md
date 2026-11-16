@@ -9,7 +9,7 @@ pnpm test:agents:evals
 pnpm test:agents:local --coverage
 ```
 
-最后一条复用 [本机阶段 0 PostgreSQL](../../deploy/README.md) 配置；也可注入 CAMERY_TEST_DATABASE_URL 后运行包内 test:integration --coverage。缺少数据库 URL 明确失败，不跳过。集成测试只使用随机测试租户，实际创建日志、等待闸门、执行对账并杀子进程再恢复；模型/付费工具均为合成内存夹具，无供应商外呼或计费。CI 已配置同一数据库验收，远端尚未执行。
+最后一条复用 [本机阶段 0 PostgreSQL](../../deploy/README.md) 配置；也可注入 CAMERY_TEST_DATABASE_URL 后运行包内 test:integration --coverage。缺少数据库 URL 明确失败，不跳过。集成测试只使用随机测试租户，实际创建日志、等待闸门、执行对账并杀子进程再恢复；模型/付费工具均为合成内存夹具，无供应商外呼或计费。CI 已配置同一数据库验收，结果以对应提交的Actions为准。
 
 ## 注册与宿主权限
 
@@ -46,6 +46,8 @@ pricing 用 inputMicrosPerMillionTokens/outputMicrosPerMillionTokens 表示整�
 每个 span 记录稳定身份、输入/结果摘要、工具/driver pin、已知用量、预算占用及外部状态。管理检查点不计 Agent 行为步数；宿主应将 DurableWorker.maxSteps 配为 Agent 步数上限加管理步骤，包括 agent.bind、可选 budget.allocate，以及每个 Question 的额外入箱步骤（Question 闸门本身已占一个行为 span）。章节骨架默认上限 8，远低于 worker 默认 1000。工作流、驱动或 handler 逻辑变化必须显式升级版本，函数源码不作为摘要证明。
 
 模型 span 保存 ModelReceipt；其 callId 使用 durable 公共 stepIdempotencyKey，输入摘要由纯 requestDigest 与实际调用共享 prepare 构建。新执行、缓存或人工对账结果均核对调用身份、原始 API 请求/输出摘要、租户/连接/模式/模型/证据及用量；费用按锁定价格重算。恢复从保存结果重建消耗，不依赖 ModelSession 的进程计数。回执仍是受信宿主记录，不是远程签名证明。
+
+`createMethodDecisionDriver(agents,tools,agentPin,methods,methodPin,runner,sessionProfile,options)`让已有结构化方法完成一次finish决策。要求角色没有工具、只有该固定方法、档位和输出schema一致；请求摘要与实际MethodRunner共用`prepareStructuredGenerationRequest`。可信profile显式写入`receiptOutput:'finish-output'`，Runtime只接受finish并核对原始方法输出，不改写ModelReceipt；原driver缺省仍校验action封套。用量只由Runtime按现有整数计量规则累计一次，未知结果仍由durable对账。应用示例见[Bible逐块任务](../bible/POSTGRES.md)。
 
 ## 任务、问题与制片路径
 

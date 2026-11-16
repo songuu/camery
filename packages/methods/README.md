@@ -28,6 +28,8 @@ pnpm test:methods:evals
 
 `createStructuredGenerationExecutor(session)` 作为宿主工具 `method.generate` 注册给运行器，方法须声明该工具及非 deterministic 的 modelTier。方法正文/规则/卡片组成可信指令，来源及 few-shot 输入放入显式不可信数据封套，不把 eval 答案送给生成模型。输出仍经过 schema/规则校验，只产生候选；模型回执绑定租户、连接、模式、调用身份和输出摘要。live 调用标为付费/网络，合成回放标为只读/离线。
 
+`prepareStructuredGenerationRequest(pack,input)`是相同请求的纯编译器，返回messages/outputSchema及本地validate，不执行模型。执行器和Agent方法driver共用它绑定真实请求摘要，保持原协议字节及原始ModelReceipt；预算与恢复仍由外层Agent/durable宿主管理，不在编译器计费或重试。
+
 `LlmReviewer(registry, reviewerSession, {reviewerId}).review(subject, rubric, ctx)` 独立评审已有候选，评审模型身份与模式摘要均须不同于生产模型。rubric 给出版本、指标及 1/3/5 分锚点；一次结构化调用必须返回完整且不重复的指标、1–5 分和理由。subject 绑定租户、case、method pin、输入、输出及生产模型。模型身份和 evidence 来自受信宿主配置，不是供应商鉴真或防提示注入的质量保证。
 
 `createHumanReviewForm(registry, subject, rubric)` 只生成冻结表单，不生成评分。宿主保存 formDigest 后，由明确的 `submitHumanReview(form, {reviewerId, scores}, expectedFormDigest)` 提交完整分数与备注；返回 `human_record`。expectedFormDigest 必须来自可信存储，客户端传回的摘要不提供授权。本包未实现审片 UI、认证、表单持久化或真实人工验收。

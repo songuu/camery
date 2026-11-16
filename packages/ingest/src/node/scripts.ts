@@ -30,6 +30,12 @@ async function load(client: PoolClient, scope: DocumentScope) {
   const result = await client.query<StoredScript>('SELECT format,title,original,original_digest,document FROM camery_ingest.scripts WHERE tenant_id=$1 AND project_id=$2 AND document_id=$3', documentKeys(scope));
   return result.rows[0];
 }
+/** Same-client immutable source read; the caller owns the transaction and advisory lock. */
+export async function readScriptInTransaction(client: PoolClient, input: DocumentScope) {
+  const scope = documentScope(input); const row = await load(client,scope);
+  if (!row) throw new ImportError('NOT_FOUND','script');
+  return decode(row,scope);
+}
 function summary(input: unknown): SourceSummary {
   const parsed = z.strictObject({ documentId: DocumentIdentity.shape.documentId, title: DocumentTitle, kind: z.enum(['novel','script']),
     format: z.enum(['novel','fountain','csv','tsv','docx']), revision: z.number().int().positive().max(1024) }).safeParse(input);
@@ -69,10 +75,7 @@ export class PostgresScriptStore {
   }
   async read(input: unknown) {
     const scope = documentScope(input);
-    return documentTransaction(this.pool, scope, async client => {
-      const row = await load(client, scope); if (!row) throw new ImportError('NOT_FOUND', 'script');
-      return decode(row, scope);
-    });
+    return documentTransaction(this.pool, scope, client => readScriptInTransaction(client,scope));
   }
   async list(input: unknown): Promise<SourceList> {
     const parsed = Listing.safeParse(input);

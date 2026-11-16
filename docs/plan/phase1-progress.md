@@ -7,7 +7,7 @@
 | 任务 | 状态 / 前置 |
 |---|---|
 | T1.1 小说/剧本导入 | 小说、Fountain/CSV/TSV/DOCX的核心、认证HTTP及来源工作台已实测；批次幂等、独立游标、低权限运行及重启恢复通过；旧DOC/XLSX待后续范围确认 |
-| T1.2 StoryBible | [候选领域与单块模型适配](storybible-phase1.md)已实现并做合成协议验收；分块/合并建议/引文/受信确认函数通过；持久化任务、API/审阅页及真实文本模型质量待接入 |
+| T1.2 StoryBible | [领域与持久化预算任务](storybible-phase1.md)已通过合成协议及真实PG恢复；来源/候选/审阅存档、一块一任务、预算与SIGKILL恢复已验；认证API/审阅页、常驻宿主接线及真实文本模型质量待完成 |
 | T1.3 创意开发 | 待开发方法与候选契约 |
 | T1.4 五件套/题材配方 | 待T1.2/T1.3；首批3类、分集地图 |
 | T1.5 圣经四本账/快照 | 待T1.2/T1.4及版本域接入 |
@@ -79,3 +79,22 @@
 - 复审关闭并保留实际红→绿：大逻辑JSON在预算前展开、计划getter执行/异常外泄、数组Proxy改变length放大稀疏结果、畸形模型返回丢失outcome、累计块记录/投影预算晚检查。数据先有界快照再序列化；只使用捕获一次的数组长度，原始与投影预算各自检查。核心/TypeScript/安全复审已分别覆盖相关范围。
 - 本轮没有数据库迁移或运行配置变更，也未触碰现有ComfyUI、来源数据或用户其他方案文档。下一增量接现有预算/durable与来源存储，完成逐块持久化/恢复及认证审阅应用，再做真实文本模型和人审验收。编辑器、法务和设计伙伴确认仍后补；阶段1整体未完成。
 - 本机最终日志`%TEMP%/camery-phase1-bible-check-final2-20261116.log`，SHA-256 `e1553e762406f4cf892b53219ad5cae3bd0f70d240aac9242d2d2baf6bf86322`。远端CI以该轮最终提交的实际Actions结果为准。
+
+### T1.2 持久化与预算任务恢复（2026-11-16）
+
+- [`@camery/bible/node`](../../packages/bible/POSTGRES.md)新增显式checksum迁移及runs/chunks/candidates/reviews四类追加记录。同一连接先取来源锁再取run锁；来源helper只SELECT并复用既有codec，当前来源改变不能被首次确认，既有同身份/语义重试重授权后只返回原审计。运行账号与installer、auth/source写账号分离。
+- 每块一个实际durable task，任务仅有run/chunk/digest引用。固定方法请求编译器供实际调用与journal摘要共用；新可信driver显式校raw finish-output回执，旧缺省action封套不变。AgentRuntime单次计量、每块一份预算，BigInt核整次份额上限；阻塞/未知没有record就不会自动排下一块。
+- 真实PG：在模型decision实际提交后强杀自身子进程，以新pool/worker恢复并断言provider调用0；record提交后丢确认幂等恢复、预算不重复预留；unknown保持reconciling，只有显式operator完整回执对账后继续，仍不重发。unknown期间追加来源，恢复仍保留旧快照已付结果，后续pump停止stale。
+- 最终`pnpm check`退出0：2229项 = 20工具 + 12包普通2209；414文件策略零问题，lint、12包类型检查通过（11缓存、1实际），12包覆盖率全部实际执行且0缓存；6章节黄金案例与10 Agent基线不变。Bible普通255项、四项覆盖98.81/97.54/99.21/100%。工具链类型可见性变化暴露已有Node测试Promise，5份测试文件20个顶层调用显式await，所有断言/超时/负例保持原样。
+- 独立真实PG总数：Bible262 = 普通255 + 专项7；ingest283 = 普通268 + 专项15；agents475 = 普通381 + 专项94。各自包含普通用例，不和整仓重复累加。对应四项覆盖：ingest99.50/98.79/99.15/100%，agents97.68/95.53/99.73/99.81%。
+- 核心、TS、DB和安全复审通过；补齐实际红→绿：saveChunk空输入边界；额外表/列/序列/schema CREATE共11类权限canary（只操作随机自有对象）；ACL函数CASE类型守卫，避免WHERE重排把表交给序列函数。所有测试随机租户/角色与canary已由自身cleanup清理，不更改用户对象或全局PUBLIC权限。
+- 本轮尚未启用新的常驻服务/API或配置真实文本模型。下一步实现run列表/宿主pump、认证来源到Bible的审阅应用与实际用户流程；真实模型质量、人审和阶段1整体条件仍未完成。ComfyUI图像能力不是文本抽取验收；编辑器、法务和设计伙伴确认继续后补。
+
+| 本机日志（`%TEMP%`） | SHA-256 |
+|---|---|
+| `camery-phase1-bible-persistence-check-final-20261116.log` | `a6655e98b51b6452845e74ac4f8be1bf59d90cc91fe9e113140fa9683b563bc6` |
+| `camery-phase1-bible-source-pg-20261116.log` | `acd76ae937e14bca6942cead952c84425f0df95cbcef58ed0ad48da5a56eb7f3` |
+| `camery-phase1-bible-role-green2-20261116.log` | `906a99c1706543b1abdebb2001d54763138bbc71132dfdb7834114392703fc67` |
+| `camery-phase1-bible-agents-pg-20261116.log` | `a03e390ab108dea07d0ed3a9d4fdb38ce08d92661705f69a5cd89076a24303d1` |
+
+远端新增Bible PG步骤，实际结果以最终提交的Actions为准，不用本机日志提前代替远端成功。
