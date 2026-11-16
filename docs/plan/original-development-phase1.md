@@ -68,3 +68,4 @@
 - 已关闭复审问题：getter验证前读取、schema USAGE转授权、引用侧FK索引，以及REPLICATION运行角色能力（真实PG先红后绿）。已有服务端构建子进程曾超时，最终整仓检查包含同一用例通过；没有提高超时或弱化断言。代码/TypeScript/安全复审通过。
 - 本机最终日志：`%TEMP%/camery-development-persistence-check-final.log` SHA-256 `b13301719a44b9b513cb10831c78568c1e4cf9222e4f6385eac0d181295613d9`；`%TEMP%/camery-development-persistence-pg-coverage-final.log` SHA-256 `412e7b5af3c7db18d2a526fccfa014366d601a3829ef63ce8cc1a6ca4bde0dc9`。远端结果以最终提交实际Actions为准。
 - 下一实施点为OD-6认证HTTP、可编辑工作台和配置型常驻宿主，须同时扫描未排空durable引用；之后继续OD-7正式开发对象/ChangeSet及真实文本模型质量。当前没有安装生产宿主，协议夹具不构成真实模型推理、账单或人工评分。编辑器、法务、设计伙伴后补；完整T1.3和阶段1均未判完成。
+- CI补验：`e5ba0cd`新增PG步骤因测试提前引用未安装的access表而失败；改为测试显式安装探针所需迁移、保持42501权限拒绝断言。独立随机空库完整252项与覆盖99.62/98.78/100/100%通过且清理自身库；测试不再依赖既有本机schema或CI套件顺序。日志`%TEMP%/camery-development-fresh-db-final.log` SHA-256 `88baacd7c72362a4cd46fb8edb128cf49cd74f639c29c1f1b3e863898121ca43`。

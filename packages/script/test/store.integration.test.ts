@@ -3,6 +3,9 @@ import { Pool } from 'pg';
 import { afterAll,beforeAll,expect,it } from 'vitest';
 import { MethodRegistry,MethodRunner,ModelSession,createStructuredGenerationExecutor } from '@camery/methods';
 import { OpenAiCompatibleLlm } from '@camery/model-modes';
+import { migrateAccess } from '@camery/access/node';
+import { migrateDurable } from '@camery/durable';
+import { migrateAgentBudgets } from '@camery/agents/node';
 import { createOriginalFoundationMethodPack,createOriginalEpisodesMethodPack } from '../src/method-assets.js';
 import { createFoundationCandidate,generateFoundation,generateEpisodes } from '../src/development.js';
 import { hash } from '../src/data.js';
@@ -18,7 +21,8 @@ const databaseUrl=process.env['CAMERY_TEST_DATABASE_URL'];if(!databaseUrl)throw 
 const pool=new Pool({connectionString:databaseUrl,max:6});const tenants:string[]=[];const story=episodeFixture();
 const registry=new MethodRegistry();const methods={foundation:registry.register(createOriginalFoundationMethodPack()),episodes:registry.register(createOriginalEpisodesMethodPack())};
 const execution={connectionId:'fixture',modeDigest:'a'.repeat(64),modelIdentity:'fixture/original',evidence:'synthetic_replay' as const,modelTier:'balanced' as const,currency:'CNY',reservation:{tokens:100,costMicros:0},limits:{steps:2,tokens:200,costMicros:0}};
-beforeAll(async()=>{await migrateDevelopment(pool);});
+// Permission probes must target real relations even on a fresh DB; do not depend on another suite's installation order.
+beforeAll(async()=>{await migrateDurable(pool);await migrateAgentBudgets(pool);await migrateAccess(pool);await migrateDevelopment(pool);});
 afterAll(async()=>{for(const tenantId of tenants)for(const table of ['reviews','candidates','runs','briefs'])await pool.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[tenantId]);await pool.end();});
 async function fixture(){
   const tenantId='development-store-'+randomUUID();tenants.push(tenantId);const scope={tenantId,projectId:'project'};const key={...scope,runId:'run'};const store=new PostgresDevelopmentStore(pool);

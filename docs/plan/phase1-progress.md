@@ -127,3 +127,4 @@
 - 复审关闭getter读取边界、schema USAGE转授权、FK引用侧索引及REPLICATION身份；最后一项真实PG先红复现再修绿。代码/TypeScript/安全复审通过。此前服务端构建子进程有一次超时，最终整仓同一用例通过，未放宽断言或超时。
 - 日志`%TEMP%/camery-development-persistence-check-final.log` SHA-256 `b13301719a44b9b513cb10831c78568c1e4cf9222e4f6385eac0d181295613d9`；`%TEMP%/camery-development-persistence-pg-coverage-final.log` SHA-256 `412e7b5af3c7db18d2a526fccfa014366d601a3829ef63ce8cc1a6ca4bde0dc9`。远端CI结果以最终提交的Actions为准。
 - 下一项是认证应用、工作台与常驻宿主，再继续正式开发IR/ChangeSet和真实文本模型质量。现有ComfyUI图像连接保持；未配置的真实文本供应方不能以协议夹具替代。完整T1.3与阶段1未完成；编辑器验收、法务签核、设计伙伴确认依用户安排后补。
+- 远端`e5ba0cd`在新增script PG步骤发现测试初始化顺序依赖：权限探针引用的认证表尚未安装，实际42P01而非预期42501。测试改为显式安装durable/预算/access/development迁移，保持42501断言；access仅测试依赖。随后新建独立随机空库完整252项及覆盖99.62/98.78/100/100%通过，结束清理该自有空库。日志`%TEMP%/camery-development-fresh-db-final.log` SHA-256 `88baacd7c72362a4cd46fb8edb128cf49cd74f639c29c1f1b3e863898121ca43`；最终远端CI以修复提交实际Actions为准。
