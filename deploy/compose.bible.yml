@@ -1,0 +1,17 @@
+# Add to compose.private.yml + compose.api.yml after explicit Bible/task role installation.
+# This overlay permits reading/reviewing existing candidates without enabling paid extraction.
+services:
+  api:
+    environment:
+      CAMERY_BIBLE_ENABLED: '1'
+      CAMERY_BIBLE_PROJECT_ID: ${CAMERY_BIBLE_PROJECT_ID:?Set the authorized Bible project}
+      CAMERY_BIBLE_DATABASE_URL_FILE: /run/secrets/bible_database_url
+      CAMERY_BIBLE_TASK_DATABASE_URL_FILE: /run/secrets/bible_task_database_url
+    secrets:
+      - bible_database_url
+      - bible_task_database_url
+secrets:
+  bible_database_url:
+    file: ${CAMERY_BIBLE_DATABASE_SECRET_FILE:?Set the restricted Bible URL secret file}
+  bible_task_database_url:
+    file: ${CAMERY_BIBLE_TASK_DATABASE_SECRET_FILE:?Set the restricted task URL secret file}

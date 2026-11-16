@@ -10,6 +10,11 @@
 !packages/access/tsconfig.json
 !packages/access/src/
 !packages/access/src/**
+!packages/bible/
+!packages/bible/package.json
+!packages/bible/tsconfig.json
+!packages/bible/src/
+!packages/bible/src/**
 !packages/agents/
 !packages/agents/package.json
 !packages/agents/tsconfig.json

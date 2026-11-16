@@ -9,6 +9,7 @@ dist/
 !.env.example
 !deploy/.env.api.example
 !deploy/.env.worker.example
+!deploy/.env.bible.example
 deploy/data/
 deploy/secrets/
 artifacts/delivery/

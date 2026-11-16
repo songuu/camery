@@ -31,3 +31,5 @@ pnpm check
 ```
 
 十章原创用例经真实OpenAI连接器的进程内协议夹具录制，再严格离线回放，覆盖分块→候选→明确分组→确认/拒绝。它不调用真实模型、不产生真实账单，也不证明真人确认。独立PG专项实际验证预算、SIGKILL、新连接恢复、丢确认及未知结果对账。现有ComfyUI实机出图能力与文本抽取模型是不同的验收项。
+
+`@camery/bible/http`提供浏览器安全的有界白名单契约；`/node`新增`PostgresBibleCatalog`、`projectBibleStatus`、`projectBibleRun`与`createBibleSourcePage`。目录/轮询只查询元信息，时间游标保留数据库微秒；完整详情必须先经store重建，引用读取run冻结源。认证API、显式审阅UI及独立最小权限常驻宿主见[接线与部署](../server/BIBLE-POSTGRES.md)。真实文本模型和人工质量验收仍需后补实际证据。

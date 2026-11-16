@@ -1,6 +1,6 @@
 # 来源工作台
 
-按[ADR-009](../../docs/adr/009-frontend-workbench.md)使用React、Vite、TanStack Query与内存Zustand。当前提供T1.1来源导入与续读页，不宣称已实现项目向导、StoryBible、剧本编辑/采用或完整账号管理。
+按[ADR-009](../../docs/adr/009-frontend-workbench.md)使用React、Vite、TanStack Query与内存Zustand。当前提供T1.1来源导入/续读，以及T1.2 StoryBible提取与审阅；项目向导、剧本编辑/采用和完整账号管理仍待实现。
 
 本地开发先启动已配置的API（3000端口），再运行`pnpm dev:web`（仅监听127.0.0.1:5173，`/api`固定代理到本机3000）；生产构建运行`pnpm --filter @camery/web build`，静态目录交给同源API提供。无外部字体、脚本CDN或遥测。
 
@@ -11,3 +11,7 @@
 来源列表每次加载50条；预览默认12000、最多20000个UTF-16单元与200个相交结构单元。上一段按服务端`before`边界返回紧邻前文，UTF-16代理对不被拆开；写入游标仍严格校验。所有正文均为React文本节点，不执行HTML/Markdown或来源中的指令。小说阅读游标只写当前认证用户；只读角色可保存自己的阅读位置，不能导入。Word暂支持DOCX正文，旧DOC/XLSX不支持。
 
 `pnpm --filter @camery/web test:coverage`检查HTTP客户端、会话与上传编排等纯TS逻辑；TSX视图由SSR边界测试和真实浏览器验收覆盖，不把纯TS覆盖率当作整页交互覆盖率。`pnpm --filter @camery/web typecheck`和`build`验证完整前端。
+
+知识页使用浏览器安全的`@camery/bible/http`白名单契约。按run读取记录、轻量轮询状态，再读取有界候选；点击引文打开该run冻结原文。默认每条实体独立保留，合并建议不自动执行；拒绝实体不会静默移除关联，必须显式取消或恢复。来源过期禁止首次确认但允许拒绝。草稿按run/candidate/review身份隔离，状态刷新不重置同候选编辑；来源页与知识页共享内存会话，403回到来源页显示权限错误。
+
+真实文本模型由[可信宿主](../server/BIBLE-POSTGRES.md)配置。未配置时可查看/审阅已有候选，禁止新提取；UI不接收供应方URL或密钥。知识确认与正式剧本采用分开。浏览器协议夹具用于功能验证，不证明真实推理质量或真人签核。

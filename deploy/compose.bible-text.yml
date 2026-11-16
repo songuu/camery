@@ -1,0 +1,47 @@
+# Add only when the trusted text profile, token, project budget and runtime roles are installed.
+services:
+  api:
+    environment:
+      CAMERY_BIBLE_TEXT_CONFIG_FILE: /run/secrets/bible_text_config
+      CAMERY_BIBLE_TEXT_TOKEN_FILE: /run/secrets/bible_text_token
+    secrets:
+      - bible_text_config
+      - bible_text_token
+  bible-worker:
+    image: camery-api:phase0
+    command: [node, bible-worker.mjs]
+    restart: on-failure:3
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 1g
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    environment:
+      CAMERY_TENANT_ID: ${CAMERY_TENANT_ID:?Set the deployment tenant}
+      CAMERY_BIBLE_ENABLED: '1'
+      CAMERY_BIBLE_PROJECT_ID: ${CAMERY_BIBLE_PROJECT_ID:?Set the authorized Bible project}
+      CAMERY_BIBLE_DATABASE_URL_FILE: /run/secrets/bible_database_url
+      CAMERY_BIBLE_TASK_DATABASE_URL_FILE: /run/secrets/bible_task_database_url
+      CAMERY_BIBLE_TEXT_CONFIG_FILE: /run/secrets/bible_text_config
+      CAMERY_BIBLE_TEXT_TOKEN_FILE: /run/secrets/bible_text_token
+      CAMERY_BIBLE_WORKER_ID: ${CAMERY_BIBLE_WORKER_ID:-bible-worker}
+      CAMERY_BIBLE_POLL_MS: ${CAMERY_BIBLE_POLL_MS:-1000}
+      CAMERY_BIBLE_RUNS_PER_ROUND: ${CAMERY_BIBLE_RUNS_PER_ROUND:-20}
+    secrets:
+      - bible_database_url
+      - bible_task_database_url
+      - bible_text_config
+      - bible_text_token
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Model timeout is capped at 280s; allow the bounded active task to finish before pools close.
+    stop_grace_period: 330s
+secrets:
+  bible_text_config:
+    file: ${CAMERY_BIBLE_TEXT_CONFIG_SECRET_FILE:?Set the trusted text configuration file}
+  bible_text_token:
+    file: ${CAMERY_BIBLE_TEXT_TOKEN_SECRET_FILE:?Set the text API token secret file}

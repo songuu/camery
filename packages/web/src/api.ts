@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { SourceListSchema, SourcePageSchema, AppendReceiptSchema, ScriptReceiptSchema } from '@camery/ingest/contracts';
 import type { SourceKind } from '@camery/ingest/contracts';
 import type { UploadFormat } from './view-types.js';
+import { BibleCapabilitiesSchema, BibleRunListSchema, BibleStatusSchema, BibleRunViewSchema, BibleStartSchema, BibleConfirmSchema, BibleRejectSchema, boundedBibleSchema } from '@camery/bible/http';
+import type { BibleStart, BibleConfirm } from '@camery/bible/http';
 const Id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
 const Me = z.strictObject({ tenantId: Id, userId: Id, grants: z.array(z.strictObject({ projectId: Id, role: z.string().min(1).max(32) })).max(10000) });
 export type Identity = z.infer<typeof Me>;
@@ -56,4 +58,24 @@ export class ApiClient {
     return this.request(`/projects/${id(projectId)}/novels/${id(documentId)}/checkpoint`,Progress,{ method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command) });
   }
   signOut() { return this.request<void>('/auth/sign-out',null,{method:'POST'}); }
+  bibleCapabilities(projectId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/bibles/capabilities`,BibleCapabilitiesSchema,signal?{signal}:{});}
+  bibleList(projectId:string,cursor?:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/bibles${cursor===undefined?'':`?cursor=${encodeURIComponent(cursor)}`}`,boundedBibleSchema(BibleRunListSchema),signal?{signal}:{});}
+  bibleStatus(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}/status`,BibleStatusSchema,signal?{signal}:{});}
+  bibleRead(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}`,boundedBibleSchema(BibleRunViewSchema),signal?{signal}:{});}
+  bibleSource(projectId:string,runId:string,target=0,signal?:AbortSignal,direction?:'before'){
+    if(!Number.isSafeInteger(target)||target<0)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}/source?${direction==='before'?'before':'offset'}=${target}`,SourcePageSchema,signal?{signal}:{});
+  }
+  bibleStart(projectId:string,command:BibleStart){
+    const parsed=BibleStartSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/bibles`,BibleStatusSchema,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  bibleConfirm(projectId:string,runId:string,decision:BibleConfirm){
+    const parsed=boundedBibleSchema(BibleConfirmSchema).safeParse(decision);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}/confirm`,boundedBibleSchema(BibleRunViewSchema),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  bibleReject(projectId:string,runId:string,reason:string){
+    const parsed=BibleRejectSchema.safeParse({reason});if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}/reject`,boundedBibleSchema(BibleRunViewSchema),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
 }

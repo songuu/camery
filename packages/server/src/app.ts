@@ -10,6 +10,9 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AccessError, AccessService, authorize, permissionsFor, type SessionStore } from '@camery/access';
 import fastifyStatic from '@fastify/static';
 import { ImportError } from '@camery/ingest';
+import { BibleError } from '@camery/bible';
+import { BibleModule } from './bible.js';
+import type { BibleApiOptions } from './bible-options.js';
 import { IngestModule } from './ingest.js';
 import type { SourceStores } from './ingest.js';
 import { POLICY, RequireAccess } from './policy.js';
@@ -19,7 +22,7 @@ export { RequireAccess } from './policy.js';
 const SERVICE = Symbol('camery.access.service');
 // Public access stays private to this module so new business routes must declare a policy.
 const Public = (): MethodDecorator => SetMetadata(POLICY, 'public');
-export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly frontendDirectory?: string }
+export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly bibles?:BibleApiOptions; readonly frontendDirectory?: string }
 
 class AccessGuard implements CanActivate {
   private readonly reflector = new Reflector();
@@ -56,6 +59,9 @@ class SafeErrors implements ExceptionFilter {
     } else if (error instanceof ImportError) {
       code = error.code;
       status = ({ INVALID_INPUT: 400, INPUT_LIMIT: 413, UNSUPPORTED_FORMAT: 415, MALFORMED_DOCUMENT: 422, CONFLICT: 409, NOT_FOUND: 404, STORAGE_FAILED: 503 } as const)[error.code];
+    } else if (error instanceof BibleError) {
+      code=error.code;
+      status=({INVALID_INPUT:400,INPUT_LIMIT:413,INVALID_EVIDENCE:422,CONFLICT:409,FORBIDDEN:403,INCOMPLETE:409,MODEL_FAILED:503,NOT_FOUND:404,STORAGE_FAILED:503} as const)[error.code];
     } else if (error instanceof HttpException) {
       status = error.getStatus(); code = status === 404 ? 'NOT_FOUND' : 'REQUEST_REJECTED';
     }
@@ -96,7 +102,7 @@ export class AccessModule {
 
 /** No trusting proxy identity, credential cookies, global user state or request/header logging. */
 export async function createApplication(options: AccessOptions): Promise<NestFastifyApplication> {
-  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : [])] }) class ApplicationModule {}
+  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : []),...(options.bibles?[BibleModule.register(options.bibles)]:[])] }) class ApplicationModule {}
   const app = await NestFactory.create<NestFastifyApplication>(ApplicationModule,
     new FastifyAdapter({ logger: false, trustProxy: false, bodyLimit: 16384, routerOptions: { maxParamLength: 512 }, genReqId: () => randomUUID() }),
     { logger: false, abortOnError: false });
@@ -104,12 +110,13 @@ export async function createApplication(options: AccessOptions): Promise<NestFas
   const fastify = app.getHttpAdapter().getInstance();
   if (options.sources) {
     fastify.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: 8_000_000 }, (_request, body, done) => done(null,body));
-    fastify.addHook('onRoute', route => {
+  }
+  fastify.addHook('onRoute', route => {
       route.bodyLimit = 16384;
       if (route.url === '/api/v1/projects/:projectId/novels/:documentId/batches' && route.method === 'POST') route.bodyLimit = 6_100_000;
       if (route.url === '/api/v1/projects/:projectId/scripts/:documentId/:format' && route.method === 'PUT') route.bodyLimit = 8_000_000;
-    });
-  }
+      if (route.url === '/api/v1/projects/:projectId/bibles/:runId/confirm' && route.method === 'POST') route.bodyLimit = 2_097_152;
+  });
   if (options.frontendDirectory) await app.register(fastifyStatic, { root: options.frontendDirectory, wildcard: false, index: ['index.html'], cacheControl: false });
   await app.init(); await app.getHttpAdapter().getInstance().ready();
   return app;

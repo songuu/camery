@@ -171,9 +171,12 @@ it('rejects oversized stored raw records and stops new writes before the aggrega
 });
 it('applies a checksum-verified explicit migration once and rejects changed history',async()=>{
   const db=database();await migrateBible(db.pool);const checksum=textHash(readFileSync(new URL('../src/node/migrations/0001-bible.sql',import.meta.url),'utf8'));
-  const existing=database({migrations:[{version:1,checksum}]});await migrateBible(existing.pool);expect(existing.query.mock.calls.some(([sql])=>sql.startsWith('INSERT INTO camery_bible.migrations'))).toBe(false);
+  const secondChecksum=textHash(readFileSync(new URL('../src/node/migrations/0002-catalog.sql',import.meta.url),'utf8'));
+  const partial=database({migrations:[{version:1,checksum}]});await migrateBible(partial.pool);expect(partial.query.mock.calls.filter(([sql])=>sql.startsWith('INSERT INTO camery_bible.migrations'))).toHaveLength(1);
+  const existing=database({migrations:[{version:1,checksum},{version:2,checksum:secondChecksum}]});await migrateBible(existing.pool);expect(existing.query.mock.calls.some(([sql])=>sql.startsWith('INSERT INTO camery_bible.migrations'))).toBe(false);
   await expect(migrateBible(database({migrations:[{version:1,checksum:'bad'}]}).pool)).rejects.toMatchObject({code:'CONFLICT'});
   await expect(migrateBible(database({migrations:[{version:2,checksum}]}).pool)).rejects.toMatchObject({code:'CONFLICT'});
+  await expect(migrateBible(database({migrations:[{version:1,checksum},{version:2,checksum:secondChecksum},{version:3,checksum}]}).pool)).rejects.toMatchObject({code:'CONFLICT'});
 });
 it.each(['BEGIN','SELECT pg_advisory','CREATE SCHEMA','SELECT version','CREATE TABLE camery_bible.runs','COMMIT'])('redacts migration %s failure',async fail=>{
   const db=database({fail:[fail]});await expect(migrateBible(db.pool)).rejects.toMatchObject({code:'STORAGE_FAILED'});expect(db.release).toHaveBeenCalledOnce();

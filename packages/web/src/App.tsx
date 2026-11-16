@@ -6,6 +6,7 @@ import { ApiClient, ApiError } from './api.js';
 import { createSessionStore } from './session.js';
 import { appendPreparedNovel, prepareSourceFile, UploadError } from './uploads.js';
 import { ImportWorkbench } from './ImportWorkbench.js';
+import { BiblePane } from './BiblePane.js';
 import type { UploadFormat } from './view-types.js';
 
 const session = createSessionStore();
@@ -22,6 +23,7 @@ function messageFor(error: unknown): string {
 export function App() {
   const state = useStore(session); const cache = useQueryClient();
   const [projectId,setProject] = useState(''); const [format,setFormat] = useState<UploadFormat>('novel');
+  const [tab,setTab]=useState<'sources'|'bible'>('sources');
   const [selected,setSelected] = useState<SourceSummary|null>(null); const [offset,setOffset] = useState<number|undefined>();
   const [before,setBefore] = useState<number|undefined>();
   const [busy,setBusy] = useState<string|null>(null); const [progress,setProgress] = useState<number|null>(null);
@@ -45,7 +47,7 @@ export function App() {
     if (problem instanceof ApiError && problem.code === 'CANCELLED' || problem instanceof UploadError && problem.code === 'CANCELLED') return;
     if (problem instanceof ApiError && problem.code === 'UNAUTHENTICATED') clear();
     if (problem instanceof ApiError && problem.code === 'FORBIDDEN') {
-      operation.current++; setProject(''); setSelected(null); setBusy(null); setProgress(null); setMessage(null);
+      operation.current++; setTab('sources');setProject(''); setSelected(null); setBusy(null); setProgress(null); setMessage(null);
       void cache.cancelQueries(); cache.clear();
     }
     setError(messageFor(problem));
@@ -114,11 +116,17 @@ export function App() {
     } catch (problem) { if(active())failure(problem); }
     finally { if(active())setBusy(null); }
   };
-  return <ImportWorkbench key={`${state.generation}:${projectId}`} connected={!!state.client} projectId={projectId}
+  return <>{state.client&&<nav aria-label="工作台" style={{display:'flex',gap:12,padding:'12px 24px',flexWrap:'wrap'}}>
+    <button type="button" aria-pressed={tab==='sources'} onClick={()=>setTab('sources')}>来源与阅读</button>
+    <button type="button" aria-pressed={tab==='bible'} onClick={()=>setTab('bible')}>知识提取与审阅</button>
+    {tab==='bible'&&<button type="button" onClick={()=>{void disconnect();}}>断开工作区</button>}
+  </nav>}<div style={{display:tab==='sources'||!state.client?'block':'none'}}><ImportWorkbench key={`${state.generation}:${projectId}`} connected={!!state.client} projectId={projectId}
     projects={(state.identity?.grants??[]).map(grant=>({id:grant.projectId,canImport:grant.projectId===projectId && canImport}))}
     sources={sources.data ? {items:sources.data.pages.flatMap(part=>part.items),nextCursor:sources.data.pages.at(-1)?.nextCursor??null}:null}
     page={page} format={format} busy={busy??(reading.isFetching?'正在读取来源':sources.isFetching?'正在读取来源列表':null)} progress={progress}
     error={error} message={message} canImport={canImport} onConnect={token=>{void connect(token);}} onDisconnect={()=>{void disconnect();}}
     onProject={chooseProject} onFormat={setFormat} onFile={(file,append)=>{void upload(file,append);}} onOpen={chooseSource} onRead={read}
-    onPrevious={previous} onCheckpoint={()=>{void save(page);}} onMore={()=>{void sources.fetchNextPage();}}/>;
+    onPrevious={previous} onCheckpoint={()=>{void save(page);}} onMore={()=>{void sources.fetchNextPage();}}/></div>
+    {state.client&&projectId&&<div style={{display:tab==='bible'?'block':'none'}}><BiblePane key={`${state.generation}:${projectId}`} client={state.client} generation={state.generation} projectId={projectId}
+      permissions={permission.data?.permissions??[]} startSource={page} onFailure={failure}/></div>}</>;
 }
