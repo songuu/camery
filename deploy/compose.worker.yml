@@ -1,0 +1,33 @@
+# Select with compose.private.yml after provisioning a trusted tree and its project budget.
+services:
+  worker:
+    image: camery-api:phase0
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    command: [node, worker.mjs]
+    restart: on-failure:3
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    environment:
+      CAMERY_TENANT_ID: ${CAMERY_TENANT_ID:?Set the deployment tenant}
+      CAMERY_DATABASE_URL_FILE: /run/secrets/worker_database_url
+      CAMERY_WORKER_PROJECT_ID: ${CAMERY_WORKER_PROJECT_ID:?Set the authorized worker project}
+      CAMERY_WORKER_TREE_ID: ${CAMERY_WORKER_TREE_ID:?Set the authorized worker tree}
+      CAMERY_WORKER_ID: ${CAMERY_WORKER_ID:?Set a stable worker identity}
+    secrets:
+      - worker_database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+secrets:
+  worker_database_url:
+    file: ${CAMERY_WORKER_DATABASE_SECRET_FILE:?Set the restricted worker URL secret file}

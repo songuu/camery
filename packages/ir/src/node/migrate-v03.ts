@@ -151,7 +151,9 @@ export function migrateV03(input: unknown, options: MigrationOptions = {}): Migr
     return row;
   }
   const active = need(old.revisions, old.active_revision_id, '/active_revision_id');
-  need(old.revisions, old.adopted_revision_id, '/adopted_revision_id');
+  const adopted = need(old.revisions, old.adopted_revision_id, '/adopted_revision_id');
+  if (adopted && adopted.status !== 'adopted') issue('LEGACY_ADOPTION', '/adopted_revision_id', 'Adopted pointer must identify an adopted revision');
+  if (active?.status === 'adopted' && old.adopted_revision_id !== active.id) issue('LEGACY_ADOPTION', '/active_revision_id', 'Adopted active revision must match the adopted pointer');
   old.revisions.forEach((r, i) => {
     const parent = need(old.revisions, r.parent_revision_id, `/revisions/${i}/parent_revision_id`);
     if (parent && parent.number >= r.number) issue('LEGACY_REVISION', `/revisions/${i}`, 'Revision ancestry must increase strictly');
@@ -161,6 +163,9 @@ export function migrateV03(input: unknown, options: MigrationOptions = {}): Migr
   old.scene_occurrences.forEach(s => {
     need(old.episodes, s.episode_id, `/scene_occurrences/${s.id}/episode_id`); need(old.locations, s.location_id, `/scene_occurrences/${s.id}/location_id`);
     s.character_ids.forEach(id => need(old.characters, id, `/scene_occurrences/${s.id}/character_ids`));
+  });
+  old.episodes.forEach((episode, index) => {
+    if (!old.scene_occurrences.some(scene => scene.episode_id === episode.id)) issue('LEGACY_EPISODE_EMPTY', `/episodes/${index}`, 'Legacy episode must contain a scene occurrence');
   });
   old.beats.forEach(b => {
     need(old.scene_occurrences, b.scene_id, `/beats/${b.id}/scene_id`);
@@ -172,13 +177,19 @@ export function migrateV03(input: unknown, options: MigrationOptions = {}): Migr
     need(old.characters, l.speaker_id, `/dialogue_lines/${l.id}/speaker_id`);
     if (b && b.scene_id !== l.scene_id || s && !s.character_ids.includes(l.speaker_id)) issue('LEGACY_OWNERSHIP', `/dialogue_lines/${l.id}`, 'Legacy line scene/speaker does not match canonical content');
   });
-  old.asset_references.forEach(r => need(old.assets, r.asset_id, `/asset_references/${r.id}/asset_id`));
+  old.asset_references.forEach(r => {
+    const asset = need(old.assets, r.asset_id, `/asset_references/${r.id}/asset_id`);
+    if (asset && (r.mode === 'actual') !== (asset.status === 'ready')) issue('LEGACY_ASSET_READINESS', `/asset_references/${r.id}`, 'Legacy reference mode must agree with declared material readiness');
+  });
   old.shots.forEach(s => {
     need(old.scene_occurrences, s.scene_id, `/shots/${s.id}/scene_id`);
     s.beat_refs.forEach(id => { const b = need(old.beats, id, `/shots/${s.id}/beat_refs`); if (b && b.scene_id !== s.scene_id) issue('LEGACY_OWNERSHIP', `/shots/${s.id}`, 'Shot beat belongs to another scene'); });
     s.asset_ref_ids.forEach(id => need(old.asset_references, id, `/shots/${s.id}/asset_ref_ids`));
   });
-  old.panels.forEach(p => { need(old.shots, p.shot_id, `/panels/${p.id}/shot_id`); need(old.asset_references, p.asset_ref_id, `/panels/${p.id}/asset_ref_id`); });
+  old.panels.forEach(p => {
+    need(old.shots, p.shot_id, `/panels/${p.id}/shot_id`); const ref = need(old.asset_references, p.asset_ref_id, `/panels/${p.id}/asset_ref_id`);
+    if (p.status === 'ready' && (!ref || ref.mode !== 'actual')) issue('LEGACY_PANEL_READINESS', `/panels/${p.id}`, 'Ready legacy panel must declare an actual image reference');
+  });
   old.audio_cues.forEach(c => {
     need(old.audio_tracks, c.track_id, `/audio_cues/${c.id}/track_id`); need(old.scene_occurrences, c.scene_id, `/audio_cues/${c.id}/scene_id`);
     c.episode_ids.forEach(id => need(old.episodes, id, `/audio_cues/${c.id}/episode_ids`));
@@ -195,22 +206,101 @@ export function migrateV03(input: unknown, options: MigrationOptions = {}): Migr
       return add(duration, subtract(overlap.end, overlap.start));
     }, seconds(0));
     if (compare(covered, seconds(c.timing.duration_seconds)) !== 0) issue('LEGACY_TIMING', `/audio_cues/${c.id}`, 'Cue cannot lose time outside declared episodes during migration');
+    const scene = sceneById.get(c.scene_id ?? '');
+    if (scene && !c.episode_ids.includes(scene.episode_id)) issue('LEGACY_OWNERSHIP', `/audio_cues/${c.id}/scene_id`, 'Cue does not include its associated scene episode');
+    for (const id of c.beat_refs) {
+      const beat = beatById.get(id);
+      if (c.scene_id !== null && beat && beat.scene_id !== c.scene_id) issue('LEGACY_OWNERSHIP', `/audio_cues/${c.id}/beat_refs`, 'Cue beat belongs to another scene');
+    }
+    for (const id of c.shot_refs) {
+      const shot = old.shots.find(row => row.id === id);
+      if (!shot) continue;
+      const overlap = intersect(cueInterval, interval(shot.timing));
+      if (compare(overlap.end, overlap.start) <= 0) issue('LEGACY_AUDIO_SHOT', `/audio_cues/${c.id}/shot_refs`, 'Referenced shot does not intersect the cue');
+      if (c.scene_id !== null && shot.scene_id !== c.scene_id) issue('LEGACY_OWNERSHIP', `/audio_cues/${c.id}/shot_refs`, 'Cue shot belongs to another scene');
+    }
     if (c.line_id !== undefined) {
       const l = need(old.dialogue_lines, c.line_id, `/audio_cues/${c.id}/line_id`);
       if (l && (l.text !== c.text || l.kind !== c.kind || l.speaker_id !== c.speaker_id || l.scene_id !== c.scene_id || !c.beat_refs.includes(l.beat_id))) issue('LEGACY_AUDIO_SCRIPT', `/audio_cues/${c.id}`, 'Cue duplicates disagree with canonical dialogue line');
     }
   });
+  const visualUses = new Map<string, number>();
+  const targetCues = { video: new Set<string>(), audio: new Set<string>() };
   old.render_segments.forEach(s => {
     if (!old.project.targets.includes(s.media_type)) issue('LEGACY_TARGET', `/render_segments/${s.id}`, 'Segment modality is not a declared target');
     s.shot_ids.forEach(id => need(old.shots, id, `/render_segments/${s.id}/shot_ids`)); s.audio_cue_ids.forEach(id => need(old.audio_cues, id, `/render_segments/${s.id}/audio_cue_ids`));
-    s.required_asset_ref_ids.forEach(id => need(old.asset_references, id, `/render_segments/${s.id}/required_asset_ref_ids`)); need(old.assets, s.output_asset_id, `/render_segments/${s.id}/output_asset_id`);
+    const refs = s.required_asset_ref_ids.map(id => need(old.asset_references, id, `/render_segments/${s.id}/required_asset_ref_ids`));
+    const output = need(old.assets, s.output_asset_id, `/render_segments/${s.id}/output_asset_id`);
+    s.audio_cue_ids.forEach(id => targetCues[s.media_type].add(id));
+    if (s.media_type === 'video') {
+      s.shot_ids.forEach(id => visualUses.set(id, (visualUses.get(id) ?? 0) + 1));
+      const shots = s.shot_ids.map(id => old.shots.find(row => row.id === id)).filter(row => row !== undefined);
+      if (shots.some((shot, index) => index > 0 && shot.sequence !== shots[index - 1]!.sequence + 1)) issue('LEGACY_SEGMENT_ORDER', `/render_segments/${s.id}/shot_ids`, 'Legacy video grouping must remain consecutive and ordered');
+      const group = interval(s.timing);
+      for (const shot of shots) {
+        const span = interval(shot.timing);
+        if (compare(span.start, group.start) < 0 || compare(span.end, group.end) > 0) issue('LEGACY_SEGMENT_TIMING', `/render_segments/${s.id}/shot_ids`, 'Legacy segment must contain its assigned shot intervals');
+      }
+    }
+    for (const id of s.audio_cue_ids) {
+      const cue = old.audio_cues.find(row => row.id === id);
+      if (!cue) continue;
+      const overlap = intersect(interval(cue.timing), interval(s.timing));
+      if (compare(overlap.end, overlap.start) <= 0) issue('LEGACY_SEGMENT_TIMING', `/render_segments/${s.id}/audio_cue_ids`, 'Assigned cue does not intersect the legacy segment');
+    }
+    if (s.status === 'ready' || s.status === 'produced') {
+      if (refs.some(ref => ref !== undefined && ref.mode !== 'actual')) issue('LEGACY_SEGMENT_READINESS', `/render_segments/${s.id}/required_asset_ref_ids`, 'Ready segment prerequisites must be declared actual');
+    }
+    // This checks declaration consistency only; reset_readiness still cannot authenticate any file.
+    if (s.status === 'produced' && (!output || output.status !== 'ready' || output.media_type !== s.media_type)) issue('LEGACY_SEGMENT_OUTPUT', `/render_segments/${s.id}/output_asset_id`, 'Produced output must declare ready material of the matching modality');
   });
-  old.adaptation_decisions.forEach(d => [...d.affected_beat_ids, ...d.replacement_beat_ids].forEach(id => need(old.beats, id, `/adaptation_decisions/${d.id}`)));
+  if (old.project.targets.includes('video')) {
+    if (!old.shots.length) issue('LEGACY_TARGET_EMPTY', '/shots', 'Legacy video target needs a visual plan');
+    old.shots.forEach(shot => { if (visualUses.get(shot.id) !== 1) issue('LEGACY_SHOT_DELIVERY', `/shots/${shot.id}`, 'Legacy shot must belong to exactly one video group before conversion'); });
+  }
+  if (old.project.targets.includes('audio') && !targetCues.audio.size) issue('LEGACY_TARGET_EMPTY', '/render_segments', 'Legacy audio target needs an audio delivery group');
+  old.audio_cues.forEach(cue => { if (!targetCues.video.has(cue.id) && !targetCues.audio.has(cue.id)) issue('UNASSIGNED_CUE', `/audio_cues/${cue.id}`, 'Legacy cue has no declared rendition membership'); });
+  old.adaptation_decisions.forEach(d => {
+    [...d.affected_beat_ids, ...d.replacement_beat_ids].forEach(id => need(old.beats, id, `/adaptation_decisions/${d.id}`));
+    if (d.affected_beat_ids.some(id => d.replacement_beat_ids.includes(id))) issue('LEGACY_DECISION_CYCLE', `/adaptation_decisions/${d.id}`, 'An adaptation replacement cannot directly replace itself');
+  });
+  const coverage = new Map<string, Legacy['coverage'][number]>();
   old.coverage.forEach((c, i) => {
-    need(old.beats, c.beat_id, `/coverage/${i}/beat_id`); need(old.adaptation_decisions, c.decision_id, `/coverage/${i}/decision_id`);
+    need(old.beats, c.beat_id, `/coverage/${i}/beat_id`); const decision = need(old.adaptation_decisions, c.decision_id, `/coverage/${i}/decision_id`);
+    if (coverage.has(c.beat_id)) issue('LEGACY_COVERAGE', `/coverage/${i}`, 'A beat has more than one legacy coverage declaration');
+    coverage.set(c.beat_id, c);
+    if (decision && !decision.affected_beat_ids.includes(c.beat_id)) issue('LEGACY_COVERAGE', `/coverage/${i}/decision_id`, 'Coverage decision does not cover this beat');
     c.shot_ids.forEach(id => { const s = need(old.shots, id, `/coverage/${i}/shot_ids`); if (s && !s.beat_refs.includes(c.beat_id)) issue('LEGACY_COVERAGE', `/coverage/${i}`, 'Declared coverage differs from shot content'); });
     c.audio_cue_ids.forEach(id => { const a = need(old.audio_cues, id, `/coverage/${i}/audio_cue_ids`); if (a && !a.beat_refs.includes(c.beat_id)) issue('LEGACY_COVERAGE', `/coverage/${i}`, 'Declared coverage differs from cue content'); });
   });
+  for (const [rows, field] of [[old.shots, 'shot_ids'], [old.audio_cues, 'audio_cue_ids']] as const) for (const row of rows) for (const beat of row.beat_refs) {
+    const declared = coverage.get(beat);
+    if (declared && !declared[field].includes(row.id)) issue('LEGACY_COVERAGE', `/coverage/${beat}/${field}`, 'Content edge is absent from its legacy coverage ledger');
+  }
+  // Resolve approved replacements iteratively: cycles without direct coverage cannot manufacture coverage.
+  for (const target of old.project.targets) {
+    const covered = new Set(old.coverage.filter(row => target === 'video'
+      ? row.shot_ids.some(id => (visualUses.get(id) ?? 0) > 0) || row.audio_cue_ids.some(id => targetCues.video.has(id))
+      : row.audio_cue_ids.some(id => targetCues.audio.has(id))).map(row => row.beat_id));
+    let previous: number;
+    do {
+      previous = covered.size;
+      for (const row of old.coverage) {
+        const decision = old.adaptation_decisions.find(d => d.id === row.decision_id);
+        if (decision?.status === 'approved' && decision.affected_beat_ids.includes(row.beat_id) && (decision.action === 'omit' || decision.replacement_beat_ids.every(id => covered.has(id)))) covered.add(row.beat_id);
+      }
+    } while (covered.size !== previous);
+    old.beats.forEach(beat => { if (beat.required && !covered.has(beat.id)) issue('LEGACY_COVERAGE', `/coverage/${beat.id}`, `Required beat lacks legacy ${target} delivery coverage`); });
+  }
+  if (old.export.status === 'render_ready' || old.export.status === 'exported') {
+    if (active?.status !== 'adopted' || old.adopted_revision_id !== old.active_revision_id) issue('LEGACY_EXPORT_READINESS', '/export/status', 'Ready handoff needs an adopted active revision');
+    const used = new Set([...old.shots.flatMap(row => row.asset_ref_ids), ...old.audio_cues.flatMap(row => row.asset_ref_ids), ...old.render_segments.flatMap(row => row.required_asset_ref_ids), ...old.panels.flatMap(panel => panel.asset_ref_id === null ? [] : [panel.asset_ref_id])]);
+    for (const id of used) {
+      const ref = old.asset_references.find(row => row.id === id);
+      if (ref && ref.mode !== 'actual') issue('LEGACY_EXPORT_READINESS', `/asset_references/${id}`, 'Ready handoff cannot consume a planned prerequisite');
+    }
+    if (old.export.unsupported_features.length) issue('LEGACY_EXPORT_LOSS', '/export/unsupported_features', 'Ready handoff must resolve declared unsupported features');
+  }
   const count = old.project.scope;
   if (count.expected_episode_count !== old.episodes.length || count.expected_scene_count !== old.scene_occurrences.length || count.expected_required_beat_count !== old.beats.filter(b => b.required).length)
     issue('LEGACY_SCOPE', '/project/scope', 'Declared scope differs from legacy contents');

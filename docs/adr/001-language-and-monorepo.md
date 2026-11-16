@@ -19,3 +19,7 @@
 - 后续媒体服务集成：TS 调用端与 Python 服务通过正常、非法输入及错误上下文的契约测试；构建缓存不能掩盖依赖变更。
 
 关联：[ADR-006](006-ir-and-versioning.md)、[ADR-010](010-media-processing.md)。
+
+## 阶段 0 实施证据
+
+根任务已由 [Turborepo 配置](../../turbo.json)和[统一入口](../../scripts/workspace.mjs)编排。类型检查按上游依赖传播缓存键，仅使用本地缓存，运行环境及包外内容输入显式登记；测试、覆盖率、评测及含本机依赖链接的 API 构建每次执行。实际缓存命中/失效与失败不缓存由[隔离探针](../../scripts/workspace-cache.test.mjs)核对，实际 API/worker 构建另行执行。未启用远端缓存，也不把缓存重放当作数据库/模型/容器重新验收；具体当轮结果见[阶段 0 进展](../plan/phase0-progress.md)。

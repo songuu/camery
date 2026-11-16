@@ -3,14 +3,33 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.3.4",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22.15.0"
+  },
   "scripts": {
-    "lint": "node scripts/source-policy.mjs",
+    "lint": "pnpm lint:policy && pnpm lint:code",
+    "lint:policy": "node scripts/source-policy.mjs",
+    "lint:code": "oxlint --config .oxlintrc.json --deny-warnings --report-unused-disable-directives-severity error packages scripts",
     "test:tooling": "node --test scripts/*.test.mjs",
-    "test": "pnpm test:tooling && pnpm -r test",
-    "test:coverage": "pnpm test:tooling && pnpm -r test:coverage",
-    "typecheck": "pnpm -r typecheck",
-    "check": "pnpm lint && pnpm typecheck && pnpm test:coverage",
-    "test:durable:local": "node scripts/durable-integration.mjs"
+    "test": "pnpm test:tooling && node scripts/workspace.mjs test",
+    "test:coverage": "pnpm test:tooling && node scripts/workspace.mjs test:coverage",
+    "typecheck": "node scripts/workspace.mjs typecheck",
+    "build": "node scripts/workspace.mjs build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:methods:evals && pnpm test:agents:evals",
+    "test:agents:evals": "node scripts/workspace.mjs eval:check --filter=@camery/agents",
+    "test:methods:evals": "node scripts/workspace.mjs eval:check --filter=@camery/methods",
+    "test:durable:local": "node scripts/postgres-integration.mjs durable",
+    "test:versioning:local": "node scripts/postgres-integration.mjs versioning",
+    "test:agents:local": "node scripts/postgres-integration.mjs agents",
+    "test:access:local": "node scripts/postgres-integration.mjs access",
+    "start:api": "pnpm --filter @camery/server start",
+    "test:server:local": "node scripts/postgres-integration.mjs server",
+    "test:private-api:local": "node scripts/postgres-integration.mjs private-api",
+    "test:private-worker:local": "node scripts/postgres-integration.mjs private-worker"
+  },
+  "devDependencies": {
+    "oxlint": "1.93.0",
+    "oxlint-tsgolint": "7.0.2006",
+    "turbo": "2.11.10"
   }
 }

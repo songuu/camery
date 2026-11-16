@@ -1,6 +1,7 @@
 import { ChangeSet, StableId, StoryboardPackage, validatePackage } from '@camery/ir';
 import { evaluate } from './evaluate';
 import { VersioningError } from './errors';
+import { synchronousGrant } from './grants';
 import { historicalIds, jsonSignature, nextVersion, objects } from './objects';
 import type { LocatedObject } from './objects';
 import type { AdoptOptions, AdoptionScope, ChangeResult, ChangeStatus, StoredChange, SubmitOptions, VersionIssue, VersionState } from './types';
@@ -52,7 +53,7 @@ function authorized(state: VersionState, options: AdoptOptions): ChangeResult | 
   if (typeof options.at !== 'string' || !Number.isFinite(Date.parse(options.at)) || new Date(options.at).toISOString() !== options.at)
     return failure(state, 'ADOPTION_TIME', '/at', 'Host must supply a canonical UTC timestamp');
   try {
-    if (options.authorize(options.actor, options.scope) !== true) return failure(state, 'ADOPTION_AUTHORITY', '/actor', 'Trusted host denied adoption authority');
+    if (!synchronousGrant(options.authorize(options.actor, options.scope))) return failure(state, 'ADOPTION_AUTHORITY', '/actor', 'Trusted host denied adoption authority');
   } catch { return failure(state, 'ADOPTION_AUTHORITY', '/actor', 'Trusted host could not verify adoption authority'); }
   return undefined;
 }

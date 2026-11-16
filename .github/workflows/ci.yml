@@ -15,7 +15,7 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -42,13 +42,54 @@ jobs:
           pnpm --version
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
-      - name: Check source policy, types, tests and coverage gates
+      - name: Check typed lint, workspace task graph, coverage and golden evaluation gates
         run: pnpm check
       - name: Verify PostgreSQL durable execution and process recovery
         env:
           CAMERY_TEST_DATABASE_URL: postgresql://camery_test:ci-test-only@127.0.0.1:5432/camery_test
         run: pnpm --filter @camery/durable test:integration --coverage
+      - name: Verify transactional version adoption and rollback
+        env:
+          CAMERY_TEST_DATABASE_URL: postgresql://camery_test:ci-test-only@127.0.0.1:5432/camery_test
+        run: pnpm --filter @camery/versioning test:integration --coverage
       - name: Validate private infrastructure configuration
         env:
           CAMERY_POSTGRES_PASSWORD: ci-config-check-only
         run: docker compose -f deploy/compose.private.yml config --quiet
+      - name: Verify agent dispatch, gates and durable replay
+        env:
+          CAMERY_TEST_DATABASE_URL: postgresql://camery_test:ci-test-only@127.0.0.1:5432/camery_test
+        run: pnpm --filter @camery/agents test:integration --coverage
+      - name: Verify authentication, restricted database role and HTTP isolation
+        env:
+          CAMERY_TEST_DATABASE_URL: postgresql://camery_test:ci-test-only@127.0.0.1:5432/camery_test
+        run: |
+          pnpm --filter @camery/access test:integration --coverage
+          pnpm --filter @camery/server test:integration --coverage
+      - name: Build private API and worker runtime image
+        run: docker build -f deploy/Dockerfile.api -t camery-api:phase0 .
+      - name: Start isolated private API database fixture
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          writeFileSync('deploy/.env.phase0', [
+            'CAMERY_POSTGRES_DB=camery_api_ci',
+            'CAMERY_POSTGRES_USER=camery_api_ci_admin',
+            'CAMERY_POSTGRES_PASSWORD=ci-test-only',
+            'CAMERY_POSTGRES_BIND_ADDRESS=127.0.0.1',
+            'CAMERY_POSTGRES_PORT=0',
+          ].join('\n') + '\n', { flag: 'wx', mode: 0o600 });
+          writeFileSync(join(process.env.RUNNER_TEMP, 'camery-api-ci-owned'), 'owned\n', { flag: 'wx' });
+          NODE
+          docker compose --project-name camery-phase0 --env-file deploy/.env.phase0 -f deploy/compose.private.yml up -d --wait postgres
+      - name: Verify built API, low privilege login, restart and revocation
+        run: pnpm test:private-api:local
+      - name: Verify scoped worker, budget, persistent human gate and crash recovery
+        run: pnpm test:private-worker:local
+      - name: Remove this job's private API database fixture
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/camery-api-ci-owned" ]; then
+            docker compose --project-name camery-phase0 --env-file deploy/.env.phase0 -f deploy/compose.private.yml down --volumes
+          fi

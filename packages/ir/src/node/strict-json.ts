@@ -11,7 +11,7 @@ export function parseStrictJson(source: string): unknown {
 
   // JSON.parse has already checked grammar. This second pass needs only container/key state.
   const stack: Array<ObjectFrame | null> = [];
-  const tokens = source.matchAll(/"(?:\\[\s\S]|[^"\\])*"|[{}\[\],]/g);
+  const tokens = source.matchAll(/"(?:\\[\s\S]|[^"\\])*"|[{}[\],]/g);
   for (const token of tokens) {
     const value = token[0];
     if (value === '{') stack.push({ keys: new Set(), expectsKey: true });

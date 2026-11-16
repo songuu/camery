@@ -1,0 +1,39 @@
+# Select together with compose.private.yml after explicit identity/database provisioning.
+services:
+  api:
+    image: camery-api:phase0
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    environment:
+      CAMERY_TENANT_ID: ${CAMERY_TENANT_ID:?Set the deployment tenant}
+      CAMERY_DATABASE_URL_FILE: /run/secrets/api_database_url
+      CAMERY_API_HOST: 0.0.0.0
+      CAMERY_API_PORT: '3000'
+    secrets:
+      - api_database_url
+    ports:
+      - '127.0.0.1:${CAMERY_API_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, --input-type=module, -e, "const r=await fetch('http://127.0.0.1:3000/health',{signal:AbortSignal.timeout(2000)});if(r.status!==200)process.exit(1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 30s
+
+secrets:
+  api_database_url:
+    file: ${CAMERY_API_DATABASE_SECRET_FILE:?Set the runtime database URL secret file}

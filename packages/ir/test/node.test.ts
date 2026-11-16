@@ -37,7 +37,7 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-const pkg = () => mutate(makePackage(), draft => { draft.assets[0]!.status === 'ready' && (draft.assets[0]!.file.sha256 = digest); });
+const pkg = () => mutate(makePackage(), draft => { if (draft.assets[0]!.status === 'ready') draft.assets[0]!.file.sha256 = digest; });
 
 describe('strict JSON boundary', () => {
   it('accepts nested objects, arrays, escaped strings and repeated keys in different objects', () => {

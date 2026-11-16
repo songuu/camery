@@ -76,13 +76,21 @@ export class PostgresDurableStore implements DurableStore {
   }
   async claim(tenantId: string, workerId: string, leaseMs: number): Promise<ClaimedTask | null> {
     validateName(tenantId, 'tenantId'); validateName(workerId, 'workerId'); validateDuration(leaseMs, 'leaseMs');
+    return this.claimEligible(sql`tenant_id=${tenantId}`, workerId, leaseMs);
+  }
+  async claimTask(input: TaskKey, workerId: string, leaseMs: number): Promise<ClaimedTask | null> {
+    validateKey(input); const key = Object.freeze({ tenantId: input.tenantId, taskId: input.taskId });
+    validateName(workerId, 'workerId'); validateDuration(leaseMs, 'leaseMs');
+    return this.claimEligible(where(key), workerId, leaseMs);
+  }
+  private async claimEligible(predicate: SQL, workerId: string, leaseMs: number): Promise<ClaimedTask | null> {
     return this.db.transaction(async tx => {
       while (true) {
-        const selected = await tx.execute<TaskRow>(sql`SELECT * FROM camery_durable.tasks WHERE tenant_id=${tenantId}
+        const selected = await tx.execute<TaskRow>(sql`SELECT * FROM camery_durable.tasks WHERE ${predicate}
           AND ((status='queued' AND available_at<=clock_timestamp()) OR (status='waiting' AND available_at<=clock_timestamp()) OR (status='running' AND lease_until<=clock_timestamp()))
           ORDER BY COALESCE(available_at,lease_until),created_at,task_id FOR UPDATE SKIP LOCKED LIMIT 1`);
         const row = selected.rows[0]; if (!row) return null;
-        const key = { tenantId, taskId: row.task_id };
+        const key = { tenantId: row.tenant_id, taskId: row.task_id };
         if (row.status === 'running') {
           const uncertain = await tx.execute(sql`UPDATE camery_durable.steps SET status='unknown',error='Worker lease expired with external outcome unknown',updated_at=clock_timestamp()
             WHERE ${where(key)} AND kind='external' AND status='running' RETURNING step_key`);

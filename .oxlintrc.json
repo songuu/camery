@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": { "correctness": "error" },
+  "options": { "typeAware": true },
+  "env": { "node": true },
+  "ignorePatterns": ["**/node_modules/**", "**/.turbo/**", "**/coverage/**", "**/dist/**"],
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error"
+  },
+  "overrides": [{
+    "files": ["**/test/**"],
+    "rules": {
+      "typescript/unbound-method": "off",
+      "unicorn/no-new-array": "off",
+      "unicorn/no-thenable": "off"
+    }
+  }]
+}

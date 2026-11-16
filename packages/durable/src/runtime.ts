@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { DurableError } from './types.js';
-import type { DurableStore, Json, StepKind, StepSpec, Task } from './types.js';
-import { canonicalJson, validateDate, validateDuration, validateJson, validateName } from './validation.js';
+import type { ClaimedTask, DurableStore, Json, StepKind, StepSpec, Task, TaskKey } from './types.js';
+import { canonicalJson, validateDate, validateDuration, validateJson, validateKey, validateLease, validateName } from './validation.js';
 
 export interface EffectOptions { kind: 'replayable' | 'external'; input: Json; timeoutMs?: number }
 export interface EffectContext { input: Json; idempotencyKey: string; signal: AbortSignal }
 export interface WorkflowContext {
+  readonly task: Readonly<TaskKey>;
   readonly signal: AbortSignal;
   step(key: string, options: EffectOptions, effect: (context: EffectContext) => Promise<Json>): Promise<Json>;
   waitForSignal(key: string, input?: Json): Promise<Json>;
@@ -15,6 +16,11 @@ export interface Workflow { name: string; version: number; run(input: Json, cont
 export interface WorkerOptions { leaseMs?: number; runTimeoutMs?: number; retryDelayMs?: number; maxSteps?: number }
 class Suspended extends Error {}
 const hash = (value: unknown): string => createHash('sha256').update(canonicalJson(value)).digest('hex');
+/** Shared with adapters so restored receipts can be checked without executing an effect. */
+export function stepIdempotencyKey(task: TaskKey, key: string): string {
+  validateName(task.tenantId, 'tenant ID'); validateName(task.taskId, 'task ID'); validateName(key, 'step key');
+  return `camery_${hash({ tenantId: task.tenantId, taskId: task.taskId, key })}`;
+}
 const isLeaseLost = (error: unknown): boolean => error instanceof DurableError && error.code === 'LEASE_LOST';
 // User callbacks may throw credential-bearing provider errors; persist only our codes, never arbitrary messages/stacks.
 function diagnostic(error: unknown, context: string): string {
@@ -26,6 +32,11 @@ async function interrupted<T>(signal: AbortSignal, execute: () => Promise<T>): P
   const aborted = new Promise<never>((_resolve, reject) => { onAbort = () => reject(signal.reason); signal.addEventListener('abort', onAbort, { once: true }); });
   try { return await Promise.race([Promise.resolve().then(() => { signal.throwIfAborted(); return execute(); }), aborted]); }
   finally { signal.removeEventListener('abort', onAbort); }
+}
+function workflowKey(name: string, version: number): string {
+  validateName(name, 'workflow name');
+  if (!Number.isInteger(version) || version < 1 || version > 2_147_483_647) throw new DurableError('INVALID_INPUT', 'Workflow needs a positive version');
+  return `${name}:${version}`;
 }
 
 /** Single task attempt. Scheduling processes call runOne; the journal, not this process, owns durable state. */
@@ -42,16 +53,35 @@ export class DurableWorker {
     if (this.leaseMs < 30 || !Number.isInteger(this.maxSteps) || this.maxSteps < 1 || this.maxSteps > 10_000) throw new DurableError('INVALID_INPUT', 'Lease must be at least 30ms; maxSteps must be 1..10000');
   }
   register(workflow: Workflow): void {
-    validateName(workflow.name, 'workflow name');
-    if (!Number.isInteger(workflow.version) || workflow.version < 1 || workflow.version > 2_147_483_647 || typeof workflow.run !== 'function') throw new DurableError('INVALID_INPUT', 'Workflow needs a positive version and handler');
-    const key = `${workflow.name}:${workflow.version}`;
+    const key = workflowKey(workflow.name, workflow.version);
+    if (typeof workflow.run !== 'function') throw new DurableError('INVALID_INPUT', 'Workflow needs a handler');
     if (this.workflows.has(key)) throw new DurableError('WORKFLOW_EXISTS', `Workflow ${key} already registered`);
     this.workflows.set(key, { ...workflow });
   }
+  hasWorkflow(name: string, version: number): boolean { return this.workflows.has(workflowKey(name, version)); }
   async runOne(tenantId: string, workerId: string): Promise<Task | null> {
     validateName(tenantId, 'tenant ID'); validateName(workerId, 'worker ID');
     const claimed = await this.store.claim(tenantId, workerId, this.leaseMs);
     if (!claimed) return null;
+    return this.runClaimed(claimed);
+  }
+  /** Exact dispatch must never fall back to another queued task, including after target reconciliation. */
+  async runTask(input: TaskKey, workerId: string): Promise<Task | null> {
+    validateKey(input); const key = Object.freeze({ tenantId: input.tenantId, taskId: input.taskId }); validateName(workerId, 'worker ID');
+    // oxlint-disable-next-line typescript/unbound-method -- The validated method is invoked with this.store via call below.
+    const claimTask = this.store.claimTask;
+    if (typeof claimTask !== 'function') throw new DurableError('STORE_CAPABILITY', 'Store does not support exact task claiming');
+    const result = await claimTask.call(this.store, key, workerId, this.leaseMs); if (!result) return null;
+    let claimed: ClaimedTask;
+    try {
+      claimed = { task: { ...result.task, input: validateJson(result.task.input) }, lease: { ...result.lease } };
+      validateKey(claimed.task); validateLease(claimed.lease);
+      if (claimed.task.tenantId !== key.tenantId || claimed.task.taskId !== key.taskId || claimed.lease.tenantId !== key.tenantId || claimed.lease.taskId !== key.taskId
+        || claimed.lease.owner !== workerId || claimed.task.owner !== workerId || claimed.task.fence !== claimed.lease.fence || claimed.task.status !== 'running') throw new Error();
+    } catch { throw new DurableError('STORE_PROTOCOL', 'Exact task claim did not match the requested identity and lease'); }
+    return this.runClaimed(claimed);
+  }
+  private async runClaimed(claimed: ClaimedTask): Promise<Task | null> {
     const { task, lease } = claimed;
     const controller = new AbortController(); let stopped = false; let unknown = false; let cursor = 0; let busy = false;
     let heartbeatTimer: ReturnType<typeof setTimeout>;
@@ -70,7 +100,7 @@ export class DurableWorker {
       if (cursor >= this.maxSteps) throw new DurableError('STEP_LIMIT', 'Workflow exceeded its step limit');
       busy = true; keys.add(key);
       const spec: StepSpec = { key, kind, input: validateJson(input), position: cursor++, fingerprint: hash({ kind, input }),
-        idempotencyKey: `camery_${hash({ tenantId, taskId: task.taskId, key })}` };
+        idempotencyKey: stepIdempotencyKey(task, key) };
       try {
         const state = await this.store.openStep(lease, spec, at);
         controller.signal.throwIfAborted();
@@ -100,6 +130,7 @@ export class DurableWorker {
       return promise;
     };
     const context: WorkflowContext = {
+      task: Object.freeze({ tenantId: task.tenantId, taskId: task.taskId }),
       signal: controller.signal,
       step: (key, options, effect) => tracked(async () => {
         if (!['replayable', 'external'].includes(options.kind)) return Promise.reject(new DurableError('INVALID_INPUT', 'Effect kind must be replayable or external'));

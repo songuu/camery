@@ -1,0 +1,22 @@
+[
+  {
+    "id": "explicit-heading",
+    "input": {
+      "text": "第一章 開始\n正文\n"
+    },
+    "output": {
+      "sourceDigest": "3147f5a390d459a032a3cf40cbe323beed2fe73551c44ca399b2822d5e5c9e09",
+      "offsetUnit": "utf16",
+      "chapters": [
+        {
+          "ordinal": 0,
+          "kind": "chapter",
+          "title": "第一章 開始",
+          "start": 0,
+          "end": 10
+        }
+      ],
+      "warnings": []
+    }
+  }
+]

@@ -1,0 +1,101 @@
+{
+  "id": "research",
+  "version": "1.1.0",
+  "tools": [
+    {
+      "digest": "fe7f9e01ee6b66ba5df592d4c784e2116f226af8069b9dd76166dd1285fd72de",
+      "id": "research.chapter",
+      "version": "1.0.0"
+    }
+  ],
+  "methods": [
+    {
+      "digest": "2cf95e96af0740d2d6f0d57efad3193b53db301a2679748182b4d287ba4b9ddd",
+      "id": "chapter-segmentation",
+      "version": "1.0.0"
+    }
+  ],
+  "modelTier": "balanced",
+  "writeKinds": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxTokens": 256,
+    "maxCostMicros": 0,
+    "currency": "CNY"
+  },
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "chapters": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "end": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "frontmatter",
+                "chapter"
+              ],
+              "type": "string"
+            },
+            "ordinal": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ordinal",
+            "kind",
+            "title",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "maxItems": 10000,
+        "minItems": 1,
+        "type": "array"
+      },
+      "offsetUnit": {
+        "enum": [
+          "utf16"
+        ],
+        "type": "string"
+      },
+      "sourceDigest": {
+        "maxLength": 64,
+        "minLength": 64,
+        "type": "string"
+      },
+      "warnings": {
+        "items": {
+          "enum": [
+            "NO_EXPLICIT_HEADINGS"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "sourceDigest",
+      "offsetUnit",
+      "chapters",
+      "warnings"
+    ],
+    "type": "object"
+  },
+  "files": {
+    "instructions": "instructions.md"
+  }
+}

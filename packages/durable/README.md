@@ -48,6 +48,14 @@ await worker.runOne('trusted-tenant', 'worker-1');
 
 `runOne` 领取一个任务并返回数据库中的最新 Task；没有可领取任务返回 null。调度循环、进程管理和背压由宿主负责。任务按租户领取；所有查询同时约束 tenantId/taskId。数据库只接受内部受信调用，**tenantId、actorId 必须来自认证后的服务上下文，不能直接采用请求自报身份**。当前没有 RLS、会话、RBAC 或面向公网的端点，T0.10 仍需独立验收。
 
+`runTask({tenantId,taskId}, workerId)` 只领取指定任务，供 [Agent 任务树宿主](../agents/HOST.md) 等已明确分配范围的调用方使用。目标不可领取返回 null，绝不回退租户队列；`hasWorkflow(name,version)` 可在调度前核对精确注册版本。PostgresDurableStore.claimTask 与原 claim 共用领取、租约过期、未知结果、timer、重试预算与 fence 逻辑，选择条件始终固定目标身份；不会顺便恢复其他任务。自定义 DurableStore 可以暂不实现可选 claimTask，但 runTask 会明确返回 STORE_CAPABILITY 错误而非调用 claim。
+
+两种 worker 入口共用同一执行核心，允许在保持工作流版本和步骤历史一致时交替恢复。runTask 等待前捕获身份，核对领取记录的 task/lease/owner/fence/status 并分离输入；领取回执不匹配时拒绝执行 handler。本轮没有新增数据库迁移。
+
+工作流 context.task 是从实际领取记录捕获并冻结的 tenantId/taskId，供 [Agent 运行时](../agents/README.md) 绑定执行范围；来源 input 中的同名字段不改变它。该内部身份不替代应用认证和对象权限检查。
+
+stepIdempotencyKey(taskKey, stepKey) 导出运行时共用的稳定身份算法，供 Agent 在不重新执行外部调用时核对缓存/对账回执。它只使用已验证的租户、任务与步骤键，格式保持原 camery_ + SHA-256；不是审批令牌或身份认证。
+
 ## 步骤与恢复规则
 
 - 相同 tenantId/taskId 只能重复提交完全相同的工作流版本、输入、重试预算和初始时间，其他内容返回 `TASK_CONFLICT`。工作流名称/版本必须注册；逻辑变化需新版本。

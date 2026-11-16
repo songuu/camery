@@ -12,7 +12,8 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "schema:generate": "tsx scripts/generate-schemas.ts",
-    "validate": "tsx src/node/cli-entry.ts"
+    "validate": "tsx src/node/cli-entry.ts",
+    "audit:legacy": "tsx scripts/audit-legacy.ts"
   },
   "dependencies": {
     "@camery/timeline": "workspace:*",

@@ -1,0 +1,41 @@
+{
+  "id": "producer",
+  "version": "1.0.0",
+  "tools": [],
+  "methods": [],
+  "modelTier": "deterministic",
+  "writeKinds": [
+    "task"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxTokens": 0,
+    "maxCostMicros": 0,
+    "currency": "CNY"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "type": "string",
+        "enum": [
+          "reviewed_candidate",
+          "rejected_candidate"
+        ]
+      },
+      "candidateDigest": {
+        "type": "string",
+        "minLength": 64,
+        "maxLength": 64
+      }
+    },
+    "required": [
+      "state",
+      "candidateDigest"
+    ],
+    "additionalProperties": false
+  },
+  "files": {
+    "instructions": "instructions.md"
+  }
+}

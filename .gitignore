@@ -1,8 +1,14 @@
 node_modules/
+.turbo/
+.pnpm-store/
 coverage/
 dist/
 *.tsbuildinfo
 .env
 .env.*
 !.env.example
+!deploy/.env.api.example
+!deploy/.env.worker.example
 deploy/data/
+deploy/secrets/
+artifacts/delivery/

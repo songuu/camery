@@ -1,0 +1,40 @@
+{
+  "name": "@camery/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "build": "node scripts/build.mjs",
+    "start:built": "node dist/main.mjs",
+    "start:worker": "node dist/worker.mjs",
+    "start:worker:built": "node dist/worker.mjs",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@camery/access": "workspace:*",
+    "@camery/agents": "workspace:*",
+    "@camery/durable": "workspace:*",
+    "@camery/methods": "workspace:*",
+    "@nestjs/common": "12.4.2",
+    "@nestjs/core": "12.4.2",
+    "@nestjs/platform-fastify": "12.4.2",
+    "fastify": "5.12.8",
+    "pg": "^8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "esbuild": "0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

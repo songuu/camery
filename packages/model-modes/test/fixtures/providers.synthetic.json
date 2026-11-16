@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "provenance": {
+    "kind": "synthetic_contract",
+    "source": "Loopback protocol emulator; not external providers or generated media",
+    "recordedAt": "2026-11-11T00:00:00.000Z"
+  },
+  "entries": [
+    {
+      "scope": {
+        "tenantId": "tenant-test",
+        "connectionId": "connection-test",
+        "modeDigest": "8c04dfde905bef55ea935aa7ba660fbfb809ac4ad21a6122ce51643993ff2123",
+        "idempotencyKey": "fixture-llm:complete"
+      },
+      "fingerprint": "9b4580d1867aeec93b8a516fa1b14e0be2c9751e2b58d4ffdb1c66bd6ef1e450",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "choices": [
+                {
+                  "finish_reason": "stop",
+                  "message": {
+                    "content": "{\"scene\":\"fixture\"}",
+                    "role": "assistant"
+                  }
+                }
+              ],
+              "id": "fixture-completion",
+              "usage": {
+                "completion_tokens": 2,
+                "prompt_tokens": 3
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "scope": {
+        "tenantId": "tenant-test",
+        "connectionId": "connection-test",
+        "modeDigest": "7feab6ce0030525e007d60b580f49d511fa58cca5b279c810c8f0675f9c54fc9",
+        "idempotencyKey": "fixture-comfy:submit"
+      },
+      "fingerprint": "4a052d44e1bd730cc52f52f92256450b2bfe96bf4996c9fed2023d80412e45d0",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "node_errors": {},
+              "prompt_id": "fixture-comfy"
+            }
+          }
+        }
+      }
+    },
+    {
+      "scope": {
+        "tenantId": "tenant-test",
+        "connectionId": "connection-test",
+        "modeDigest": "7feab6ce0030525e007d60b580f49d511fa58cca5b279c810c8f0675f9c54fc9",
+        "idempotencyKey": "fixture-comfy:poll"
+      },
+      "fingerprint": "4ca25ac20e0963ef5c275d1867d84ea0feada61f36a873e52ceea6dcabc17c5f",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "fixture-comfy": {
+                "outputs": {
+                  "9": {
+                    "images": [
+                      {
+                        "filename": "protocol.bin",
+                        "subfolder": "",
+                        "type": "output"
+                      }
+                    ]
+                  }
+                },
+                "status": {
+                  "completed": true,
+                  "status_str": "success"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "scope": {
+        "tenantId": "tenant-test",
+        "connectionId": "connection-test",
+        "modeDigest": "7feab6ce0030525e007d60b580f49d511fa58cca5b279c810c8f0675f9c54fc9",
+        "idempotencyKey": "fixture-comfy:download"
+      },
+      "fingerprint": "7286fdee0fe5508f392181dae0b76ffc74d0c778f36e51cbbafcc68260aaeb4b",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/octet-stream",
+          "body": {
+            "kind": "bytes",
+            "base64": "AQID"
+          }
+        }
+      }
+    },
+    {
+      "scope": {
+        "tenantId": "tenant-test",
+        "connectionId": "connection-test",
+        "modeDigest": "72a97f5672a2f60d6e646d60a23061dceb9c10dffd0fc5ac4a4ab7c64d0c966a",
+        "idempotencyKey": "fixture-fal:submit"
+      },
+      "fingerprint": "f246ec0198506a239284832cdf399f0d57ff32c33e094dc0c7924055e0ffb1e3",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "request_id": "fixture-fal",
+              "status": "IN_QUEUE"
+            }
+          }
+        }
+      }
+    },
+    {
+      "scope": {
+        "tenantId": "tenant-test",
+        "connectionId": "connection-test",
+        "modeDigest": "72a97f5672a2f60d6e646d60a23061dceb9c10dffd0fc5ac4a4ab7c64d0c966a",
+        "idempotencyKey": "fixture-fal:poll"
+      },
+      "fingerprint": "e5a9a82d53ce6366606fa8e81e83f952a869105cfa0583bb88b7d4347a94183d",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "request_id": "fixture-fal",
+              "status": "COMPLETED"
+            }
+          }
+        }
+      }
+    },
+    {
+      "scope": {
+        "tenantId": "tenant-test",
+        "connectionId": "connection-test",
+        "modeDigest": "72a97f5672a2f60d6e646d60a23061dceb9c10dffd0fc5ac4a4ab7c64d0c966a",
+        "idempotencyKey": "fixture-fal:result"
+      },
+      "fingerprint": "6c00ea39b32ece0b0cbd2caeb2bd45067e3b6cd7ef225cd2dc54e5022c95e76a",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "artifact_ref": "synthetic-protocol-output"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

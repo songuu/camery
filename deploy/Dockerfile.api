@@ -1,0 +1,50 @@
+# syntax=docker/dockerfile:1
+# Official Node 24.22.2 bookworm-slim, verified linux/amd64; update the digest through explicit rebuild validation.
+ARG NODE_IMAGE=node:24.22.2-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
+FROM ${NODE_IMAGE} AS build
+WORKDIR /workspace
+RUN npm install --global pnpm@12.3.4 --ignore-scripts --no-audit --no-fund
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/access/package.json ./packages/access/package.json
+COPY packages/agents/package.json ./packages/agents/package.json
+COPY packages/durable/package.json ./packages/durable/package.json
+COPY packages/methods/package.json ./packages/methods/package.json
+COPY packages/model-modes/package.json ./packages/model-modes/package.json
+COPY packages/ir/package.json ./packages/ir/package.json
+COPY packages/timeline/package.json ./packages/timeline/package.json
+COPY packages/server/package.json ./packages/server/package.json
+RUN pnpm install --frozen-lockfile --filter @camery/server...
+COPY packages/access/tsconfig.json ./packages/access/tsconfig.json
+COPY packages/access/src ./packages/access/src
+COPY packages/agents/tsconfig.json ./packages/agents/tsconfig.json
+COPY packages/agents/src ./packages/agents/src
+COPY packages/durable/tsconfig.json ./packages/durable/tsconfig.json
+COPY packages/durable/src ./packages/durable/src
+COPY packages/methods/tsconfig.json ./packages/methods/tsconfig.json
+COPY packages/methods/src ./packages/methods/src
+COPY packages/model-modes/tsconfig.json ./packages/model-modes/tsconfig.json
+COPY packages/model-modes/src ./packages/model-modes/src
+COPY packages/ir/tsconfig.json ./packages/ir/tsconfig.json
+COPY packages/ir/src ./packages/ir/src
+COPY packages/timeline/tsconfig.json ./packages/timeline/tsconfig.json
+COPY packages/timeline/src ./packages/timeline/src
+COPY packages/server/tsconfig.json ./packages/server/tsconfig.json
+COPY packages/server/src ./packages/server/src
+COPY packages/server/scripts ./packages/server/scripts
+COPY agents/producer ./agents/producer
+COPY method-packs/chapter-segmentation ./method-packs/chapter-segmentation
+RUN pnpm --filter @camery/server build \
+    && pnpm --filter @camery/server --prod deploy /runtime \
+    && node packages/server/scripts/prepare-runtime.mjs /runtime
+
+FROM ${NODE_IMAGE} AS runtime
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build --chown=node:node /runtime/node_modules ./node_modules
+COPY --from=build --chown=node:node /runtime/package.json ./package.json
+COPY --from=build --chown=node:node /workspace/packages/server/dist/main.mjs ./main.mjs
+COPY --from=build --chown=node:node /workspace/packages/server/dist/worker.mjs ./worker.mjs
+COPY --from=build --chown=node:node /workspace/packages/server/dist/content ./content
+USER node
+EXPOSE 3000
+CMD ["node", "main.mjs"]

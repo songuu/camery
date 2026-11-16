@@ -30,6 +30,7 @@ export interface DurableStore {
   steps(key: TaskKey): Promise<Step[]>;
   events(key: TaskKey): Promise<Event[]>;
   claim(tenantId: string, workerId: string, leaseMs: number): Promise<ClaimedTask | null>;
+  claimTask?(key: TaskKey, workerId: string, leaseMs: number): Promise<ClaimedTask | null>;
   heartbeat(lease: Lease, leaseMs: number): Promise<void>;
   openStep(lease: Lease, spec: StepSpec, dueAt?: Date): Promise<OpenStep>;
   completeStep(lease: Lease, key: string, output: Json): Promise<void>;

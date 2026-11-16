@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "types": ["node"], "experimentalDecorators": true, "noEmit": true },
+  "include": ["src", "test", "vitest.config.ts", "vitest.integration.config.ts", "vitest.compose.config.ts", "vitest.worker-compose.config.ts"]
+}

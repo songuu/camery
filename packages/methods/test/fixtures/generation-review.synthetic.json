@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "provenance": {
+    "kind": "synthetic_contract",
+    "source": "In-process structured generation/review protocol fixture; no network, real model inference, human grading or billing.",
+    "recordedAt": "2026-11-11T05:00:00.000Z"
+  },
+  "entries": [
+    {
+      "scope": {
+        "tenantId": "synthetic-tenant",
+        "connectionId": "generation-test",
+        "modeDigest": "d3bb9d096de3a086957c1cec758144524b2600df4ff5207de526c4ef2882dd0e",
+        "idempotencyKey": "3f075b9e0422b3a6b1d4e43e9b7dcfe4bbc49b1c7a7fd3c9c431c65ede3bdae5"
+      },
+      "fingerprint": "eaeb6a4d8f68ac3fdd6998da3782b36cbf0a5cbae8e9dc6b0ab9ff549f6f5dae",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "choices": [
+                {
+                  "finish_reason": "stop",
+                  "message": {
+                    "content": "{\"summary\":\"小满保留纸条作为证物，调查旧钟与父亲留下的账页。\"}",
+                    "role": "assistant"
+                  }
+                }
+              ],
+              "id": "fixture-generation",
+              "usage": {
+                "completion_tokens": 7,
+                "prompt_tokens": 12
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "scope": {
+        "tenantId": "synthetic-tenant",
+        "connectionId": "review-test",
+        "modeDigest": "2f7a2062b1c833f43d597fbb7b1773fe9263724494a740b55f02dcf005233eb9",
+        "idempotencyKey": "grade-original"
+      },
+      "fingerprint": "be9a342cd2528322c2df20dfe33fe2b106a7e1973bac682db7cb82be5031a618",
+      "result": {
+        "kind": "reply",
+        "reply": {
+          "status": 200,
+          "contentType": "application/json",
+          "body": {
+            "kind": "json",
+            "value": {
+              "choices": [
+                {
+                  "finish_reason": "stop",
+                  "message": {
+                    "content": "{\"scores\":[{\"metric\":\"faithfulness\",\"score\":4.5,\"rationale\":\"合成协议评分，不是真实模型或人工质量结论。\"},{\"metric\":\"clarity\",\"score\":4,\"rationale\":\"合成协议覆盖字段校验。\"}]}",
+                    "role": "assistant"
+                  }
+                }
+              ],
+              "id": "fixture-review"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

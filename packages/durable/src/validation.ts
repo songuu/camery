@@ -11,6 +11,7 @@ function object(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 export function validateName(value: unknown, label: string): asserts value is string {
+  // oxlint-disable-next-line eslint/no-control-regex -- Reject control characters at this input boundary.
   if (typeof value !== 'string' || !value.trim() || value.length > 200 || /[\x00-\x1f\x7f]/.test(value)) invalid(label);
 }
 export function validateActor(value: unknown): asserts value is string { validateName(value, 'trusted actor identity'); }

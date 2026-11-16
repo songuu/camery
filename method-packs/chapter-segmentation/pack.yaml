@@ -1,0 +1,136 @@
+{
+  "id": "chapter-segmentation",
+  "version": "1.0.0",
+  "stage": "input",
+  "inputKinds": [
+    "novel",
+    "script"
+  ],
+  "languages": [
+    "zh"
+  ],
+  "modelTier": "deterministic",
+  "tool": "chapter.segment",
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "sourceDigest",
+      "offsetUnit",
+      "chapters",
+      "warnings"
+    ],
+    "properties": {
+      "sourceDigest": {
+        "type": "string",
+        "minLength": 64,
+        "maxLength": 64
+      },
+      "offsetUnit": {
+        "type": "string",
+        "enum": [
+          "utf16"
+        ]
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "NO_EXPLICIT_HEADINGS"
+          ]
+        }
+      },
+      "chapters": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 10000,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ordinal",
+            "kind",
+            "title",
+            "start",
+            "end"
+          ],
+          "properties": {
+            "ordinal": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "frontmatter",
+                "chapter"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "provenance": {
+    "kind": "derived",
+    "sources": [
+      {
+        "url": "https://zh.wikisource.org/w/index.php?title=%E8%80%81%E6%AE%98%E9%81%8A%E8%A8%98%2F%E7%AC%AC01%E5%9B%9E&oldid=2367222",
+        "commit": "oldid=2367222",
+        "license": "CC-BY-SA-4.0 (transcription/metadata); original prose PD-old per author page"
+      },
+      {
+        "url": "https://zh.wikisource.org/w/index.php?title=%E8%80%81%E6%AE%98%E9%81%8A%E8%A8%98%2F%E7%AC%AC02%E5%9B%9E&oldid=2367223",
+        "commit": "oldid=2367223",
+        "license": "CC-BY-SA-4.0 (transcription/metadata); original prose PD-old per author page"
+      },
+      {
+        "url": "https://zh.wikisource.org/w/index.php?title=%E8%A5%BF%E9%81%8A%E8%A8%98%2F%E7%AC%AC001%E5%9B%9E&oldid=2562136",
+        "commit": "oldid=2562136",
+        "license": "CC-BY-SA-4.0 (transcription/metadata); original prose PD-old per author page"
+      },
+      {
+        "url": "https://zh.wikisource.org/w/index.php?title=%E8%A5%BF%E9%81%8A%E8%A8%98%2F%E7%AC%AC002%E5%9B%9E&oldid=2449088",
+        "commit": "oldid=2449088",
+        "license": "CC-BY-SA-4.0 (transcription/metadata); original prose PD-old per author page"
+      },
+      {
+        "url": "https://zh.wikisource.org/w/index.php?title=Author%3A%E5%8A%89%E9%B6%9A_(%E6%B8%85)&oldid=2631118",
+        "commit": "oldid=2631118",
+        "license": "CC-BY-SA-4.0 (transcription/metadata); original prose PD-old per author page"
+      },
+      {
+        "url": "https://zh.wikisource.org/w/index.php?title=Author%3A%E5%90%B3%E6%89%BF%E6%81%A9&oldid=2620558",
+        "commit": "oldid=2620558",
+        "license": "CC-BY-SA-4.0 (transcription/metadata); original prose PD-old per author page"
+      }
+    ]
+  },
+  "files": {
+    "instructions": "instructions.md",
+    "rules": [
+      "rules/quality.json"
+    ],
+    "examples": [
+      "examples/basic.json"
+    ],
+    "cards": [
+      "cards/source.json"
+    ],
+    "evals": [
+      "evals/chapter-golden.json"
+    ]
+  }
+}

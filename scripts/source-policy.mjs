@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SKIP_DIRECTORIES = new Set(['.git', '.claude', '.agents', '.codex', 'node_modules', 'coverage', 'dist']);
+const SKIP_DIRECTORIES = new Set(['.git', '.claude', '.agents', '.codex', '.turbo', 'node_modules', 'coverage', 'dist']);
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
 /** This deliberately checks a small, explicit policy; TypeScript performs type checking separately. */

@@ -446,6 +446,16 @@ export const warningCodes = (report: ValidationReport): string[] => codes(report
 /** 声明级出片夹具；文件内容由 Node 边界测试另行创建和核验。 */
 export function makeProductionPackage(): StoryboardPackage {
   return mutate(makePackage(), p => {
+    p.renditions.forEach(rendition => { rendition.readiness = 'ready'; });
+    const consumed = new Set([...p.shots.flatMap(shot => shot.asset_ref_ids), ...p.audio_cues.flatMap(cue => cue.asset_ref_ids)]);
+    const consumedAssets = new Set(p.asset_references.filter(ref => consumed.has(ref.id)).map(ref => ref.asset_id));
+    p.assets = p.assets.map(asset => {
+      if (!consumedAssets.has(asset.id) || asset.status === 'ready') return asset;
+      const suffix = asset.media_type === 'image' ? 'png' : asset.media_type === 'audio' ? 'wav' : 'mp4';
+      const mime = asset.media_type === 'image' ? 'image/png' : asset.media_type === 'audio' ? 'audio/wav' : 'video/mp4';
+      return { ...asset, status: 'ready', file: { path: `ready/${asset.id}.${suffix}`, sha256: 'a'.repeat(64), mime_type: mime } };
+    });
+    p.asset_references.forEach(ref => { if (consumedAssets.has(ref.asset_id)) ref.mode = 'actual'; });
     p.segments.push(makeSegment());
     p.assets.push({
       id: fixtureId('video'), version: 1, media_type: 'video', description: '已声明素材', origin: 'generated',

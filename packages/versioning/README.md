@@ -27,7 +27,7 @@ pnpm --filter @camery/versioning typecheck
 - 相同 ChangeSet ID 和相同规范 JSON 请求可重复提交，重复采用不追加历史；相同 ID 不同内容拒绝。当前/历史内容 ID、嵌套位置 ID 与 ChangeSet ID 不得复用，位置也不能换父地点冒充同一实体。
 - 输入不被修改；任一操作、引用、锁或最终 IR 检查失败时，不产生部分 head。返回 `status` 和 issues 是结果依据，不能只看到 state/preview 非空就认为已采用。
 
-当前状态是内存中的领域值。生产接入必须由 T0.6/服务层在事务中读取最新 state、重新授权和计算、以 head 修订作并发条件写入全部对象/历史/决定，事务提交后才能对外报告采用成功。不能把本库返回的新值当作数据库已经提交的证据。
+纯域 API 返回内存中的领域值，不能将其当作数据库已经提交的证据。事务内读取最新状态、授权重算、CAS 及完整对象/历史/决定写入，现已由独立的 [Node/PostgreSQL 适配器](POSTGRES.md)实现；真实服务身份、权限和部署仍需后续验收。
 
 ## 操作与锁
 
@@ -49,4 +49,4 @@ IR 提供 `add / update / replace / remove / move / split / merge / lock / unloc
 
 本轮将早期 v0.5 草稿的 `read_set` 明确改为 `base_revisions`，`move.order_key` 改为 `before_id`；当前草稿严格拒绝旧字段。锁现有自己的 version。更新后的 [ChangeSet JSON Schema](../ir/contracts/changeset.schema.json) 与 Zod 同源并受一致性测试约束。
 
-库级采用、锁及历史行为已做本地测试和独立代码/安全审查。实际 PostgreSQL 持久化、进程故障恢复、真实用户/租户权限及 UI 工作流，仍需在 T0.6、T0.9、T0.10 和后续阶段逐项验收。T0.5 的库测试不替代阶段 0 整体验收。
+库级采用、锁及历史行为已做本地测试和独立代码/安全审查；PostgreSQL 适配器另有真实数据库并发和事务故障验收。常驻服务与 Agent 接入、真实用户/租户权限及 UI 工作流，仍需在 T0.9、T0.10 和后续阶段逐项验收。T0.5 的库测试不替代阶段 0 整体验收。

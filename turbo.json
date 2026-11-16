@@ -1,0 +1,18 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "remoteCache": { "enabled": false },
+  "globalDependencies": [
+    "tsconfig.base.json", "pnpm-workspace.yaml", "scripts/workspace.mjs",
+    "agents/**", "method-packs/**",
+    "storyboard_platform_v3/contracts/**", "storyboard_platform_v3/examples/**"
+  ],
+  "globalEnv": ["CAMERY_TASK_RUNTIME", "NODE_ENV", "NODE_OPTIONS", "CI", "TZ", "LANG"],
+  "tasks": {
+    "typecheck": { "dependsOn": ["^typecheck"], "outputs": [] },
+    "test": { "cache": false },
+    "test:coverage": { "cache": false },
+    "eval:check": { "cache": false },
+    "build": { "dependsOn": ["typecheck"], "cache": false }
+  }
+}

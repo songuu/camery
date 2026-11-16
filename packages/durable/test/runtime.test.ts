@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { DurableWorker } from '../src/runtime.js';
+import { DurableWorker, stepIdempotencyKey } from '../src/runtime.js';
 import { DurableError } from '../src/types.js';
 import type { DurableStore, Json, StepSpec, Task } from '../src/types.js';
 import { makeTask } from './support.js';
@@ -30,9 +30,18 @@ it('executes sequential steps, preserves stable idempotency and validates detach
   const spec = vi.mocked(f.store.openStep).mock.calls[0]![1];
   expect(spec).toMatchObject({ key: 'fetch', position: 0, kind: 'external' });
   expect(spec.fingerprint).toMatch(/^[a-f0-9]{64}$/); expect(observed[0]).toMatch(/^camery_[a-f0-9]{64}$/);
+  expect(observed[0]).toBe(stepIdempotencyKey(f.task, 'fetch'));
   const other = fixture(); Object.assign(other.task, { tenantId: f.task.tenantId, taskId: f.task.taskId });
   other.worker.register({ name: 'test', version: 1, run: async (_input, ctx) => ctx.step('fetch', { kind: 'external', input: { a: 1, b: 2 } }, async args => { expect(args.idempotencyKey).toBe(observed[0]); return null; }) });
   await other.run();
+});
+it('binds workflow scope to the claimed durable identity rather than user input', async () => {
+  const f = fixture(); f.task.input = { tenantId: 'forged-tenant', taskId: 'forged-task' };
+  f.worker.register({ name: 'test', version: 1, async run(_input, ctx) {
+    expect(ctx).toHaveProperty('task', { tenantId: f.task.tenantId, taskId: f.task.taskId });
+    expect(Object.isFrozen((ctx as unknown as { task: unknown }).task)).toBe(true); return null;
+  } });
+  await f.run(); expect(f.store.finish).toHaveBeenCalledOnce();
 });
 it('replays cached results without invoking an effect', async () => {
   const f = fixture(); const effect = vi.fn();
