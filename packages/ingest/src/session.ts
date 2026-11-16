@@ -3,15 +3,16 @@ import { freeze, MAX_BATCH_CHARACTERS, MAX_DOCUMENT_CHARACTERS, textDigest, vali
 import { importNovel } from './novel.js';
 import { ImportError } from './types.js';
 
-const Id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/);
+const Id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
+export const DocumentTitle = z.string().min(1).max(200).refine(value => value.trim().length > 0 && value.isWellFormed() && !value.includes('\0') && !value.includes('\r') && !value.includes('\n'));
 const Digest = z.string().regex(/^[a-f0-9]{64}$/);
 const Revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER - 1);
 export const DocumentIdentity = z.strictObject({ tenantId: Id, projectId: Id, documentId: Id });
 export type DocumentScope = z.infer<typeof DocumentIdentity>;
 const Batch = z.strictObject({ id: Id, digest: Digest, start: z.number().int().nonnegative(), end: z.number().int().positive() });
-const Snapshot = DocumentIdentity.extend({ revision: Revision.min(1), text: z.string().max(MAX_DOCUMENT_CHARACTERS), batches: z.array(Batch).min(1).max(1024) });
+const Snapshot = DocumentIdentity.extend({ revision: Revision.min(1), text: z.string().max(MAX_DOCUMENT_CHARACTERS), batches: z.array(Batch).min(1).max(1024), title: DocumentTitle.optional() });
 export type NovelSnapshot = Readonly<z.infer<typeof Snapshot>>;
-const Append = DocumentIdentity.extend({ batchId: Id, text: z.string(), expectedRevision: Revision });
+const Append = DocumentIdentity.extend({ batchId: Id, text: z.string(), expectedRevision: Revision, title: DocumentTitle.optional() });
 const Checkpoint = DocumentIdentity.extend({ readerId: Id, version: Revision.min(1), offset: z.number().int().nonnegative(), prefixDigest: Digest });
 export type ReadingCheckpoint = Readonly<z.infer<typeof Checkpoint>>;
 const Advance = DocumentIdentity.extend({ readerId: Id, sourceDigest: Digest, offset: z.number().int().nonnegative(), expectedVersion: Revision });
@@ -49,6 +50,7 @@ export function appendNovelBatch(previous: unknown, input: unknown) {
   const command = captureNovelBatch(input);
   const state = previous === undefined ? undefined : validateNovelSnapshot(previous);
   if (state && !sameScope(state, command)) throw new ImportError('CONFLICT', 'document scope');
+  if (state && command.title !== undefined && command.title !== state.title) throw new ImportError('CONFLICT', 'document title');
   const digest = textDigest(command.text);
   const existing = state?.batches.find(batch => batch.id === command.batchId);
   if (existing) {
@@ -61,7 +63,8 @@ export function appendNovelBatch(previous: unknown, input: unknown) {
   const text = (state?.text ?? '') + command.text;
   const document = importNovel(text);
   const snapshot = freeze({ ...documentScope({ tenantId: command.tenantId, projectId: command.projectId, documentId: command.documentId }),
-    revision: command.expectedRevision + 1, text, batches: [...(state?.batches ?? []), { id: command.batchId, digest, start, end: text.length }] });
+    revision: command.expectedRevision + 1, text, batches: [...(state?.batches ?? []), { id: command.batchId, digest, start, end: text.length }],
+    ...(state?.title !== undefined ? { title: state.title } : command.title !== undefined ? { title: command.title } : {}) });
   return freeze({ snapshot, document, duplicate: false });
 }
 

@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@camery/access": "workspace:*",
+    "@camery/ingest": "workspace:*",
+    "@fastify/static": "10.1.11",
     "@camery/agents": "workspace:*",
     "@camery/durable": "workspace:*",
     "@camery/methods": "workspace:*",

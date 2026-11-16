@@ -111,10 +111,20 @@ it('closes aborted streams, releases capacity and never opens after a delayed DN
 it('releases sockets when consumers break and releases remotely closed sockets even if a consumer stops reading', async () => {
   const host = await server(socket => { socket.send('one'); socket.close(); });
   try {
-    const transport = new NodeWebSocketTransport({ ...config(host.url), webSocket: { maxConnections: 1 } });
+    const transport = new NodeWebSocketTransport({ ...config(host.url), webSocket: { maxConnections: 1, sessionMs: 5000 } });
     const first = transport.events('/ws', context())[Symbol.asyncIterator](); expect((await first.next()).value).toBe('one');
-    await new Promise(done => setTimeout(done, 10));
-    expect(await collect(transport.events('/ws', context()))).toEqual(['one']); await first.return?.();
+    // A paused consumer must not hold capacity after the remote close; observe release instead of assuming a scheduler delay.
+    let outcome: { values: string[] } | { error: unknown } | undefined;
+    await expect.poll(async () => {
+      try { outcome = { values: await collect(transport.events('/ws', context())) }; return true; }
+      catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'CONCURRENCY_LIMIT') return false;
+        // Vitest retries thrown poll errors too, so carry unrelated failures outside the polling callback.
+        outcome = { error }; return true;
+      }
+    }, { timeout: 1000 }).toBe(true);
+    if (outcome && 'error' in outcome) throw outcome.error;
+    expect(outcome).toEqual({ values: ['one'] }); await first.return?.();
     for await (const value of transport.events('/ws', context())) { expect(value).toBe('one'); break; }
     expect(await collect(transport.events('/ws', context()))).toEqual(['one']);
   } finally { await host.close(); }

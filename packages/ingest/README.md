@@ -1,6 +1,8 @@
 # 小说与剧本导入核心
 
-[T1.1 计划与验收边界](../../docs/plan/phase1-progress.md)。来源只作为数据，解析返回候选；本包不调用模型、执行来源指令或采用 IR。公共 HTTP、用户界面和授权应用服务尚未接入，不能将本库的作用域参数当作认证凭据。
+[认证来源API](../server/README.md)和[React工作台](../web/README.md)已接入。版本2迁移新增不可变剧本原始字节/候选表，版本1保留；小说快照允许可选的不可变显示标题。
+
+[T1.1 计划与验收边界](../../docs/plan/phase1-progress.md)。来源只作为数据，解析返回候选；本包不调用模型、执行来源指令或采用 IR。公共请求必须经过服务端会话与项目权限检查，不能将本库的作用域参数当作认证凭据。
 
 ## 格式与来源定位
 
@@ -33,7 +35,7 @@ const table = importScriptTable('场景,角色,对白\n办公室,小林,你好�
 
 可信宿主先核对当前会话的项目读写权限，再传入 tenant/project/document/reader 身份；本包保留复合作用域，每次 SQL 查询均包含完整作用域。读取者身份应由宿主从已认证用户确定，不能照抄公共请求体。
 
-安装者使用已有 PostgreSQL 管理连接显式执行 `migrateIngest(pool)`；安装路径有事务 advisory lock 和历史 checksum 检查。运行时不自动迁移，也不要求对既有 schema 扩权；将其接入正式 API 前仍需像阶段 0 认证服务一样配置并验收独立最小权限 LOGIN。
+安装者使用已有 PostgreSQL 管理连接显式执行 `migrateIngest(pool)`；安装路径有事务 advisory lock 和历史 checksum 检查。运行时不自动迁移。API 显式启用来源服务时，启动前通过 `verifyIngestRuntimeRole` 核对独立最小权限 LOGIN；权限及部署步骤见服务端说明。
 
 ```ts
 import { PostgresDocumentStore } from '@camery/ingest/node';

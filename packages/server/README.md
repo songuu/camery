@@ -1,5 +1,32 @@
 # NestJS / Fastify 认证 API 骨架
 
+## T1.1 来源服务与工作台
+
+同一应用镜像现在包含[来源工作台](../web/README.md)静态资源。来源API以`CAMERY_SOURCE_IMPORTS=1`显式开启；默认0保留阶段0认证运行方式。静态目录由受信配置`CAMERY_FRONTEND_DIRECTORY`指定（镜像内固定`/app/public`），没有前端跨域或代理身份信任。
+
+| 路由 | 权限 / 行为 |
+|---|---|
+| `GET /api/v1/projects/:projectId/sources` | `project:read`；50条一页的小说/剧本元数据目录 |
+| `POST .../novels/:documentId/batches` | `candidate:write`；不可变显示标题、批次内容与revision；相同批次幂等 |
+| `GET .../novels/:documentId` | `project:read`；当前用户游标和有界原文页 |
+| `POST .../novels/:documentId/checkpoint` | `project:read`；只保存当前认证用户的单调游标 |
+| `PUT .../scripts/:documentId/:format?title=...` | `candidate:write`；`application/octet-stream`最多8MB，格式`docx/fountain/csv/tsv`；原始字节与候选同事务保存 |
+| `GET .../scripts/:documentId` | `project:read`；有界预览，不回传原始二进制或完整快照 |
+
+`tenantId/readerId`从认证principal取得，不能由请求体替换。正文以候选保存，不调用模型、不采用到IR。预览默认12000、最大20000个UTF-16单元，最多200条相交结构；`offset`与`before`互斥，后者用于无历史状态的相邻上一段，不拆代理对。写入游标仍严格拒绝非法边界。普通路由所有内容类型保持16KiB；仅小说批次放宽到6.1MB、剧本字节到8MB，核心仍独立检查格式及资源上限。
+
+来源开启前，可信安装者显式调用`migrateIngest(adminPool)`验证版本1并追加版本2；不得让API登录身份迁移或管理schema。对现有受限API角色只追加：
+
+```sql
+GRANT USAGE ON SCHEMA camery_ingest TO camery_api_runtime;
+GRANT SELECT, INSERT, UPDATE ON camery_ingest.documents, camery_ingest.reading_checkpoints TO camery_api_runtime;
+GRANT SELECT, INSERT ON camery_ingest.scripts TO camery_api_runtime;
+```
+
+这里的角色名是安装示例，须由实际受信安装流程替换。启动依次执行认证与来源两层权限检查，缺少任一必需权限、schema/table所有权、CREATE、migrations访问、脚本UPDATE或多余列级权限均失败。回滚可先关闭来源开关恢复认证服务，保留新表及原始数据；旧版严格小说快照读取器不能读取带可选title的新记录，导入数据恢复须使用兼容版本，不能删除字段或旧迁移记录来绕过校验。
+
+`pnpm test:server:local --coverage`用真实独立LOGIN验证授权、各格式导入、每用户游标与重启。`pnpm test:private-api:local`分别以来源关闭/开启运行同一实际镜像，检查静态JS、Word解析、最小权限、重启后游标与会话撤销，不以宿主源码执行冒充镜像验收。
+
 按 [ADR-002](../../docs/adr/002-backend-modular-monolith.md) 使用 NestJS 12 / Fastify 5。认证和角色规则见 [access](../access/README.md)，数据库权限见 [POSTGRES.md](../access/POSTGRES.md)。
 
 | 路由 | 权限 | 行为 |

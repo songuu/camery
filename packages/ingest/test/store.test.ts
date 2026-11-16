@@ -81,8 +81,15 @@ describe('explicit installation migration', () => {
   it('applies once and accepts only the identical installed checksum', async () => {
     const fresh = mockDatabase(); await migrateIngest(fresh.pool); expect(fresh.release).toHaveBeenCalledOnce();
     const checksum = textDigest(readFileSync(new URL('../src/node/migrations/0001-imports.sql', import.meta.url)));
-    const existing = mockDatabase({ migrations: [{ version: 1, checksum }] }); await migrateIngest(existing.pool);
+    const second = textDigest(readFileSync(new URL('../src/node/migrations/0002-scripts.sql', import.meta.url)));
+    const existing = mockDatabase({ migrations: [{ version: 1, checksum }, { version: 2, checksum: second }] }); await migrateIngest(existing.pool);
     expect(existing.query.mock.calls.some(([sql]) => sql.startsWith('INSERT INTO camery_ingest.migrations'))).toBe(false);
+  });
+  it('upgrades the verified version-one prefix without reapplying its table definitions', async () => {
+    const checksum = textDigest(readFileSync(new URL('../src/node/migrations/0001-imports.sql', import.meta.url)));
+    const existing = mockDatabase({ migrations: [{ version: 1, checksum }] }); await migrateIngest(existing.pool);
+    expect(existing.query.mock.calls.some(([sql]) => sql.startsWith('CREATE TABLE camery_ingest.documents'))).toBe(false);
+    expect(existing.query.mock.calls.some(([sql]) => sql.startsWith('CREATE TABLE camery_ingest.scripts'))).toBe(true);
   });
   it.each([[{ version: 1, checksum: 'changed' }], [{ version: 2, checksum: 'changed' }], [{ version: 1 }, { version: 2 }]])('refuses changed migration history', async (...rows) => {
     await expect(migrateIngest(mockDatabase({ migrations: rows }).pool)).rejects.toMatchObject({ code: 'CONFLICT' });

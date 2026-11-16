@@ -70,6 +70,8 @@ jobs:
         run: |
           pnpm --filter @camery/access test:integration --coverage
           pnpm --filter @camery/server test:integration --coverage
+      - name: Build browser source workbench
+        run: pnpm --filter @camery/web build
       - name: Build private API and worker runtime image
         run: docker build -f deploy/Dockerfile.api -t camery-api:phase0 .
       - name: Start isolated private API database fixture

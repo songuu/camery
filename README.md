@@ -43,7 +43,7 @@ CI 对 pull request 和 push 执行相同的 `pnpm check`，再运行真实 Post
 
 当前已落地的 [IR v0.5 契约与 CLI](packages/ir/README.md)、[阶段 0 进展与剩余项](docs/plan/phase0-progress.md) 分别记录使用方法、验证证据和实现边界。
 
-[阶段1进展](docs/plan/phase1-progress.md)从[小说与剧本导入核心](packages/ingest/README.md)开始：精确来源定位、分批幂等、PostgreSQL读取游标，以及Fountain/CSV/TSV/DOCX候选。公共HTTP、界面、StoryBible及后续生成链路仍按计划逐项接入。
+[阶段1进展](docs/plan/phase1-progress.md)已接入[小说与剧本导入核心](packages/ingest/README.md)、认证来源HTTP和[React来源工作台](packages/web/README.md)：精确来源定位、分批幂等、PostgreSQL读取游标，以及Fountain/CSV/TSV/DOCX候选。StoryBible及后续生成链路仍按计划逐项实施。
 
 [时间线代数](packages/timeline/README.md) 提供精确时间推算、锚点与音轨检查、不可变编辑；既定技术选择见 [ADR-001–019](docs/adr/README.md)。
 

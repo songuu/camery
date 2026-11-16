@@ -7,16 +7,19 @@ import {
 import { APP_FILTER, APP_GUARD, NestFactory, Reflector } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { AccessError, AccessService, authorize, permissionsFor, type Permission, type SessionIdentity, type SessionStore } from '@camery/access';
+import { AccessError, AccessService, authorize, permissionsFor, type SessionStore } from '@camery/access';
+import fastifyStatic from '@fastify/static';
+import { ImportError } from '@camery/ingest';
+import { IngestModule } from './ingest.js';
+import type { SourceStores } from './ingest.js';
+import { POLICY, RequireAccess } from './policy.js';
+import type { AccessPolicy, AuthRequest } from './policy.js';
+export { RequireAccess } from './policy.js';
 
-const POLICY = Symbol('camery.access.policy');
 const SERVICE = Symbol('camery.access.service');
-type AccessPolicy = Permission | 'authenticated';
-export const RequireAccess = (permission: AccessPolicy): MethodDecorator => SetMetadata(POLICY, permission);
 // Public access stays private to this module so new business routes must declare a policy.
 const Public = (): MethodDecorator => SetMetadata(POLICY, 'public');
-interface AuthRequest extends FastifyRequest { principal: SessionIdentity }
-export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore }
+export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly frontendDirectory?: string }
 
 class AccessGuard implements CanActivate {
   private readonly reflector = new Reflector();
@@ -50,6 +53,9 @@ class SafeErrors implements ExceptionFilter {
     if (error instanceof AccessError) {
       code = error.code;
       status = error.code === 'UNAUTHENTICATED' ? 401 : error.code === 'FORBIDDEN' ? 403 : error.code === 'INVALID_INPUT' ? 400 : 503;
+    } else if (error instanceof ImportError) {
+      code = error.code;
+      status = ({ INVALID_INPUT: 400, INPUT_LIMIT: 413, UNSUPPORTED_FORMAT: 415, MALFORMED_DOCUMENT: 422, CONFLICT: 409, NOT_FOUND: 404, STORAGE_FAILED: 503 } as const)[error.code];
     } else if (error instanceof HttpException) {
       status = error.getStatus(); code = status === 404 ? 'NOT_FOUND' : 'REQUEST_REJECTED';
     }
@@ -90,11 +96,21 @@ export class AccessModule {
 
 /** No trusting proxy identity, credential cookies, global user state or request/header logging. */
 export async function createApplication(options: AccessOptions): Promise<NestFastifyApplication> {
-  @Module({ imports: [AccessModule.register(options)] }) class ApplicationModule {}
+  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : [])] }) class ApplicationModule {}
   const app = await NestFactory.create<NestFastifyApplication>(ApplicationModule,
-    new FastifyAdapter({ logger: false, trustProxy: false, bodyLimit: 16384, genReqId: () => randomUUID() }),
+    new FastifyAdapter({ logger: false, trustProxy: false, bodyLimit: 16384, routerOptions: { maxParamLength: 512 }, genReqId: () => randomUUID() }),
     { logger: false, abortOnError: false });
   app.useSecurityHeaders();
+  const fastify = app.getHttpAdapter().getInstance();
+  if (options.sources) {
+    fastify.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: 8_000_000 }, (_request, body, done) => done(null,body));
+    fastify.addHook('onRoute', route => {
+      route.bodyLimit = 16384;
+      if (route.url === '/api/v1/projects/:projectId/novels/:documentId/batches' && route.method === 'POST') route.bodyLimit = 6_100_000;
+      if (route.url === '/api/v1/projects/:projectId/scripts/:documentId/:format' && route.method === 'PUT') route.bodyLimit = 8_000_000;
+    });
+  }
+  if (options.frontendDirectory) await app.register(fastifyStatic, { root: options.frontendDirectory, wildcard: false, index: ['index.html'], cacheControl: false });
   await app.init(); await app.getHttpAdapter().getInstance().ready();
   return app;
 }

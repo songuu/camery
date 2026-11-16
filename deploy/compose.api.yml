@@ -19,6 +19,7 @@ services:
       CAMERY_DATABASE_URL_FILE: /run/secrets/api_database_url
       CAMERY_API_HOST: 0.0.0.0
       CAMERY_API_PORT: '3000'
+      CAMERY_SOURCE_IMPORTS: ${CAMERY_SOURCE_IMPORTS:-0}
     secrets:
       - api_database_url
     ports:

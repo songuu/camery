@@ -4,8 +4,9 @@ import { importNovel } from '../novel.js';
 import { ImportError } from '../types.js';
 import { advanceReading, appendNovelBatch, captureNovelBatch, captureReadingProgress, documentScope, DocumentIdentity, validateNovelSnapshot, validateReadingCheckpoint } from '../session.js';
 import type { DocumentScope, NovelSnapshot } from '../session.js';
+import { documentTransaction } from './transaction.js';
 
-const Reader = DocumentIdentity.extend({ readerId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/) });
+const Reader = DocumentIdentity.extend({ readerId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/) });
 function keys(scope: DocumentScope) { return [scope.tenantId, scope.projectId, scope.documentId]; }
 function scopeFrom(input: unknown): DocumentScope {
   if (!input || typeof input !== 'object') throw new ImportError('INVALID_INPUT', 'scope');
@@ -24,18 +25,7 @@ export class PostgresDocumentStore {
   constructor(private readonly pool: Pool) {}
 
   private async transaction<T>(scope: DocumentScope, action: (client: PoolClient) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect().catch(() => { throw new ImportError('STORAGE_FAILED', 'connection'); });
-    try {
-      await client.query('BEGIN');
-      // Serializes first insertion too; row locks alone do not protect a document that does not exist yet.
-      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [JSON.stringify(['camery_ingest', ...keys(scope)])]);
-      const result = await action(client);
-      await client.query('COMMIT'); return result;
-    } catch (error) {
-      try { await client.query('ROLLBACK'); } catch { throw new ImportError('STORAGE_FAILED', 'rollback'); }
-      if (error instanceof ImportError) throw error;
-      throw new ImportError('STORAGE_FAILED', 'transaction');
-    } finally { client.release(); }
+    return documentTransaction(this.pool, scope, action);
   }
 
   private async load(client: PoolClient, scope: DocumentScope): Promise<NovelSnapshot | undefined> {

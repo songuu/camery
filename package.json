@@ -23,6 +23,7 @@
     "test:agents:local": "node scripts/postgres-integration.mjs agents",
     "test:access:local": "node scripts/postgres-integration.mjs access",
     "start:api": "pnpm --filter @camery/server start",
+    "dev:web": "pnpm --filter @camery/web dev",
     "test:server:local": "node scripts/postgres-integration.mjs server",
     "test:ingest:local": "node scripts/postgres-integration.mjs ingest",
     "test:private-api:local": "node scripts/postgres-integration.mjs private-api",

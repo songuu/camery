@@ -48,7 +48,8 @@ it('builds native API/worker entrypoints with pinned data, no internal package i
   } finally {
     // oxlint-disable-next-line eslint/no-unsafe-finally -- Refuse unsafe or failed cleanup even when the test body failed.
     if (path.dirname(directory) !== distribution || !path.basename(directory).startsWith('camery-server-build-')) throw new Error('Unsafe temporary build target');
-    await rm(directory, { recursive: true, force: true });
+    // Windows can briefly retain handles to newly linked dependency directories after the child closes.
+    await rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }, 30000);
 
