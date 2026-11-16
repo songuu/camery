@@ -45,6 +45,8 @@ CI 对 pull request 和 push 执行相同的 `pnpm check`，再运行真实 Post
 
 [阶段1进展](docs/plan/phase1-progress.md)已接入[小说与剧本导入核心](packages/ingest/README.md)、认证来源HTTP和[React来源工作台](packages/web/README.md)：精确来源定位、分批幂等、PostgreSQL读取游标，以及Fountain/CSV/TSV/DOCX候选。StoryBible及后续生成链路仍按计划逐项实施。
 
+[StoryBible候选领域](packages/bible/README.md)提供有界分块、单块结构化抽取、跨块合并建议、精确引文与受信人工确认/拒绝函数。十章合成协议录制/回放已覆盖组合链路；持久化任务、认证审阅应用、真实文本模型质量和人审仍按[T1.2计划](docs/plan/storybible-phase1.md)继续，不把候选或库级确认直接写入正式IR。
+
 [时间线代数](packages/timeline/README.md) 提供精确时间推算、锚点与音轨检查、不可变编辑；既定技术选择见 [ADR-001–019](docs/adr/README.md)。
 
 [版本域核心](packages/versioning/README.md) 提供候选、基版本冲突、锁与人工采用；[旧样例迁移](packages/ir/MIGRATION.md) 说明 v0.3 到 v0.5 规划候选的显式转换和审计边界。
