@@ -20,7 +20,7 @@ export function workflowFixture(evidence:'synthetic_replay'|'live_model'='synthe
   const body={tenantId:f.brief.tenantId,projectId:f.brief.projectId,runId:'run-one',brief:f.brief,methods,execution};
   const run:DevelopmentRun={...body,digest:developmentRunDigest(body),createdAt:'2026-11-16T12:00:00.000Z'};
   const progress:DevelopmentProgress={run,foundation:{candidate:null,review:null},episodes:{candidate:null,review:null}};
-  const store:DevelopmentStore={putBrief:vi.fn(async()=>({brief:f.brief,actorId:f.host.actor.id,createdAt:run.createdAt})),getBrief:vi.fn(async()=>({brief:f.brief,actorId:f.host.actor.id,createdAt:run.createdAt})),start:vi.fn(async()=>run),read:vi.fn(async()=>progress),isCurrent:vi.fn(async()=>true),
+  const store:DevelopmentStore={putBrief:vi.fn(async()=>({brief:f.brief,actorId:f.host.actor.id,createdAt:run.createdAt})),getBrief:vi.fn(async()=>({brief:f.brief,actorId:f.host.actor.id,createdAt:run.createdAt})),start:vi.fn(async()=>run),fork:vi.fn(async()=>{throw new Error('Fork is not configured in this v1 workflow fixture');}),read:vi.fn(async()=>progress),isCurrent:vi.fn(async()=>true),
     saveCandidate:vi.fn<DevelopmentStore['saveCandidate']>(async(_key,candidate)=>{
       const stage=candidate.stage;const existing=progress[stage].candidate;if(existing)return existing;
       const checked=stage==='foundation'?validateFoundationCandidate(run.brief,candidate):validateEpisodeCandidate(run.brief,progress.foundation.review as ReturnType<typeof reviewFoundation>,candidate);

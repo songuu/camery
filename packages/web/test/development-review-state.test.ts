@@ -1,9 +1,22 @@
 import {expect,it} from 'vitest';
 import {episodeFixture} from '../../script/test/episode-fixture.js';
-import {inspectFoundationDraft,inspectEpisodeDraft,developmentDraft,developmentDecision} from '../src/development-review-state.js';
+import {inspectFoundationDraft,inspectEpisodeDraft,developmentDraft,developmentDecision,developmentRedoRequest,developmentRedoReason} from '../src/development-review-state.js';
+import type {DevelopmentRedo,DevelopmentRunView} from '@camery/script/http';
 it('keeps edits separate from the original and retains exact approved output',()=>{
   const f=episodeFixture();const draft=developmentDraft(f.foundation);draft.title='人工编辑';expect(f.foundation.title).not.toBe(draft.title);
   expect(inspectFoundationDraft(draft).valid).toBe(true);expect(developmentDecision('foundation','a'.repeat(64),draft,f.brief,f.foundation)).toEqual({candidateDigest:'a'.repeat(64),output:draft});
+});
+it('keeps the exact redo request until acknowledged and never invents an inherited review',()=>{
+  const f=episodeFixture();const source:Pick<DevelopmentRunView,'runId'|'runDigest'|'brief'|'foundation'>={runId:'source',runDigest:'a'.repeat(64),brief:f.brief,foundation:{candidate:null,review:null}};const pending=new Map<string,DevelopmentRedo>();let ids=0;const next=()=>`redo-${++ids}`;
+  expect(developmentRedoRequest(pending,source,'episodes',next)).toBeNull();expect(ids).toBe(0);
+  const first=developmentRedoRequest(pending,source,'foundation',next)!;expect(first.command.expectedFoundationReviewDigest).toBeNull();expect(developmentRedoRequest(pending,source,'foundation',next)).toEqual(first);expect(ids).toBe(1);
+  pending.delete(first.key);expect(developmentRedoRequest(pending,source,'foundation',next)!.command.runId).toBe('redo-2');
+  source.foundation.review={status:'reviewed',digest:'b'.repeat(64),actorId:'original-human',at:'2026-11-16T12:00:00.000Z',output:f.foundation};
+  const episodes=developmentRedoRequest(pending,source,'episodes',next)!;expect(episodes.command).toEqual({runId:'redo-3',expectedSourceRunDigest:source.runDigest,expectedBriefDigest:f.brief.digest,expectedFoundationReviewDigest:'b'.repeat(64)});expect(developmentRedoRequest(pending,source,'episodes',next)).toEqual(episodes);expect(ids).toBe(3);
+  const invalid=new Map<string,DevelopmentRedo>();expect(developmentRedoRequest(invalid,source,'foundation',()=>source.runId)).toBeNull();expect(developmentRedoRequest(invalid,source,'foundation',()=>'/invalid')).toBeNull();expect(invalid.size).toBe(0);
+});
+it('explains every server redo gate without offering automatic retries',()=>{
+  for(const reason of ['MODEL_UNAVAILABLE','BRIEF_CHANGED','UPSTREAM_NOT_REVIEWED','STAGE_NOT_FINISHED','UNKNOWN_RESULT','RUN_IN_PROGRESS'] as const)expect(developmentRedoReason(reason)).toBeTruthy();expect(developmentRedoReason(null)).toBeNull();expect(developmentRedoReason('UNKNOWN_RESULT')).toContain('对账');
 });
 it('rejects duplicate/dangling identities, self relations and an unbound protagonist',()=>{
   const f=episodeFixture();const duplicate=developmentDraft(f.foundation);duplicate.characters.push({...duplicate.characters[0]!});expect(inspectFoundationDraft(duplicate).valid).toBe(false);

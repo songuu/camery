@@ -3,7 +3,7 @@ import { DurableWorker,PostgresDurableStore } from '@camery/durable';
 import type { Json,Lease,StepSpec } from '@camery/durable';
 import { PostgresBudgetLedger } from '@camery/agents/node';
 import { PostgresDevelopmentStore } from '../../src/node/store.js';
-import { createDevelopmentStageWorkflow } from '../../src/node/workflow.js';
+import { createDevelopmentStageWorkflow,createDevelopmentRedoWorkflow } from '../../src/node/workflow.js';
 import { protocolTransport,sessionFactory } from '../workflow-pg-support.js';
 
 const pool=new Pool({connectionString:process.env['CAMERY_TEST_DATABASE_URL']});let calls=0;
@@ -23,6 +23,7 @@ const tenantId=process.env['CAMERY_DEVELOPMENT_CRASH_TENANT'];const taskId=proce
 if(!tenantId||!taskId)throw new Error('Missing owned development crash fixture identity');
 try{
   const worker=new DurableWorker(new CrashAfterCommittedDecision(pool),{leaseMs:1000,runTimeoutMs:60000});
-  worker.register(createDevelopmentStageWorkflow({store:new PostgresDevelopmentStore(pool),ledger:new PostgresBudgetLedger(pool),sessionFor:sessionFactory(protocolTransport(()=>{calls++;process.send?.({event:'provider-called'});}))}));
+  const options={store:new PostgresDevelopmentStore(pool),ledger:new PostgresBudgetLedger(pool),sessionFor:sessionFactory(protocolTransport(()=>{calls++;process.send?.({event:'provider-called'});}))};
+  worker.register(createDevelopmentStageWorkflow(options));worker.register(createDevelopmentRedoWorkflow(options));
   process.send?.({event:'dispatching'});const result=await worker.runTask({tenantId,taskId},'owned-development-crash-worker');process.send?.({event:'task-finished',status:result?.status??'not-claimed'});
 }finally{await pool.end();}

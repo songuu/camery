@@ -10,9 +10,10 @@ import { createOriginalFoundationMethodPack,createOriginalEpisodesMethodPack } f
 import { createFoundationCandidate,generateFoundation,generateEpisodes } from '../src/development.js';
 import { hash } from '../src/data.js';
 import type { DevelopmentCandidate,DevelopmentReviewHost,ReviewedDevelopment } from '../src/contracts.js';
-import { developmentStageCallId } from '../src/node/contracts.js';
+import { developmentStageCallId,episodeExecutionFromFull } from '../src/node/contracts.js';
 import type { DevelopmentRun,PutDevelopmentBrief,StartDevelopmentRun } from '../src/node/contracts.js';
 import { PostgresDevelopmentStore } from '../src/node/store.js';
+import { PostgresDevelopmentCatalog } from '../src/node/catalog.js';
 import { migrateDevelopment } from '../src/node/migrate.js';
 import { grantDevelopmentRuntimeRole,verifyDevelopmentRuntimeRole } from '../src/node/runtime-role.js';
 import { episodeFixture } from './episode-fixture.js';
@@ -23,7 +24,7 @@ const registry=new MethodRegistry();const methods={foundation:registry.register(
 const execution={connectionId:'fixture',modeDigest:'a'.repeat(64),modelIdentity:'fixture/original',evidence:'synthetic_replay' as const,modelTier:'balanced' as const,currency:'CNY',reservation:{tokens:100,costMicros:0},limits:{steps:2,tokens:200,costMicros:0}};
 // Permission probes must target real relations even on a fresh DB; do not depend on another suite's installation order.
 beforeAll(async()=>{await migrateDurable(pool);await migrateAgentBudgets(pool);await migrateAccess(pool);await migrateDevelopment(pool);});
-afterAll(async()=>{for(const tenantId of tenants)for(const table of ['reviews','candidates','runs','briefs'])await pool.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[tenantId]);await pool.end();});
+afterAll(async()=>{for(const tenantId of tenants)for(const table of ['run_origins','reviews','candidates','runs','briefs'])await pool.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[tenantId]);await pool.end();});
 async function fixture(){
   const tenantId='development-store-'+randomUUID();tenants.push(tenantId);const scope={tenantId,projectId:'project'};const key={...scope,runId:'run'};const store=new PostgresDevelopmentStore(pool);
   const put:PutDevelopmentBrief={...scope,briefId:'idea',expectedRevision:0,actorId:'author',idea:story.brief.idea,episodeCount:10,targetSeconds:120};
@@ -123,8 +124,31 @@ it('uses a dedicated append-only LOGIN without access to authentication, budgets
   try{
     await pool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT`);created=true;await grantDevelopmentRuntimeRole(pool,role);
     const url=new URL(databaseUrl!);url.username=role;url.password=password;runtime=new Pool({connectionString:url.toString()});await verifyDevelopmentRuntimeRole(runtime);
-    const store=new PostgresDevelopmentStore(runtime);const run=await store.start(x.command);const candidate=await foundationFor(run);await store.saveCandidate(x.key,candidate);await store.review(x.key,'foundation',decision(candidate),x.host);
+    const store=new PostgresDevelopmentStore(runtime);const run=await store.start(x.command);const candidate=await foundationFor(run);await store.saveCandidate(x.key,candidate);const review=await store.review(x.key,'foundation',decision(candidate),x.host);
+    const child=await store.fork({...x.scope,runId:'child',sourceRunId:run.runId,expectedSourceRunDigest:run.digest,expectedRevision:1,expectedBriefDigest:run.brief.digest,actorId:'reviewer',methods:run.methods,stage:'episodes',expectedFoundationReviewDigest:review.digest,execution:episodeExecutionFromFull(run.execution)});
+    expect((await store.read({...x.scope,runId:child.runId})).foundation).toEqual({candidate,review});
     expect((await store.read(x.key)).foundation.review?.status).toBe('reviewed');await expect(store.read({...x.key,tenantId:'other'})).rejects.toMatchObject({code:'NOT_FOUND'});
-    for(const sql of ['SELECT * FROM camery_access.users','SELECT * FROM camery_agents.budget_projects','UPDATE camery_script.briefs SET actor_id=actor_id','DELETE FROM camery_script.reviews','SELECT * FROM camery_script.migrations'])await expect(runtime.query(sql)).rejects.toMatchObject({code:'42501'});
+    for(const sql of ['SELECT * FROM camery_access.users','SELECT * FROM camery_agents.budget_projects','UPDATE camery_script.briefs SET actor_id=actor_id','DELETE FROM camery_script.reviews','UPDATE camery_script.run_origins SET actor_id=actor_id','DELETE FROM camery_script.run_origins','SELECT * FROM camery_script.migrations'])await expect(runtime.query(sql)).rejects.toMatchObject({code:'42501'});
   }finally{await runtime?.end();if(created){await pool.query(`DROP OWNED BY ${role}`);await pool.query(`DROP ROLE ${role}`);}}
+});
+
+it('atomically forks immutable original evidence under concurrent retries and restores flattened origins through a new pool',async()=>{
+  const x=await fixture();const source=await x.store.start(x.command);const candidate=await foundationFor(source);await x.store.saveCandidate(x.key,candidate);const review=await x.store.review(x.key,'foundation',decision(candidate),x.host);
+  const command={...x.scope,runId:'child',sourceRunId:source.runId,expectedSourceRunDigest:source.digest,expectedRevision:1,expectedBriefDigest:source.brief.digest,actorId:'new-author',methods:source.methods,stage:'episodes' as const,expectedFoundationReviewDigest:review.digest,execution:episodeExecutionFromFull(source.execution)};
+  const [child,retry]=await Promise.all([x.store.fork(command),x.store.fork(command)]);expect(retry).toEqual(child);const key={...x.scope,runId:child.runId};
+  await expect(x.store.review(key,'foundation',decision(candidate),x.host)).rejects.toMatchObject({code:'FORBIDDEN'});await expect(x.store.reject(key,'foundation','不可改写继承审核',x.host)).rejects.toMatchObject({code:'FORBIDDEN'});await expect(x.store.saveCandidate(key,candidate)).rejects.toMatchObject({code:'FORBIDDEN'});
+  const episodes=await episodesFor(child,review as ReviewedDevelopment<'foundation'>);await x.store.saveCandidate(key,episodes);const approved=await x.store.review(key,'episodes',decision(episodes),x.host);
+  const summary=await new PostgresDevelopmentCatalog(pool).summary(key);expect(summary).toMatchObject({foundationCandidateDigest:candidate.digest,foundationReviewStatus:'reviewed',episodesCandidateDigest:episodes.digest,episodesReviewStatus:'reviewed'});
+  const next=await x.store.fork({...command,runId:'grandchild',sourceRunId:child.runId,expectedSourceRunDigest:child.digest});expect(next.origin).toMatchObject({sourceRunId:child.runId,foundation:{runId:source.runId}});
+  const replacement=new Pool({connectionString:databaseUrl});try{expect(await new PostgresDevelopmentStore(replacement).read(key)).toEqual({run:child,foundation:{candidate,review},episodes:{candidate:episodes,review:approved}});}finally{await replacement.end();}
+  const rows=await pool.query('SELECT run_id,stage FROM camery_script.candidates WHERE tenant_id=$1 ORDER BY run_id,stage',[x.tenantId]);expect(rows.rows).toEqual([{run_id:'child',stage:'episodes'},{run_id:'run',stage:'foundation'}]);
+  await x.store.putBrief({...x.put,expectedRevision:1,idea:'更新后的创意只影响尚未创建的分支。'});expect(await x.store.fork(command)).toEqual(child);await expect(x.store.fork({...command,runId:'stale'})).rejects.toMatchObject({code:'CONFLICT'});
+});
+
+it('rolls back failed origin inserts and recovers a committed fork whose acknowledgement was lost',async()=>{
+  const x=await fixture();const source=await x.store.start(x.command);const candidate=await foundationFor(source);await x.store.saveCandidate(x.key,candidate);const review=await x.store.review(x.key,'foundation',decision(candidate),x.host);
+  const command={...x.scope,runId:'child',sourceRunId:source.runId,expectedSourceRunDigest:source.digest,expectedRevision:1,expectedBriefDigest:source.brief.digest,actorId:'author',methods:source.methods,stage:'episodes' as const,expectedFoundationReviewDigest:review.digest,execution:episodeExecutionFromFull(source.execution)};
+  function fault(mode:'insert'|'commit'){return {query:pool.query.bind(pool),connect:async()=>{const client=await pool.connect();return {release:()=>client.release(),query:async(sql:string,values?:unknown[])=>{if(mode==='insert'&&sql.startsWith('INSERT INTO camery_script.run_origins'))throw new Error('origin insert failure');const result=await client.query(sql,values);if(mode==='commit'&&sql==='COMMIT')throw new Error('commit response lost');return result;}};}} as unknown as Pool;}
+  await expect(new PostgresDevelopmentStore(fault('insert')).fork(command)).rejects.toMatchObject({code:'STORAGE_FAILED'});await expect(x.store.read({...x.scope,runId:'child'})).rejects.toMatchObject({code:'NOT_FOUND'});
+  await expect(new PostgresDevelopmentStore(fault('commit')).fork(command)).rejects.toMatchObject({code:'STORAGE_FAILED'});const recovered=await x.store.fork(command);expect(recovered.origin?.foundation?.reviewDigest).toBe(review.digest);expect((await pool.query('SELECT count(*)::int total FROM camery_script.run_origins WHERE tenant_id=$1',[x.tenantId])).rows).toEqual([{total:1}]);
 });

@@ -52,4 +52,14 @@ docker compose --env-file deploy/.env --env-file deploy/.env.api --env-file depl
 
 worker不公开网络端口，以镜像非root用户、只读根目录、capabilities全移除及禁止提权运行；收到SIGTERM后停止新调度并等待当前有界attempt结束，330秒grace覆盖最大模型超时及任务尾部。其公平轮询全部运行、每轮默认20条（1–50），间隔默认1000ms（50–60000ms），只精确领取当前tenant/task。即使业务已审阅或brief过期，也保留原durable任务尾部恢复路径。reconciling等待人工对账，失败/取消不换ID自动重发。
 
+## 逐阶段重做
+
+旧运行继续使用`original.development-stage@1`和原journal；显式重做分支使用同名workflow的版本2，worker启动必须注册两个版本。重新生成设定仍是完整两阶段计划；单独重做分集只继承真实已审阅设定的来源引用，既有候选、模型回执、审阅作者/时点和旧预算日志保持原样。继承设定不会创建新foundation任务、构造旧模型session或再次分配预算，因此旧供应方密钥移除不妨碍读取与复用已完成的上游。
+
+仅分集分支使用宿主完整profile精确派生的一阶段profile：`limits.steps=1`，tokens/cost上限各等于一份reservation。配置文件仍声明完整两阶段上限，不能由HTTP客户端自行修改价格、模型或限额；模型runtime只接受完整宿主profile及它的唯一一阶段派生值。预算示例中的价格仍须按实际供应方核实，预留不等同已结算账单。
+
+重做必须经项目`task:run`权限与可信源Task/steps检查。仍在运行、reconciling或`cancelled`但仍有unknown external步骤的旧目标，必须先沿原任务对账；不能靠新分支自动重复调用或释放旧预留。修改brief后旧设定不能悄悄复用，应启动新的完整开发。原始运行和新分支均可读取，单独分集的新候选仍需用户明确审阅；这不是正式IR采用。
+
+安装者需显式应用新增origin迁移并给独立development数据身份新增`run_origins`的SELECT/INSERT，不能改写已安装0001/0002的checksum。运行时不自行升级权限或迁移。回退先关闭development功能，保留新分支及旧回执、预算和审计历史，不能删除origin来伪装旧版可读。
+
 容器running仅证明进程存在；业务事实以持久化运行/候选/审阅和预算日志为准。真实HTTP协议夹具、PG恢复与构建成功不证明真实模型连贯性、人工评分或正式IR采用；完整阶段1验收仍保留。

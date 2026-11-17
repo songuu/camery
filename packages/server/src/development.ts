@@ -5,8 +5,8 @@ import {authorize} from '@camery/access';
 import {DevelopmentError} from '@camery/script';
 import type {DevelopmentReviewHost} from '@camery/script';
 import {Id,Stage} from '@camery/script/contracts';
-import {boundedDevelopmentSchema,DevelopmentBriefWriteSchema,DevelopmentBriefListQuerySchema,DevelopmentStartSchema,DevelopmentListQuerySchema,DevelopmentReadBriefQuerySchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema} from '@camery/script/http';
-import {developmentStageTaskId,enqueueNextDevelopmentTask,projectDevelopmentBrief,projectDevelopmentRun,projectDevelopmentStatus,RunKeySchema} from '@camery/script/node';
+import {boundedDevelopmentSchema,DevelopmentBriefWriteSchema,DevelopmentBriefListQuerySchema,DevelopmentStartSchema,DevelopmentListQuerySchema,DevelopmentReadBriefQuerySchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema,DevelopmentRedoSchema} from '@camery/script/http';
+import {developmentStageTaskId,enqueueNextDevelopmentTask,projectDevelopmentBrief,projectDevelopmentRun,projectDevelopmentStatus,RunKeySchema,inspectDevelopmentRedo,startDevelopmentRedo} from '@camery/script/node';
 import type {DevelopmentRunKey} from '@camery/script/node';
 import {RequireAccess} from './policy.js';
 import type {AuthRequest} from './policy.js';
@@ -69,6 +69,15 @@ class DevelopmentController{
   }
   @Get(':runId/status') @RequireAccess('project:read')
   status(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Param('runId') runId:string){return this.read(key(request,projectId,runId),false);}
+  @Get(':runId/redo') @RequireAccess('project:read')
+  redoOptions(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Param('runId') runId:string){return inspectDevelopmentRedo(this.options,key(request,projectId,runId),this.options.presetFor(projectId));}
+  @Post(':runId/redo/:stage') @RequireAccess('task:run')
+  async redo(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Param('runId') runId:string,@Param('stage') value:string,@Body() body:unknown){
+    const stage=parse(Stage,value);const command=parse(DevelopmentRedoSchema,body);const preset=this.options.presetFor(projectId);
+    if(!preset)throw new DevelopmentError('INCOMPLETE','text model unavailable');
+    const run=await startDevelopmentRedo(this.options,{source:key(request,projectId,runId),stage,command,actorId:request.principal.userId,preset});
+    return this.read(key(request,projectId,run.runId),true);
+  }
   @Get(':runId') @RequireAccess('project:read')
   detail(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Param('runId') runId:string){return this.read(key(request,projectId,runId),true);}
   private host(request:AuthRequest,projectId:string):DevelopmentReviewHost{

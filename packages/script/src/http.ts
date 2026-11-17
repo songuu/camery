@@ -30,6 +30,9 @@ export type DevelopmentRunList=z.infer<typeof DevelopmentRunListSchema>;
 export const DevelopmentTaskViewSchema=z.strictObject({stage:Stage,status:z.enum(['queued','running','waiting','reconciling','succeeded','failed','cancelled']),
   resultState:z.enum(['candidate','blocked']).nullable(),reason:z.string().regex(/^[A-Z_]{1,64}$(?![\s\S])/).nullable()});
 export type DevelopmentTaskView=z.infer<typeof DevelopmentTaskViewSchema>;
+export const DevelopmentOriginViewSchema=z.strictObject({stage:Stage,sourceRunId:Id,sourceRunDigest:Hash,actorId:Id,
+  foundation:z.strictObject({runId:Id,runDigest:Hash,candidateDigest:Hash,reviewDigest:Hash}).nullable(),affectedStages:z.array(Stage).min(1).max(2)});
+export type DevelopmentOriginView=z.infer<typeof DevelopmentOriginViewSchema>;
 export const DevelopmentStatusSchema=DevelopmentRunSummarySchema.extend({stage:Stage,
   state:z.enum(['queued','running','waiting','reconciling','blocked','failed','cancelled','awaiting_review','reviewed','rejected','stale']),task:DevelopmentTaskViewSchema.nullable()});
 export type DevelopmentStatus=z.infer<typeof DevelopmentStatusSchema>;
@@ -37,10 +40,16 @@ const ReviewMeta={digest:Hash,actorId:Id,at:Time};
 const Rejected=z.strictObject({...ReviewMeta,status:z.literal('rejected'),reason:Text(1000)});
 const FoundationReview=z.union([z.strictObject({...ReviewMeta,status:z.literal('reviewed'),output:FoundationOutputSchema}),Rejected]);
 const EpisodesReview=z.union([z.strictObject({...ReviewMeta,status:z.literal('reviewed'),output:EpisodeOutputSchema}),Rejected]);
-export const DevelopmentRunViewSchema=DevelopmentStatusSchema.extend({brief:DevelopmentBriefSchemaPublic,budget:Budget,
+export const DevelopmentRunViewSchema=DevelopmentStatusSchema.extend({runDigest:Hash,origin:DevelopmentOriginViewSchema.optional(),brief:DevelopmentBriefSchemaPublic,budget:Budget,
   foundation:z.strictObject({candidate:z.strictObject({digest:Hash,output:FoundationOutputSchema}).nullable(),review:FoundationReview.nullable()}),
   episodes:z.strictObject({candidate:z.strictObject({digest:Hash,output:EpisodeOutputSchema}).nullable(),review:EpisodesReview.nullable()})});
 export type DevelopmentRunView=z.infer<typeof DevelopmentRunViewSchema>;
+export const DevelopmentRedoSchema=z.strictObject({runId:Id,expectedSourceRunDigest:Hash,expectedBriefDigest:Hash,expectedFoundationReviewDigest:Hash.nullable()});
+export type DevelopmentRedo=z.infer<typeof DevelopmentRedoSchema>;
+export const DevelopmentRedoBlockedReason=z.enum(['MODEL_UNAVAILABLE','BRIEF_CHANGED','UPSTREAM_NOT_REVIEWED','STAGE_NOT_FINISHED','UNKNOWN_RESULT','RUN_IN_PROGRESS']);
+const RedoOption=z.strictObject({canRedo:z.boolean(),reason:DevelopmentRedoBlockedReason.nullable(),budget:Budget.nullable()});
+export const DevelopmentRedoOptionsSchema=z.strictObject({runId:Id,runDigest:Hash,briefDigest:Hash,modelLabel:Text(200).nullable(),foundation:RedoOption,episodes:RedoOption});
+export type DevelopmentRedoOptions=z.infer<typeof DevelopmentRedoOptionsSchema>;
 export const DevelopmentFoundationConfirmSchema=z.strictObject({candidateDigest:Hash,output:FoundationOutputSchema});
 export const DevelopmentEpisodesConfirmSchema=z.strictObject({candidateDigest:Hash,output:EpisodeOutputSchema});
 export type DevelopmentFoundationConfirm=z.infer<typeof DevelopmentFoundationConfirmSchema>;

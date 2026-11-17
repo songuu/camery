@@ -10,9 +10,9 @@ function fixture(){
   const summary=(runId:string)=>({runId,briefId:'idea',briefRevision:1,createdAt:'2026-11-16T10:00:00.000Z',sourceChanged:false,
     foundationCandidateDigest:null,foundationReviewStatus:null,episodesCandidateDigest:null,episodesReviewStatus:null});
   const catalog={list:vi.fn<DevelopmentCatalogReader['list']>(async()=>({items:[summary('run-a')],nextCursor:null})),summary:vi.fn()};
-  const store:DevelopmentStore={putBrief:vi.fn(),getBrief:vi.fn(),start:vi.fn(),read:vi.fn(),isCurrent:vi.fn(),saveCandidate:vi.fn(),review:vi.fn(),reject:vi.fn()};
+  const store:DevelopmentStore={putBrief:vi.fn(),getBrief:vi.fn(),start:vi.fn(),fork:vi.fn(),read:vi.fn(),isCurrent:vi.fn(),saveCandidate:vi.fn(),review:vi.fn(),reject:vi.fn()};
   const durable={enqueue:vi.fn<DurableStore['enqueue']>(),get:vi.fn<DurableStore['get']>()};
-  const worker={hasWorkflow:vi.fn(()=>true),runTask:vi.fn(async():Promise<Task|null>=>null)};
+  const worker={hasWorkflow:vi.fn((_name:string,_version:number)=>true),runTask:vi.fn(async():Promise<Task|null>=>null)};
   return {summary,options:{scope,workerId:'worker-a',catalog,store,durable,worker,pollMs:50,runsPerRound:1}};
 }
 beforeEach(()=>{dispatch.mockReset();dispatch.mockResolvedValue({state:'task',stage:'foundation',task:{tenantId:scope.tenantId,taskId:'original-fixture',status:'queued'}});});
@@ -21,6 +21,10 @@ it('scans all scoped runs and executes only the exact deterministic dispatcher t
   expect(f.options.catalog.list).toHaveBeenCalledExactlyOnceWith(scope);
   expect(dispatch).toHaveBeenCalledExactlyOnceWith(f.options.store,f.options.durable,{...scope,runId:'run-a'});
   expect(f.options.worker.runTask).toHaveBeenCalledExactlyOnceWith({tenantId:scope.tenantId,taskId:'original-fixture'},'worker-a');
+});
+it('requires both historical and redo workflow versions before polling any run',()=>{
+  const f=fixture();createDevelopmentHost(f.options);expect(f.options.worker.hasWorkflow.mock.calls).toEqual([['original.development-stage',1],['original.development-stage',2]]);
+  f.options.worker.hasWorkflow.mockImplementation((_name:string,version:number)=>version===1);expect(()=>createDevelopmentHost(f.options)).toThrow('development host workflow unavailable');expect(f.options.catalog.list).not.toHaveBeenCalled();
 });
 it('uses bounded defaults and carries rows and keyset pages fairly across rounds',async()=>{
   const f=fixture();f.options.catalog.list.mockImplementation(async input=>input.cursor==='second'?{items:[f.summary('run-c')],nextCursor:null}:{items:[f.summary('run-a'),f.summary('run-b')],nextCursor:'second'});

@@ -27,8 +27,9 @@ const projection=`r.tenant_id,r.project_id,r.run_id,r.brief_id,r.brief_revision,
  latest.revision IS DISTINCT FROM r.brief_revision OR latest.digest IS DISTINCT FROM r.brief_digest AS source_changed,
  fc.digest AS foundation_candidate_digest,fv.status AS foundation_review_status,ec.digest AS episodes_candidate_digest,ev.status AS episodes_review_status`;
 const joins=`FROM camery_script.runs r
- LEFT JOIN camery_script.candidates fc ON fc.tenant_id=r.tenant_id AND fc.project_id=r.project_id AND fc.run_id=r.run_id AND fc.stage='foundation'
- LEFT JOIN camery_script.reviews fv ON fv.tenant_id=r.tenant_id AND fv.project_id=r.project_id AND fv.run_id=r.run_id AND fv.stage='foundation'
+ LEFT JOIN camery_script.run_origins origin ON origin.tenant_id=r.tenant_id AND origin.project_id=r.project_id AND origin.run_id=r.run_id
+ LEFT JOIN camery_script.candidates fc ON fc.tenant_id=r.tenant_id AND fc.project_id=r.project_id AND fc.run_id=COALESCE(origin.foundation_run_id,r.run_id) AND fc.stage='foundation'
+ LEFT JOIN camery_script.reviews fv ON fv.tenant_id=r.tenant_id AND fv.project_id=r.project_id AND fv.run_id=COALESCE(origin.foundation_run_id,r.run_id) AND fv.stage='foundation'
  LEFT JOIN camery_script.candidates ec ON ec.tenant_id=r.tenant_id AND ec.project_id=r.project_id AND ec.run_id=r.run_id AND ec.stage='episodes'
  LEFT JOIN camery_script.reviews ev ON ev.tenant_id=r.tenant_id AND ev.project_id=r.project_id AND ev.run_id=r.run_id AND ev.stage='episodes'
  LEFT JOIN LATERAL (SELECT b.revision,b.digest FROM camery_script.briefs b

@@ -8,7 +8,7 @@ import {issueSession} from '@camery/access';
 import {migrateAccess,PostgresSessionStore} from '@camery/access/node';
 import {migrateAgents,PostgresBudgetLedger} from '@camery/agents/node';
 import {migrateDurable,PostgresDurableStore} from '@camery/durable';
-import {migrateDevelopment,PostgresDevelopmentStore,grantDevelopmentRuntimeRole} from '@camery/script/node';
+import {migrateDevelopment,PostgresDevelopmentStore,grantDevelopmentRuntimeRole,developmentStageTaskId} from '@camery/script/node';
 import type {DevelopmentRunView,DevelopmentBriefView} from '@camery/script/http';
 import {foundationFixture} from '../../script/test/foundation-fixture.js';
 import {episodeFixture} from '../../script/test/episode-fixture.js';
@@ -52,16 +52,29 @@ it('runs the built API and scoped development worker with independent secrets, r
     const edited=structuredClone(view!.foundation.candidate!.output);edited.title='容器验收中的人工设定';const confirm=await request(base+'/first/foundation/confirm',{candidateDigest:view!.foundation.candidate!.digest,output:edited});expect(confirm.status).toBe(201);
     await vi.waitFor(async()=>{view=await(await request(base+'/first')).json() as DevelopmentRunView;expect(view.episodes.candidate?.output.episodes).toHaveLength(10);expect(view.state).toBe('awaiting_review');},{timeout:20000,interval:100});expect(await stats()).toEqual({calls:2,foundationTitle:edited.title});
     const finish=await request(base+'/first/episodes/confirm',{candidateDigest:view!.episodes.candidate!.digest,output:view!.episodes.candidate!.output});expect(finish.status).toBe(201);expect((await finish.json() as DevelopmentRunView).state).toBe('reviewed');
+    const developmentStore=new PostgresDevelopmentStore(admin);const original=await developmentStore.read({...scope,runId:'first'});
+    const redoCommand={runId:'episodes-redo',expectedSourceRunDigest:original.run.digest,expectedBriefDigest:original.run.brief.digest,expectedFoundationReviewDigest:original.foundation.review!.digest};
+    const redo=await request(base+'/first/redo/episodes',redoCommand);expect(redo.status).toBe(201);
+    // The inherited foundation keeps its original evidence; only the new episodes task calls the current HTTP fixture.
+    await vi.waitFor(async()=>{view=await(await request(base+'/episodes-redo')).json() as DevelopmentRunView;expect(view.episodes.candidate?.output.episodes).toHaveLength(10);expect(view.state).toBe('awaiting_review');},{timeout:20000,interval:100});
+    expect(await stats()).toEqual({calls:3,foundationTitle:edited.title});expect(view!.budget).toEqual({currency:'CNY',tokens:100,costMicros:10});
+    const childKey={...scope,runId:'episodes-redo'};const inherited=await developmentStore.read(childKey);expect(inherited.foundation).toEqual(original.foundation);
+    expect(inherited.run.execution.limits).toEqual({steps:1,tokens:100,costMicros:10});expect(await durable.get({tenantId:scope.tenantId,taskId:developmentStageTaskId(childKey,'foundation')})).toBeNull();
+    expect(await durable.get({tenantId:scope.tenantId,taskId:developmentStageTaskId(childKey,'episodes')})).toMatchObject({workflow:'original.development-stage',version:2,status:'succeeded'});
+    expect((await admin.query('SELECT count(*)::int n FROM camery_agents.budget_allocations WHERE tenant_id=$1',[scope.tenantId])).rows[0]?.n).toBe(3);
+    expect((await developmentStore.read({...scope,runId:'first'}))).toEqual(original);
+    const redoFinish=await request(base+'/episodes-redo/episodes/confirm',{candidateDigest:view!.episodes.candidate!.digest,output:view!.episodes.candidate!.output});expect(redoFinish.status).toBe(201);expect((await redoFinish.json() as DevelopmentRunView).state).toBe('reviewed');
     await docker([...compose,'restart','api'],env);await docker([...compose,'up','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','50','-d','api'],env);address='http://'+await docker([...compose,'port','api','3000'],env);
-    expect((await(await request(base+'/first')).json() as DevelopmentRunView).foundation.review).toMatchObject({status:'reviewed',actorId:'human',output:{title:edited.title}});expect((await stats()).calls).toBe(2);
-    expect((await durable.get({tenantId:scope.tenantId,taskId:'unrelated-sentinel'}))).toMatchObject({status:'queued',attempts:0});expect((await new PostgresBudgetLedger(admin).project(scope)).used.tokens).toBe('200');
+    expect((await(await request(base+'/first')).json() as DevelopmentRunView).foundation.review).toMatchObject({status:'reviewed',actorId:'human',output:{title:edited.title}});expect((await stats()).calls).toBe(3);
+    expect((await(await request(base+'/episodes-redo')).json() as DevelopmentRunView).foundation).toEqual(view!.foundation);
+    expect((await durable.get({tenantId:scope.tenantId,taskId:'unrelated-sentinel'}))).toMatchObject({status:'queued',attempts:0});expect((await new PostgresBudgetLedger(admin).project(scope)).used.tokens).toBe('300');
     const stored=await new PostgresDevelopmentStore(admin).read({...scope,runId:'first'});expect(stored.foundation.candidate?.model).toMatchObject({evidence:'live_model',providerRequestId:'fixture-1'});expect(stored.episodes.candidate?.upstreamDigest).toBe(stored.foundation.review!.digest);
     expect((await request('/api/v1/auth/sign-out',{})).status).toBe(204);expect((await request(base)).status).toBe(401);
     const logs=await docker([...compose,'logs','--no-color','api','development-worker'],env);for(const secret of [token,session.token,privateMarker,...roles.flatMap(value=>[value.password,value.url])])expect(logs).not.toContain(secret);
     await docker([...compose,'stop','--timeout','15','development-worker','api'],env);expect(await docker(['inspect','--format','{{.State.ExitCode}}',container])).toBe('0');
   }finally{
     const ok=await releaseResources([()=>attempted?docker([...compose,'down','--volumes','--timeout','15'],env):undefined,
-      ...['reviews','candidates','runs','briefs'].map(table=>()=>initialized?admin.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[scope.tenantId]):undefined),
+      ...['run_origins','reviews','candidates','runs','briefs'].map(table=>()=>initialized?admin.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[scope.tenantId]):undefined),
       ...['budget_events','budget_allocations','budget_projects'].map(table=>()=>initialized?admin.query(`DELETE FROM camery_agents.${table} WHERE tenant_id=$1`,[scope.tenantId]):undefined),
       ...['events','signals','steps','tasks'].map(table=>()=>initialized?admin.query(`DELETE FROM camery_durable.${table} WHERE tenant_id=$1`,[scope.tenantId]):undefined),
       ...['sessions','memberships','users'].map(table=>()=>initialized?admin.query(`DELETE FROM camery_access.${table} WHERE tenant_id=$1`,[scope.tenantId]):undefined),

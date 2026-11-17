@@ -13,7 +13,7 @@ const headers={authorization:`Bearer cmry_${'b'.repeat(43)}`};const base='/api/v
 const apps:Awaited<ReturnType<typeof createApplication>>[]=[];
 async function fixture(role:Role='admin',ready=false){
   const f=workflowFixture();if(ready){const model=await f.sessionFor();const runner=new MethodRunner(f.methods,[createStructuredGenerationExecutor(model)]);Object.assign(f.progress.foundation,{candidate:await generateFoundation({...f,runner,method:f.foundationMethod,context:f.context(developmentStageCallId(f.key,'foundation'))})});}
-  const saved=new Map<string,Task>();const tasks={get:vi.fn(async key=>saved.get(key.taskId)??null),enqueue:vi.fn(async input=>{const task={...input,status:'queued',attempts:0,fence:0,owner:null,leaseUntil:null,output:null,error:null} as Task;saved.set(input.taskId,task);return task;})};
+  const saved=new Map<string,Task>();const tasks={get:vi.fn(async key=>saved.get(key.taskId)??null),steps:vi.fn(async()=>[]),enqueue:vi.fn(async input=>{const task={...input,status:'queued',attempts:0,fence:0,owner:null,leaseUntil:null,output:null,error:null} as Task;saved.set(input.taskId,task);return task;})};
   const catalog={list:vi.fn(async()=>({items:[],nextCursor:null})),summary:vi.fn()};const presetFor=vi.fn<()=>DevelopmentPreset|null>(()=>({methods:f.run.methods,execution:f.run.execution,label:'测试原创模型'}));
   const sessions={lookup:vi.fn(async()=>({tenantId:f.key.tenantId,userId:'http-human',sessionId:'s',grants:[{projectId:f.key.projectId,role}]} as SessionIdentity|null)),revoke:vi.fn(async()=>{})} satisfies SessionStore;
   const briefs={list:vi.fn(async()=>({items:[],nextCursor:null}))};const app=await createApplication({tenantId:f.key.tenantId,store:sessions,development:{store:f.store,catalog,briefs,tasks,presetFor,now:()=>f.host.at}});apps.push(app);return {app,...f,catalog,briefs,tasks,presetFor,sessions,saved};
@@ -84,4 +84,21 @@ it('reads the monotonic audit after task headers when confirmation and polling o
     Object.assign(f.progress.foundation,{review});return {tenantId:f.key.tenantId,taskId:identity.taskId,workflow:DEVELOPMENT_STAGE_WORKFLOW,version:1,maxAttempts:3,availableAt:null,status:'queued',attempts:0,fence:0,owner:null,leaseUntil:null,output:null,error:null,input:{projectId:f.key.projectId,runId:f.key.runId,stage:'episodes',runDigest:f.run.digest,upstreamDigest:review.digest}};
   });
   const response=await f.app.inject({url:base+'/'+f.key.runId,headers});expect(response.statusCode,response.body).toBe(200);expect(response.json()).toMatchObject({stage:'episodes',state:'queued',foundationReviewStatus:'reviewed'});
+});
+it('reads the newer immutable review when redo eligibility overlaps foundation confirmation',async()=>{
+  const f=await fixture('viewer',true);const candidate=f.progress.foundation.candidate!;const review=reviewFoundation(f.brief,candidate,{candidateDigest:candidate.digest,output:candidate.output},f.host);
+  vi.mocked(f.store.read).mockImplementation(async()=>structuredClone(f.progress));
+  f.tasks.get.mockImplementation(async identity=>{if(identity.taskId===developmentStageTaskId(f.key,'episodes')){
+    Object.assign(f.progress.foundation,{review});return {tenantId:f.key.tenantId,taskId:identity.taskId,workflow:DEVELOPMENT_STAGE_WORKFLOW,version:1,maxAttempts:3,availableAt:null,status:'queued',attempts:0,fence:0,owner:null,leaseUntil:null,output:null,error:null,input:{projectId:f.key.projectId,runId:f.key.runId,stage:'episodes',runDigest:f.run.digest,upstreamDigest:review.digest}};
+  }return null;});
+  const response=await f.app.inject({url:base+'/'+f.key.runId+'/redo',headers});expect(response.statusCode,response.body).toBe(200);expect(response.json().episodes.canRedo).toBe(false);expect(f.tasks.enqueue).not.toHaveBeenCalled();expect(f.store.fork).not.toHaveBeenCalled();
+});
+it.each(['viewer','reviewer'] as const)('refuses %s redo before inspecting profiles or source records',async role=>{
+  const f=await fixture(role);expect((await f.app.inject({method:'POST',url:base+'/'+f.key.runId+'/redo/episodes',headers,payload:{}})).statusCode).toBe(403);expect(f.presetFor).not.toHaveBeenCalled();expect(f.store.read).not.toHaveBeenCalled();expect(f.store.fork).not.toHaveBeenCalled();
+});
+it('rejects redo client identity/profile injection, invalid stages and unavailable text presets',async()=>{
+  const f=await fixture('editor',true);const body={runId:'child',expectedSourceRunDigest:f.run.digest,expectedBriefDigest:f.brief.digest,expectedFoundationReviewDigest:null};
+  for(const extra of [{actorId:'other'},{tenantId:'other'},{execution:{}},{methods:{}},{origin:{}}])expect((await f.app.inject({method:'POST',url:base+'/'+f.key.runId+'/redo/foundation',headers,payload:{...body,...extra}})).statusCode).toBe(400);
+  expect((await f.app.inject({method:'POST',url:base+'/'+f.key.runId+'/redo/bad',headers,payload:body})).statusCode).toBe(400);f.presetFor.mockReturnValue(null);
+  expect((await f.app.inject({method:'POST',url:base+'/'+f.key.runId+'/redo/foundation',headers,payload:body})).statusCode).toBe(409);expect(f.store.fork).not.toHaveBeenCalled();expect(f.tasks.enqueue).not.toHaveBeenCalled();
 });

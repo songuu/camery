@@ -1,9 +1,24 @@
 import {FoundationOutputSchema,EpisodeOutputSchema} from '@camery/script/contracts';
 import type {FoundationOutput} from '@camery/script/contracts';
 import type {z} from 'zod';
-import {boundedDevelopmentSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema} from '@camery/script/http';
-import type {DevelopmentRunView} from '@camery/script/http';
+import {boundedDevelopmentSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRedoSchema} from '@camery/script/http';
+import type {DevelopmentRunView,DevelopmentRedo,DevelopmentRedoOptions} from '@camery/script/http';
 type Brief=Pick<DevelopmentRunView['brief'],'episodeCount'>;
+type RedoSource=Pick<DevelopmentRunView,'runId'|'runDigest'|'brief'|'foundation'>;
+export function developmentRedoKey(source:RedoSource,stage:'foundation'|'episodes'):string{
+  return JSON.stringify([source.runId,source.runDigest,source.brief.digest,stage,stage==='episodes'&&source.foundation.review?.status==='reviewed'?source.foundation.review.digest:null]);
+}
+/** Retain the first identity until an acknowledgement; polling or a repeated click cannot spend on a replacement run. */
+export function developmentRedoRequest(pending:Map<string,DevelopmentRedo>,source:RedoSource,stage:'foundation'|'episodes',newRunId:()=>string):{key:string;command:DevelopmentRedo}|null{
+  if(stage==='episodes'&&source.foundation.review?.status!=='reviewed')return null;
+  const key=developmentRedoKey(source,stage);const existing=pending.get(key);if(existing)return {key,command:existing};
+  const parsed=DevelopmentRedoSchema.safeParse({runId:newRunId(),expectedSourceRunDigest:source.runDigest,expectedBriefDigest:source.brief.digest,expectedFoundationReviewDigest:stage==='episodes'&&source.foundation.review?.status==='reviewed'?source.foundation.review.digest:null});
+  if(!parsed.success||parsed.data.runId===source.runId)return null;const command=Object.freeze(parsed.data);pending.set(key,command);return {key,command};
+}
+export function developmentRedoReason(reason:DevelopmentRedoOptions['foundation']['reason']):string|null{
+  if(reason===null)return null;
+  return {MODEL_UNAVAILABLE:'尚未配置文本模型，不能开始重做。',BRIEF_CHANGED:'创意已更新，请载入最新修订后开始完整开发。',UPSTREAM_NOT_REVIEWED:'需要先有明确通过审阅的设定。',STAGE_NOT_FINISHED:'此阶段尚未完成，暂不能重做。',UNKNOWN_RESULT:'原调用结果尚不明确，需先由管理员对账。',RUN_IN_PROGRESS:'原任务仍在执行，请等待当前任务结束。'}[reason];
+}
 export function developmentDraft<T>(output:T):T{return structuredClone(output);}
 const unique=(ids:readonly string[])=>new Set(ids).size===ids.length;
 const references=(ids:readonly string[],available:Set<string>)=>unique(ids)&&ids.every(id=>available.has(id));

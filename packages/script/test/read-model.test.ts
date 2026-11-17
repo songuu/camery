@@ -1,7 +1,7 @@
 import {expect,it} from 'vitest';
 import type {Task} from '@camery/durable';
 import {projectDevelopmentRun,projectDevelopmentStatus,projectDevelopmentBrief} from '../src/node/read-model.js';
-import {DEVELOPMENT_STAGE_WORKFLOW,developmentStageTaskId} from '../src/node/contracts.js';
+import {DEVELOPMENT_STAGE_WORKFLOW,developmentStageTaskId,developmentRunDigest,episodeExecutionFromFull} from '../src/node/contracts.js';
 import {workflowFixture} from './workflow-support.js';
 import {generateFoundation,generateEpisodes} from '../src/development.js';
 import {reviewFoundation,reviewEpisodes,rejectDevelopment} from '../src/review.js';
@@ -43,4 +43,18 @@ it('rejects succeeded tasks missing their result and foreign workflow bindings i
   for(const change of [{version:2},{workflow:'foreign'},{taskId:'foreign'}])expect(()=>projectDevelopmentStatus(f.progress,true,{foundation:{...task(f),...change},episodes:null})).toThrow('STORAGE_FAILED');
   expect(projectDevelopmentStatus(f.progress,true,{foundation:task(f,'cancelled'),episodes:null}).state).toBe('cancelled');
   expect(()=>projectDevelopmentStatus(f.progress,true,{foundation:null,episodes:task(f)})).toThrow('STORAGE_FAILED');
+});
+it('publishes flattened foundation lineage without disclosing its original model execution profile',async()=>{
+  const f=workflowFixture();const candidate=await generateFoundation({...f,method:f.foundationMethod,context:f.context('source-foundation')});const review=reviewFoundation(f.brief,candidate,{candidateDigest:candidate.digest,output:candidate.output},f.host);
+  const origin={version:1 as const,stage:'episodes' as const,sourceRunId:f.run.runId,sourceRunDigest:f.run.digest,actorId:'redo-human',foundation:{runId:f.run.runId,runDigest:f.run.digest,candidateDigest:candidate.digest,reviewDigest:review.digest,execution:f.run.execution}};
+  const fields={...f.run,runId:'child',origin,execution:episodeExecutionFromFull(f.run.execution)};const run={...fields,digest:developmentRunDigest(fields)};const progress={run,foundation:{candidate,review},episodes:{candidate:null,review:null}};
+  const key={...f.key,runId:run.runId};const episodes:Task={...task(f),version:2,taskId:developmentStageTaskId(key,'episodes'),input:{projectId:key.projectId,runId:key.runId,stage:'episodes',runDigest:run.digest,upstreamDigest:review.digest}};
+  const view=projectDevelopmentRun(progress,true,{foundation:null,episodes});expect(view).toMatchObject({runDigest:run.digest,budget:{tokens:100},origin:{sourceRunId:f.run.runId,actorId:'redo-human',affectedStages:['episodes'],foundation:{runId:f.run.runId,candidateDigest:candidate.digest,reviewDigest:review.digest}},stage:'episodes',state:'queued'});
+  expect(view.origin!.foundation).not.toHaveProperty('execution');expect(view.foundation.candidate).not.toHaveProperty('model');expect(view.foundation.review).toMatchObject({actorId:review.actorId,at:review.at});
+  expect(()=>projectDevelopmentRun(progress,true,{foundation:task(f),episodes})).toThrow('STORAGE_FAILED');
+});
+it('labels a full redo as affecting both stages while keeping its foundation review empty',()=>{
+  const f=workflowFixture();const origin={version:1 as const,stage:'foundation' as const,sourceRunId:'parent',sourceRunDigest:'b'.repeat(64),actorId:'redo-human',foundation:null};
+  const fields={...f.run,origin};const run={...fields,digest:developmentRunDigest(fields)};const view=projectDevelopmentRun({...f.progress,run},true,{foundation:null,episodes:null});
+  expect(view.origin).toMatchObject({foundation:null,affectedStages:['foundation','episodes']});expect(view.foundation.review).toBeNull();expect(view.budget.tokens).toBe(200);
 });

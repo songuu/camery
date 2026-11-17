@@ -4,7 +4,7 @@ import type {DevelopmentStage} from '../contracts.js';
 import {DevelopmentBriefSchemaPublic,DevelopmentBriefViewSchema,DevelopmentRunViewSchema,DevelopmentStatusSchema,DevelopmentTaskViewSchema} from '../http.js';
 import type {DevelopmentStatus,DevelopmentTaskView} from '../http.js';
 import {copy,freeze,hash} from '../data.js';
-import {DEVELOPMENT_STAGE_WORKFLOW,DEVELOPMENT_STAGE_WORKFLOW_VERSION,developmentStageTaskId,validateDevelopmentRun} from './contracts.js';
+import {DEVELOPMENT_STAGE_WORKFLOW,developmentWorkflowVersion,developmentStageTaskId,validateDevelopmentRun} from './contracts.js';
 import type {DevelopmentProgress,StoredDevelopmentBrief} from './contracts.js';
 export interface DevelopmentTasks {readonly foundation:Task|null;readonly episodes:Task|null}
 function publicBrief(brief:DevelopmentProgress['run']['brief']){
@@ -17,7 +17,8 @@ export function projectDevelopmentBrief(input:StoredDevelopmentBrief){
 function taskView(progress:DevelopmentProgress,stage:DevelopmentStage,task:Task|null):DevelopmentTaskView|null{
   if(!task)return null;const {run}=progress;const key={tenantId:run.tenantId,projectId:run.projectId,runId:run.runId};
   const upstream=stage==='foundation'?null:progress.foundation.review?.status==='reviewed'?progress.foundation.review.digest:undefined;
-  if(upstream===undefined||task.tenantId!==run.tenantId||task.taskId!==developmentStageTaskId(key,stage)||task.workflow!==DEVELOPMENT_STAGE_WORKFLOW||task.version!==DEVELOPMENT_STAGE_WORKFLOW_VERSION
+  if(stage==='foundation'&&run.origin?.foundation)throw new Error('Inherited foundation task');
+  if(upstream===undefined||task.tenantId!==run.tenantId||task.taskId!==developmentStageTaskId(key,stage)||task.workflow!==DEVELOPMENT_STAGE_WORKFLOW||task.version!==developmentWorkflowVersion(run)
     ||hash(task.input)!==hash({projectId:run.projectId,runId:run.runId,stage,runDigest:run.digest,upstreamDigest:upstream}))throw new Error('Task binding');
   const output=task.output&&typeof task.output==='object'&&!Array.isArray(task.output)?task.output:null;
   const resultState=output?.['state']==='candidate'||output?.['state']==='blocked'?output['state']:null;
@@ -52,6 +53,9 @@ export function projectDevelopmentRun(input:DevelopmentProgress,current:boolean,
     const p=copy(input,524288);const status=projectDevelopmentStatus(p,current,tasks);
     const stage=(value:DevelopmentProgress['foundation']|DevelopmentProgress['episodes'])=>({candidate:value.candidate?{digest:value.candidate.digest,output:value.candidate.output}:null,
       review:value.review?{status:value.review.status,digest:value.review.digest,actorId:value.review.actorId,at:value.review.at,...(value.review.status==='reviewed'?{output:value.review.output}:{reason:value.review.reason})}:null});
-    return freeze(DevelopmentRunViewSchema.parse({...status,brief:publicBrief(p.run.brief),budget:{currency:p.run.execution.currency,tokens:p.run.execution.limits.tokens,costMicros:p.run.execution.limits.costMicros},foundation:stage(p.foundation),episodes:stage(p.episodes)}));
+    const origin=p.run.origin;const source=origin?.foundation;
+    return freeze(DevelopmentRunViewSchema.parse({...status,runDigest:p.run.digest,...(origin?{origin:{stage:origin.stage,sourceRunId:origin.sourceRunId,sourceRunDigest:origin.sourceRunDigest,actorId:origin.actorId,
+      foundation:source?{runId:source.runId,runDigest:source.runDigest,candidateDigest:source.candidateDigest,reviewDigest:source.reviewDigest}:null,affectedStages:origin.stage==='foundation'?['foundation','episodes']:['episodes']}}:{}),
+      brief:publicBrief(p.run.brief),budget:{currency:p.run.execution.currency,tokens:p.run.execution.limits.tokens,costMicros:p.run.execution.limits.costMicros},foundation:stage(p.foundation),episodes:stage(p.episodes)}));
   }catch{throw new DevelopmentError('STORAGE_FAILED','run projection');}
 }

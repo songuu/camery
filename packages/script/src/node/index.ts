@@ -6,3 +6,4 @@ export * from './runtime-role.js';
 export * from './catalog.js';
 export * from './read-model.js';
 export * from './brief-catalog.js';
+export * from './redo.js';

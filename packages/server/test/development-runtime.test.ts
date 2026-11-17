@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { expect, it } from 'vitest';
 import type { DevelopmentDeploymentConfig } from '../src/development-config.js';
 import { createDevelopmentModelRuntime } from '../src/development-runtime.js';
+import { episodeExecutionFromFull } from '@camery/script/node';
 
 const config: DevelopmentDeploymentConfig = { tenantId: 'tenant-a', projectId: 'project-a', developmentDatabaseUrl: 'unused', taskDatabaseUrl: 'unused', workerId: 'worker-a', pollMs: 50, runsPerRound: 1,
   text: { label: '协议测试模型', baseUrl: 'https://models.example/v1', connectionId: 'text', modelIdentity: 'model-a', modeDigest: 'a'.repeat(64), structuredOutput: 'json_schema', timeoutMs: 1000,
@@ -22,6 +23,14 @@ it('checks complete persisted execution identity before constructing any model s
   const session = await model.sessionFor({ tenantId: 'tenant-a', projectId: 'project-a', execution }, task); expect(session.callsUsed).toBe(0);
   await expect(model.sessionFor({tenantId:'tenant-a',projectId:'other-project',execution},task)).rejects.toMatchObject({code:'CONFLICT'});
   expect(session.profile).toEqual({ tenantId: 'tenant-a', connectionId: 'text', modeDigest: 'a'.repeat(64), modelIdentity: 'model-a', evidence: 'live_model' });
+});
+it('accepts only the exact trusted full profile or its one-stage derivative without constructing an old upstream session',async()=>{
+  const model=createDevelopmentModelRuntime(config);const full=model.presetFor('project-a')!.execution;const single=episodeExecutionFromFull(full);
+  const session=await model.sessionFor({tenantId:'tenant-a',projectId:'project-a',execution:single},task);expect(session.callsUsed).toBe(0);expect(session.profile).toMatchObject({modelIdentity:'model-a',evidence:'live_model'});
+  expect(single.limits).toEqual({steps:1,tokens:1000,costMicros:10});expect(model.presetFor('project-a')!.execution).toEqual(full);
+  for(const changed of [{...single,limits:{...single.limits,tokens:1001}},{...single,reservation:{...single.reservation,costMicros:11}},{...single,modelIdentity:'old-upstream-model'},{...single,pricing:{inputMicrosPerMillionTokens:101,outputMicrosPerMillionTokens:100}}]){
+    await expect(model.sessionFor({tenantId:'tenant-a',projectId:'project-a',execution:changed},task)).rejects.toMatchObject({code:'CONFLICT'});
+  }
 });
 it('uses the real OpenAI HTTP adapter once and retains provider usage/id without retrying invalid responses', async () => {
   let calls = 0; const bodies: unknown[] = []; const headers: (string | undefined)[] = [];

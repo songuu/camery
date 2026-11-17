@@ -6,11 +6,12 @@ import { validateFoundationCandidate,validateEpisodeCandidate } from '../develop
 import { captureDevelopmentReviewHost,reviewFoundation,reviewEpisodes,rejectDevelopment } from '../review.js';
 import { canonicalTime } from '../reviewed.js';
 import { canonical,copy,freeze,hash,parse } from '../data.js';
-import { BriefKeySchema,PutBriefSchema,ReadBriefSchema,RunKeySchema,StartRunSchema,developmentMethodPins,developmentRunDigest,developmentStageCallId,executionForDevelopment,validateDevelopmentRun } from './contracts.js';
-import type { DevelopmentBriefKey,DevelopmentRunKey,DevelopmentRun,DevelopmentStore,DevelopmentProgress,StoredDevelopmentBrief,StartDevelopmentRun } from './contracts.js';
+import { BriefKeySchema,PutBriefSchema,ReadBriefSchema,RunKeySchema,StartRunSchema,StartForkSchema,DevelopmentOriginSchema,developmentMethodPins,developmentRunDigest,developmentStageCallId,developmentCandidateOwner,executionForDevelopment,executionForEpisodes,validateDevelopmentRun } from './contracts.js';
+import type { DevelopmentBriefKey,DevelopmentRunKey,DevelopmentRun,DevelopmentStore,DevelopmentProgress,StoredDevelopmentBrief,StartDevelopmentRun,StartDevelopmentFork,DevelopmentOrigin } from './contracts.js';
 
 type BriefRow={tenant_id:string;project_id:string;brief_id:string;revision:string|number;actor_id:string;digest:string;request_digest:string;record:unknown;created_at:Date|string};
 type RunRow={tenant_id:string;project_id:string;run_id:string;brief_id:string;brief_revision:string|number;brief_digest:string;methods:unknown;execution:unknown;digest:string;request_digest:string;created_at:Date|string};
+type OriginRow={tenant_id:string;project_id:string;run_id:string;source_run_id:string;source_run_digest:string;stage:DevelopmentStage;actor_id:string;foundation_run_id:string|null;foundation_stage:string|null;foundation_review_status:string|null;foundation_review_digest:string|null;record:unknown;created_at:Date|string};
 type CandidateRow={stage:DevelopmentStage;upstream_digest:string|null;digest:string;record:unknown};
 type ReviewRow={stage:DevelopmentStage;status:string;request_digest:string;digest:string;record:unknown};
 type ReviewRecord=ReviewedDevelopment|RejectedDevelopment;
@@ -18,6 +19,13 @@ const runKeys=(key:DevelopmentRunKey)=>[key.tenantId,key.projectId,key.runId];
 const briefKeys=(key:DevelopmentBriefKey)=>[key.tenantId,key.projectId,key.briefId];
 const scope=(input:DevelopmentRunKey)=>freeze(parse(RunKeySchema,copy(input),'run scope'));
 const startDigest=(command:Pick<StartDevelopmentRun,'briefId'|'expectedRevision'|'expectedBriefDigest'|'methods'|'execution'>)=>hash(command);
+function forkDigest(command:Pick<StartDevelopmentFork,'sourceRunId'|'expectedSourceRunDigest'|'stage'|'expectedRevision'|'expectedBriefDigest'|'expectedFoundationReviewDigest'|'actorId'|'methods'|'execution'>):string{
+  const {sourceRunId,expectedSourceRunDigest,stage,expectedRevision,expectedBriefDigest,expectedFoundationReviewDigest,actorId,methods,execution}=command;
+  return hash({version:1,sourceRunId,expectedSourceRunDigest,stage,expectedRevision,expectedBriefDigest,expectedFoundationReviewDigest,actorId,methods,execution});
+}
+function forkRequest(run:DevelopmentRun):Parameters<typeof forkDigest>[0]{
+  const origin=run.origin!;return {sourceRunId:origin.sourceRunId,expectedSourceRunDigest:origin.sourceRunDigest,stage:origin.stage,expectedRevision:run.brief.revision,expectedBriefDigest:run.brief.digest,expectedFoundationReviewDigest:origin.foundation?.reviewDigest??null,actorId:origin.actorId,methods:run.methods,execution:run.execution};
+}
 function reviewDigest(record:ReviewRecord):string{
   return record.status==='reviewed'?hash({action:'review',stage:record.stage,actorId:record.actorId,candidateDigest:record.candidateDigest,upstreamDigest:record.upstreamDigest,output:record.output}):hash({action:'reject',stage:record.stage,actorId:record.actorId,candidateDigest:record.candidateDigest,reason:record.reason});
 }
@@ -33,21 +41,22 @@ function storedBrief(row:BriefRow,key:DevelopmentBriefKey,revision?:number):Stor
 function fixedPins(input:unknown):void{if(hash(input)!==hash(developmentMethodPins()))throw new DevelopmentError('CONFLICT','fixed development methods');}
 function recordFor(run:DevelopmentRun,stage:DevelopmentStage,input:unknown,upstream:ReviewedDevelopment<'foundation'>|null):DevelopmentCandidate{
   if(stage==='episodes'&&!upstream)throw new DevelopmentError('INCOMPLETE','foundation review required');
-  const candidate=stage==='foundation'?validateFoundationCandidate(run.brief,input):validateEpisodeCandidate(run.brief,upstream!,input);const profile=run.execution;const model=candidate.model;
-  if(model.connectionId!==profile.connectionId||model.modeDigest!==profile.modeDigest||model.modelIdentity!==profile.modelIdentity||model.evidence!==profile.evidence||model.callId!==developmentStageCallId({tenantId:run.tenantId,projectId:run.projectId,runId:run.runId},stage))throw new DevelopmentError('INVALID_EVIDENCE','run model binding');
+  const candidate=stage==='foundation'?validateFoundationCandidate(run.brief,input):validateEpisodeCandidate(run.brief,upstream!,input);const owner=developmentCandidateOwner(run,stage);const profile=owner.execution;const model=candidate.model;
+  if(model.connectionId!==profile.connectionId||model.modeDigest!==profile.modeDigest||model.modelIdentity!==profile.modelIdentity||model.evidence!==profile.evidence||model.callId!==developmentStageCallId(owner.key,stage))throw new DevelopmentError('INVALID_EVIDENCE','run model binding');
   return candidate;
 }
 
 /** Append-only service repository. Authentication, task leases and installation are separate authorities. */
 export class PostgresDevelopmentStore implements DevelopmentStore{
   constructor(private readonly pool:Pool){}
-  private async transaction<T>(run:DevelopmentRunKey|null,brief:DevelopmentBriefKey|null,action:(client:PoolClient)=>Promise<T>):Promise<T>{
+  private async transaction<T>(run:DevelopmentRunKey|readonly DevelopmentRunKey[]|null,brief:DevelopmentBriefKey|null,action:(client:PoolClient)=>Promise<T>):Promise<T>{
     const client=await this.pool.connect().catch(()=>{throw new DevelopmentError('STORAGE_FAILED','database connection');});let destroy=false;
     try{
       await client.query('BEGIN');
       // Every transaction that needs both locks takes the brief first; run-only saves never acquire it later.
       if(brief)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_script:brief',...briefKeys(brief)])]);
-      if(run)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_script:run',...runKeys(run)])]);
+      const runs=run===null?[]:Array.isArray(run)?run:[run as DevelopmentRunKey];const locks=[...new Set(runs.map(key=>JSON.stringify(['camery_script:run',...runKeys(key)])))].sort();
+      for(const lock of locks)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[lock]);
       const result=await action(client);await client.query('COMMIT');return result;
     }catch(error){
       try{await client.query('ROLLBACK');}catch{destroy=true;throw new DevelopmentError('STORAGE_FAILED','database rollback');}
@@ -76,12 +85,36 @@ export class PostgresDevelopmentStore implements DevelopmentStore{
     const command=freeze(parse(ReadBriefSchema,copy(input),'brief read'));const key={tenantId:command.tenantId,projectId:command.projectId,briefId:command.briefId};
     return this.transaction(null,key,async client=>{const result=await this.brief(client,key,command.revision);if(!result)throw new DevelopmentError('NOT_FOUND','brief');return result;});
   }
+  private async rawRun(client:PoolClient,key:DevelopmentRunKey):Promise<RunRow|null>{
+    const rows=await client.query<RunRow>('SELECT tenant_id,project_id,run_id,brief_id,brief_revision,brief_digest,methods,execution,digest,request_digest,created_at FROM camery_script.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));return rows.rows[0]??null;
+  }
+  private async origin(client:PoolClient,key:DevelopmentRunKey,row:RunRow):Promise<DevelopmentOrigin|undefined>{
+    const result=await client.query<OriginRow>('SELECT tenant_id,project_id,run_id,source_run_id,source_run_digest,stage,actor_id,foundation_run_id,foundation_stage,foundation_review_status,foundation_review_digest,record,created_at FROM camery_script.run_origins WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));
+    if(result.rows.length>1)throw new Error();const stored=result.rows[0];if(!stored)return undefined;const origin=parse(DevelopmentOriginSchema,copy(stored.record),'stored origin');const foundation=origin.foundation;
+    if(stored.tenant_id!==key.tenantId||stored.project_id!==key.projectId||stored.run_id!==key.runId||stored.source_run_id!==origin.sourceRunId||stored.source_run_digest!==origin.sourceRunDigest||stored.stage!==origin.stage||stored.actor_id!==origin.actorId
+      ||stored.foundation_run_id!==(foundation?.runId??null)||stored.foundation_stage!==(foundation?'foundation':null)||stored.foundation_review_status!==(foundation?'reviewed':null)||stored.foundation_review_digest!==(foundation?.reviewDigest??null)||timestamp(stored.created_at)!==timestamp(row.created_at))throw new Error();
+    return origin;
+  }
+  private header(key:DevelopmentRunKey,row:RunRow,stored:StoredDevelopmentBrief,origin?:DevelopmentOrigin):DevelopmentRun{
+    const run=validateDevelopmentRun(key,{tenantId:row.tenant_id,projectId:row.project_id,runId:row.run_id,brief:stored.brief,methods:row.methods,execution:row.execution,digest:row.digest,createdAt:timestamp(row.created_at),...(origin?{origin}:{})});
+    const expected=origin?forkDigest(forkRequest(run)):startDigest({briefId:run.brief.briefId,expectedRevision:run.brief.revision,expectedBriefDigest:run.brief.digest,methods:run.methods,execution:run.execution});
+    if(row.brief_id!==stored.brief.briefId||Number(row.brief_revision)!==stored.brief.revision||row.brief_digest!==run.brief.digest||row.request_digest!==expected)throw new Error();return run;
+  }
   private async run(client:PoolClient,key:DevelopmentRunKey):Promise<DevelopmentRun|null>{
-    const rows=await client.query<RunRow>('SELECT tenant_id,project_id,run_id,brief_id,brief_revision,brief_digest,methods,execution,digest,request_digest,created_at FROM camery_script.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));const row=rows.rows[0];if(!row)return null;
+    const row=await this.rawRun(client,key);if(!row)return null;
     try{
       const stored=await this.brief(client,{tenantId:key.tenantId,projectId:key.projectId,briefId:row.brief_id},Number(row.brief_revision));if(!stored)throw new Error();
-      const run=validateDevelopmentRun(key,{tenantId:row.tenant_id,projectId:row.project_id,runId:row.run_id,brief:stored.brief,methods:row.methods,execution:row.execution,digest:row.digest,createdAt:timestamp(row.created_at)});
-      if(row.brief_digest!==run.brief.digest||row.request_digest!==startDigest({briefId:run.brief.briefId,expectedRevision:run.brief.revision,expectedBriefDigest:run.brief.digest,methods:run.methods,execution:run.execution}))throw new Error();return run;
+      const origin=await this.origin(client,key,row);const run=this.header(key,row,stored,origin);
+      if(origin){
+        const parentKey={...key,runId:origin.sourceRunId};const parentRow=await this.rawRun(client,parentKey);if(!parentRow)throw new Error();
+        // Validate one immutable parent header, never recursively walk its ancestry. Foundation evidence is flattened to its real generation owner below.
+        const parent=this.header(parentKey,parentRow,stored,await this.origin(client,parentKey,parentRow));if(parent.digest!==origin.sourceRunDigest)throw new Error();
+        if(origin.foundation){const owner=parent.origin?.foundation;
+          if(origin.foundation.runId!==(owner?.runId??parent.runId)||origin.foundation.runDigest!==(owner?.runDigest??parent.digest)||hash(origin.foundation.execution)!==hash(owner?.execution??parent.execution)
+            ||owner&&(owner.candidateDigest!==origin.foundation.candidateDigest||owner.reviewDigest!==origin.foundation.reviewDigest))throw new Error();
+        }
+      }
+      return run;
     }catch{throw new DevelopmentError('STORAGE_FAILED','stored run');}
   }
   private async requiredRun(client:PoolClient,key:DevelopmentRunKey):Promise<DevelopmentRun>{const run=await this.run(client,key);if(!run)throw new DevelopmentError('NOT_FOUND','development run');return run;}
@@ -91,12 +124,39 @@ export class PostgresDevelopmentStore implements DevelopmentStore{
     const requestDigest=startDigest({briefId:command.briefId,expectedRevision:command.expectedRevision,expectedBriefDigest:command.expectedBriefDigest,methods:command.methods,execution:command.execution});
     return this.transaction(key,source,async client=>{
       const existing=await this.run(client,key);
-      if(existing){if(requestDigest!==startDigest({briefId:existing.brief.briefId,expectedRevision:existing.brief.revision,expectedBriefDigest:existing.brief.digest,methods:existing.methods,execution:existing.execution}))throw new DevelopmentError('CONFLICT','run request identity');return existing;}
+      if(existing){if(existing.origin||requestDigest!==startDigest({briefId:existing.brief.briefId,expectedRevision:existing.brief.revision,expectedBriefDigest:existing.brief.digest,methods:existing.methods,execution:existing.execution}))throw new DevelopmentError('CONFLICT','run request identity');return existing;}
       const current=await this.brief(client,source);if(!current)throw new DevelopmentError('NOT_FOUND','brief');
       if(current.brief.revision!==command.expectedRevision||current.brief.digest!==command.expectedBriefDigest)throw new DevelopmentError('CONFLICT','current brief');
       const fields={...key,brief:current.brief,methods:command.methods,execution:command.execution};const digest=developmentRunDigest(fields);
       await client.query('INSERT INTO camery_script.runs(tenant_id,project_id,run_id,brief_id,brief_revision,brief_digest,methods,execution,digest,request_digest) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10)',
         [...runKeys(key),command.briefId,current.brief.revision,current.brief.digest,canonical(command.methods),canonical(command.execution),digest,requestDigest]);return this.requiredRun(client,key);
+    });
+  }
+  async fork(input:unknown):Promise<DevelopmentRun>{
+    const raw=parse(StartForkSchema,copy(input),'run fork');const command=freeze({...raw,execution:raw.stage==='episodes'?executionForEpisodes(raw.execution):executionForDevelopment(raw.execution)});fixedPins(command.methods);
+    const key=scope({tenantId:command.tenantId,projectId:command.projectId,runId:command.runId});const parentKey={...key,runId:command.sourceRunId};if(key.runId===parentKey.runId)throw new DevelopmentError('INVALID_INPUT','origin self reference');
+    let briefKey:DevelopmentBriefKey;
+    try{const existing=await this.pool.query<{brief_id:string}>('SELECT brief_id FROM camery_script.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));briefKey=existing.rows[0]?parse(BriefKeySchema,{tenantId:key.tenantId,projectId:key.projectId,briefId:existing.rows[0].brief_id},'fork brief scope'):await this.sourceKey(parentKey);}
+    catch(error){if(error instanceof DevelopmentError&&error.code==='NOT_FOUND')throw error;throw new DevelopmentError('STORAGE_FAILED','fork brief lookup');}
+    const requestDigest=forkDigest(command);
+    return this.transaction([key,parentKey],briefKey,async client=>{
+      const existing=await this.run(client,key);if(existing){if(!existing.origin||forkDigest(forkRequest(existing))!==requestDigest)throw new DevelopmentError('CONFLICT','fork request identity');return existing;}
+      const parent=await this.progress(client,parentKey);if(parent.run.digest!==command.expectedSourceRunDigest||parent.run.brief.revision!==command.expectedRevision||parent.run.brief.digest!==command.expectedBriefDigest)throw new DevelopmentError('CONFLICT','fork source identity');
+      const latest=await this.brief(client,briefKey);if(latest?.brief.digest!==parent.run.brief.digest)throw new DevelopmentError('CONFLICT','current brief');
+      let origin:DevelopmentOrigin;
+      if(command.stage==='episodes'){
+        const candidate=parent.foundation.candidate;const review=parent.foundation.review;if(!candidate||review?.status!=='reviewed')throw new DevelopmentError('INCOMPLETE','foundation review required');
+        if(review.digest!==command.expectedFoundationReviewDigest)throw new DevelopmentError('CONFLICT','fork foundation identity');
+        const original=parent.run.origin?.foundation;
+        origin={version:1,stage:'episodes',sourceRunId:parent.run.runId,sourceRunDigest:parent.run.digest,actorId:command.actorId,foundation:{runId:original?.runId??parent.run.runId,runDigest:original?.runDigest??parent.run.digest,candidateDigest:candidate.digest,reviewDigest:review.digest,execution:original?.execution??parent.run.execution}};
+      }else origin={version:1,stage:'foundation',sourceRunId:parent.run.runId,sourceRunDigest:parent.run.digest,actorId:command.actorId,foundation:null};
+      const fields={...key,brief:parent.run.brief,methods:command.methods,execution:command.execution,origin};const digest=developmentRunDigest(fields);
+      const inserted=await client.query<{created_at:Date|string}>('INSERT INTO camery_script.runs(tenant_id,project_id,run_id,brief_id,brief_revision,brief_digest,methods,execution,digest,request_digest) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10) RETURNING created_at',
+        [...runKeys(key),fields.brief.briefId,fields.brief.revision,fields.brief.digest,canonical(command.methods),canonical(command.execution),digest,requestDigest]);
+      if(!inserted.rows[0])throw new DevelopmentError('STORAGE_FAILED','fork insertion');
+      await client.query('INSERT INTO camery_script.run_origins(tenant_id,project_id,run_id,source_run_id,source_run_digest,stage,actor_id,foundation_run_id,foundation_stage,foundation_review_status,foundation_review_digest,record,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)',
+        [...runKeys(key),origin.sourceRunId,origin.sourceRunDigest,origin.stage,origin.actorId,origin.foundation?.runId??null,origin.foundation?'foundation':null,origin.foundation?'reviewed':null,origin.foundation?.reviewDigest??null,canonical(origin),timestamp(inserted.rows[0].created_at)]);
+      return this.requiredRun(client,key);
     });
   }
   private audit(run:DevelopmentRun,candidate:DevelopmentCandidate,row:ReviewRow,upstream:ReviewedDevelopment<'foundation'>|null):ReviewRecord{
@@ -120,7 +180,14 @@ export class PostgresDevelopmentStore implements DevelopmentStore{
         if(row){candidate=recordFor(run,stage,row.record,upstream);if(candidate.digest!==row.digest||candidate.upstreamDigest!==row.upstream_digest)throw new Error();}
         if(audit){if(!candidate)throw new Error();review=this.audit(run,candidate,audit,upstream);}return {candidate,review};
       };
-      const foundation=load('foundation',null);const upstream=foundation.review?.status==='reviewed'?foundation.review as ReviewedDevelopment<'foundation'>:null;const episodes=load('episodes',upstream);
+      let foundation=load('foundation',null);const inherited=run.origin?.foundation;
+      if(inherited){
+        if(byStage.has('foundation')||auditByStage.has('foundation'))throw new Error();const ownerKey={...key,runId:inherited.runId};const owner=await this.requiredRun(client,ownerKey);
+        if(owner.origin?.foundation||owner.digest!==inherited.runDigest||owner.brief.digest!==run.brief.digest||hash(owner.execution)!==hash(inherited.execution))throw new Error();
+        const original=await this.progress(client,ownerKey);if(!original.foundation.candidate||original.foundation.review?.status!=='reviewed'||original.foundation.candidate.digest!==inherited.candidateDigest||original.foundation.review.digest!==inherited.reviewDigest)throw new Error();
+        foundation=original.foundation;
+      }
+      const upstream=foundation.review?.status==='reviewed'?foundation.review as ReviewedDevelopment<'foundation'>:null;const episodes=load('episodes',upstream);
       return freeze({run,foundation,episodes}) as DevelopmentProgress;
     }catch{throw new DevelopmentError('STORAGE_FAILED','stored development progress');}
   }
@@ -135,7 +202,7 @@ export class PostgresDevelopmentStore implements DevelopmentStore{
   async saveCandidate(input:DevelopmentRunKey,supplied:DevelopmentCandidate):Promise<DevelopmentCandidate>{
     const key=scope(input);const snapshot=copy(supplied);const stage=parse(Stage,(snapshot as {stage?:unknown})?.stage,'candidate phase');
     return this.transaction(key,null,async client=>{
-      const progress=await this.progress(client,key);const upstream=progress.foundation.review?.status==='reviewed'?progress.foundation.review as ReviewedDevelopment<'foundation'>:null;const candidate=recordFor(progress.run,stage,snapshot,upstream);const previous=progress[stage].candidate;
+      const progress=await this.progress(client,key);if(stage==='foundation'&&progress.run.origin?.foundation)throw new DevelopmentError('FORBIDDEN','inherited foundation');const upstream=progress.foundation.review?.status==='reviewed'?progress.foundation.review as ReviewedDevelopment<'foundation'>:null;const candidate=recordFor(progress.run,stage,snapshot,upstream);const previous=progress[stage].candidate;
       if(previous){if(previous.digest!==candidate.digest)throw new DevelopmentError('CONFLICT','stage candidate identity');return previous;}
       await client.query('INSERT INTO camery_script.candidates(tenant_id,project_id,run_id,stage,upstream_digest,digest,record) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)',[...runKeys(key),stage,candidate.upstreamDigest,candidate.digest,canonical(candidate)]);return candidate;
     });
@@ -146,7 +213,7 @@ export class PostgresDevelopmentStore implements DevelopmentStore{
   async review(input:DevelopmentRunKey,suppliedStage:DevelopmentStage,decision:unknown,suppliedHost:DevelopmentReviewHost):Promise<ReviewedDevelopment>{
     const key=scope(input);const stage=parse(Stage,suppliedStage,'review phase');const captured=copy(decision);const host=captureDevelopmentReviewHost(suppliedHost);const source=await this.sourceKey(key);
     return this.transaction(key,source,async client=>{
-      const progress=await this.progress(client,key);const candidate=progress[stage].candidate;if(!candidate)throw new DevelopmentError('INCOMPLETE','stage candidate');
+      const progress=await this.progress(client,key);if(stage==='foundation'&&progress.run.origin?.foundation)throw new DevelopmentError('FORBIDDEN','inherited foundation');const candidate=progress[stage].candidate;if(!candidate)throw new DevelopmentError('INCOMPLETE','stage candidate');
       const upstream=progress.foundation.review?.status==='reviewed'?progress.foundation.review as ReviewedDevelopment<'foundation'>:null;if(stage==='episodes'&&!upstream)throw new DevelopmentError('INCOMPLETE','foundation review');
       const proposed=stage==='foundation'?reviewFoundation(progress.run.brief,candidate as DevelopmentCandidate<'foundation'>,captured,host):reviewEpisodes(progress.run.brief,upstream!,candidate as DevelopmentCandidate<'episodes'>,captured,host);
       const previous=progress[stage].review;if(previous){if(previous.status!=='reviewed'||reviewDigest(previous)!==reviewDigest(proposed))throw new DevelopmentError('CONFLICT','review identity');return previous;}
@@ -156,7 +223,7 @@ export class PostgresDevelopmentStore implements DevelopmentStore{
   async reject(input:DevelopmentRunKey,suppliedStage:DevelopmentStage,reason:unknown,suppliedHost:DevelopmentReviewHost):Promise<RejectedDevelopment>{
     const key=scope(input);const stage=parse(Stage,suppliedStage,'rejection phase');const captured=copy(reason);const host=captureDevelopmentReviewHost(suppliedHost);
     return this.transaction(key,null,async client=>{
-      const progress=await this.progress(client,key);const candidate=progress[stage].candidate;if(!candidate)throw new DevelopmentError('INCOMPLETE','stage candidate');const upstream=progress.foundation.review?.status==='reviewed'?progress.foundation.review as ReviewedDevelopment<'foundation'>:null;
+      const progress=await this.progress(client,key);if(stage==='foundation'&&progress.run.origin?.foundation)throw new DevelopmentError('FORBIDDEN','inherited foundation');const candidate=progress[stage].candidate;if(!candidate)throw new DevelopmentError('INCOMPLETE','stage candidate');const upstream=progress.foundation.review?.status==='reviewed'?progress.foundation.review as ReviewedDevelopment<'foundation'>:null;
       const proposed=rejectDevelopment(progress.run.brief,candidate,captured,host,upstream??undefined);const previous=progress[stage].review;
       if(previous){if(previous.status!=='rejected'||reviewDigest(previous)!==reviewDigest(proposed))throw new DevelopmentError('CONFLICT','review identity');return previous;}
       await this.insertReview(client,key,proposed);return proposed;

@@ -137,3 +137,10 @@
 - 真实Chromium12项（3轮完整+9边界）通过，桌面/320px截图与4 traces已检查；网络丢ack沿用原ID、草稿跨tab保留、会话/项目迟到隔离、未访问页零后台请求、过期/unknown、字段/引用/字节闸门均有实际交互。所有context零JS pageerror；核心旅程零非注入console error。浏览器采用现有Playwright回退（agent-browser CLI缺失），无新下载；内存协议层与PG/镜像各自独立作证。
 - 整仓日志SHA-256 `9a44c5d4c867b3aea2386ded7037bcf48b4da17f2d51878f3e5856f5926db9e1`；最终容器日志 `8efe44c9497ae8860eee6f184af1c8665a3087d8b23fb07320e2c404f321025c`；浏览器result.json `f3ca8ab8e34517aac7a36e73df6f8066529c0998e8491c965a896646ca83853c`。远端CI以最终提交实际Actions为准。
 - 阶段1继续：当前重做为整体新run，逐阶段单独重做/下游影响、完整开发IR与ChangeSet正式采用仍未完成；真实文本模型质量及人工评分待实际配置。Resolve验收、法务签核、设计伙伴确认依用户安排后补。本批未改ComfyUI图像接线，未宣称完整T1.3或阶段1完成。
+
+### T1.3 逐阶段重做与来源谱系（2026-11-17）
+
+- 已支持完整重做设定，以及保留真实已审阅设定、只生成新分集。追加origin固定直接来源与真实生成owner；原候选/模型回执/审核作者和时点保持，继承内容只读。v2分集只新增一份预算及一个Task；原v1日志和预算保留。trusted Task/steps拒绝active、unknown与cancelled-unknown，已有分支丢ack同语义重试恢复原任务。
+- 最终整仓`pnpm check`2686项（20工具+2666普通）、13包类型/覆盖率、lint与方法/Agent基线全通过；script290项分支97.80%，web108项交互及client/state测试通过。真实PG script309/server178项均通过，包含并发/事务、实际LOGIN与unknown journal门禁。v2分集decision SQL提交后实际SIGKILL，新pool恢复零新增调用、原审计和3份allocation/300tokens保持；不扩大为未知在途重发证明。
+- 最终镜像原创开发容器1项、既有API2项/章节worker1项均通过。真实Chromium16项含3轮重做，桌面/320px截图已检查；内存浏览器预算、PG账本和容器HTTP分别作证，均不冒称真实文本质量。完整命令、SHA-256与迁移边界见[实施证据](original-development-phase1.md)。远端以最终提交实际CI为准。
+- 下一项继续完整开发IR/ChangeSet、正式采用及其跨对象版本影响，再推进阶段1其余剧本任务；真实文本供应方/质量和人工评分待配置。编辑器、法务和设计伙伴后补，现有ComfyUI图像连接未改。完整T1.3与阶段1保持未完成。

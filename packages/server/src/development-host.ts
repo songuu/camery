@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DevelopmentError } from '@camery/script';
-import { DEVELOPMENT_STAGE_WORKFLOW,DEVELOPMENT_STAGE_WORKFLOW_VERSION,enqueueNextDevelopmentTask,RunKeySchema } from '@camery/script/node';
+import { DEVELOPMENT_STAGE_WORKFLOW,DEVELOPMENT_STAGE_WORKFLOW_VERSION,DEVELOPMENT_REDO_WORKFLOW_VERSION,enqueueNextDevelopmentTask,RunKeySchema } from '@camery/script/node';
 import type { DevelopmentStore,DevelopmentCatalogReader } from '@camery/script/node';
 import { DevelopmentRunListSchema,type DevelopmentRunSummary } from '@camery/script/http';
 import type { DurableStore,DurableWorker } from '@camery/durable';
@@ -21,7 +21,7 @@ export function createDevelopmentHost(options:DevelopmentHostOptions){
   const {tenantId,projectId}=RunKeySchema.pick({tenantId:true,projectId:true}).parse(options.scope);
   const settings=Settings.parse({workerId:options.workerId,pollMs:options.pollMs??1000,runsPerRound:options.runsPerRound??20});
   const readPage=options.catalog.list.bind(options.catalog);const runTask=options.worker.runTask.bind(options.worker);const store=options.store;const durable=options.durable;
-  if(!options.worker.hasWorkflow(DEVELOPMENT_STAGE_WORKFLOW,DEVELOPMENT_STAGE_WORKFLOW_VERSION))throw new DevelopmentError('INVALID_INPUT','development host workflow unavailable');
+  if(!options.worker.hasWorkflow(DEVELOPMENT_STAGE_WORKFLOW,DEVELOPMENT_STAGE_WORKFLOW_VERSION)||!options.worker.hasWorkflow(DEVELOPMENT_STAGE_WORKFLOW,DEVELOPMENT_REDO_WORKFLOW_VERSION))throw new DevelopmentError('INVALID_INPUT','development host workflow unavailable');
   let cursor:string|undefined;let remaining:DevelopmentRunSummary[]=[];let pageEndsScan=false;let busy=false;
   async function round(signal?:AbortSignal):Promise<DevelopmentHostRound>{
     if(busy)throw new DevelopmentError('CONFLICT','development host concurrent round');busy=true;let visited=0;let executed=0;let errors=0;

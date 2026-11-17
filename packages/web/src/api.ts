@@ -4,8 +4,8 @@ import type { SourceKind } from '@camery/ingest/contracts';
 import type { UploadFormat } from './view-types.js';
 import { BibleCapabilitiesSchema, BibleRunListSchema, BibleStatusSchema, BibleRunViewSchema, BibleStartSchema, BibleConfirmSchema, BibleRejectSchema, boundedBibleSchema } from '@camery/bible/http';
 import type { BibleStart, BibleConfirm } from '@camery/bible/http';
-import {DevelopmentCapabilitiesSchema,DevelopmentBriefListSchema,DevelopmentBriefViewSchema,DevelopmentBriefWriteSchema,DevelopmentRunListSchema,DevelopmentStatusSchema,DevelopmentRunViewSchema,DevelopmentStartSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema,boundedDevelopmentSchema} from '@camery/script/http';
-import type {DevelopmentBriefWrite,DevelopmentStart,DevelopmentFoundationConfirm,DevelopmentEpisodesConfirm} from '@camery/script/http';
+import {DevelopmentCapabilitiesSchema,DevelopmentBriefListSchema,DevelopmentBriefViewSchema,DevelopmentBriefWriteSchema,DevelopmentRunListSchema,DevelopmentStatusSchema,DevelopmentRunViewSchema,DevelopmentStartSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema,DevelopmentRedoSchema,DevelopmentRedoOptionsSchema,boundedDevelopmentSchema} from '@camery/script/http';
+import type {DevelopmentBriefWrite,DevelopmentStart,DevelopmentFoundationConfirm,DevelopmentEpisodesConfirm,DevelopmentRedo} from '@camery/script/http';
 const Id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
 const Me = z.strictObject({ tenantId: Id, userId: Id, grants: z.array(z.strictObject({ projectId: Id, role: z.string().min(1).max(32) })).max(10000) });
 export type Identity = z.infer<typeof Me>;
@@ -94,6 +94,15 @@ export class ApiClient {
   }
   developmentRead(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/${id(runId)}`,boundedDevelopmentSchema(DevelopmentRunViewSchema.refine(value=>value.runId===runId)),signal?{signal}:{});}
   developmentStatus(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/${id(runId)}/status`,DevelopmentStatusSchema.refine(value=>value.runId===runId),signal?{signal}:{});}
+  developmentRedoOptions(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/${id(runId)}/redo`,boundedDevelopmentSchema(DevelopmentRedoOptionsSchema.refine(value=>value.runId===runId)),signal?{signal}:{});}
+  developmentRedo(projectId:string,sourceRunId:string,stage:'foundation'|'episodes',command:DevelopmentRedo){
+    if(stage!=='foundation'&&stage!=='episodes')throw new ApiError('INVALID_REQUEST');
+    const parsed=boundedDevelopmentSchema(DevelopmentRedoSchema).safeParse(command);if(!parsed.success||parsed.data.runId===sourceRunId||(stage==='foundation')!==(parsed.data.expectedFoundationReviewDigest===null))throw new ApiError('INVALID_REQUEST');
+    const expected=parsed.data;
+    const response=DevelopmentRunViewSchema.refine(value=>value.runId===expected.runId&&value.brief.digest===expected.expectedBriefDigest&&value.origin?.sourceRunId===sourceRunId&&value.origin.sourceRunDigest===expected.expectedSourceRunDigest&&value.origin.stage===stage
+      &&(stage==='foundation'?value.origin.foundation===null:value.origin.foundation?.reviewDigest===expected.expectedFoundationReviewDigest&&value.foundation.review?.status==='reviewed'&&value.foundation.review.digest===expected.expectedFoundationReviewDigest));
+    return this.request(`/projects/${id(projectId)}/development/${id(sourceRunId)}/redo/${stage}`,boundedDevelopmentSchema(response),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(expected)});
+  }
   developmentConfirm(projectId:string,runId:string,stage:'foundation'|'episodes',decision:DevelopmentFoundationConfirm|DevelopmentEpisodesConfirm){
     if(stage!=='foundation'&&stage!=='episodes')throw new ApiError('INVALID_REQUEST');
     const parsed=stage==='foundation'?boundedDevelopmentSchema(DevelopmentFoundationConfirmSchema).safeParse(decision):boundedDevelopmentSchema(DevelopmentEpisodesConfirmSchema).safeParse(decision);if(!parsed.success)throw new ApiError('INVALID_REQUEST');

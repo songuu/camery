@@ -23,7 +23,7 @@ it('uses a dedicated append-only LOGIN and rejects missing, expanded and grantab
     await expect(runtime.query('UPDATE camery_script.briefs SET record=record WHERE tenant_id=$1',[tenantId])).rejects.toMatchObject({code:'42501'});
     await expect(runtime.query('DELETE FROM camery_script.briefs WHERE tenant_id=$1',[tenantId])).rejects.toMatchObject({code:'42501'});
     await expect(runtime.query('SELECT * FROM camery_script.migrations')).rejects.toMatchObject({code:'42501'});
-    for(const relation of ['briefs','runs','candidates','reviews'])for(const privilege of ['SELECT','INSERT']){
+    for(const relation of ['briefs','runs','candidates','reviews','run_origins'])for(const privilege of ['SELECT','INSERT']){
       await admin.query(`REVOKE ${privilege} ON camery_script.${relation} FROM ${role}`);
       try{await expect(verifyDevelopmentRuntimeRole(runtime)).rejects.toMatchObject({code:'STORAGE_FAILED'});}finally{await admin.query(`GRANT ${privilege} ON camery_script.${relation} TO ${role}`);}
     }
@@ -84,11 +84,18 @@ it('enforces scoped revision and stage foreign keys, identity formats, object re
     await expect(admin.query(reviewSql,[tenantId,'project','research','episodes','reviewed',digest,digest,'{}'])).rejects.toMatchObject({code:'23503'});
     await expect(admin.query(reviewSql,[tenantId,'project','research','foundation','adopted',digest,digest,'{}'])).rejects.toMatchObject({code:'23514'});
     await admin.query(reviewSql,[tenantId,'project','research','foundation','reviewed',digest,digest,'{}']);
+    await admin.query(runSql,[tenantId,'project','child','idea',1,digest,'{}','{}',digest,digest]);
+    const originSql='INSERT INTO camery_script.run_origins(tenant_id,project_id,run_id,source_run_id,source_run_digest,stage,actor_id,foundation_run_id,foundation_stage,foundation_review_status,foundation_review_digest,record) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)';
+    const origin:unknown[]=[tenantId,'project','child','research',digest,'episodes','human','research','foundation','reviewed',digest,'{}'];
+    for(const [index,bad] of [[0,tenantId+'other'],[1,'other'],[2,'missing'],[3,'missing'],[4,'b'.repeat(64)],[7,'missing'],[10,'b'.repeat(64)]] as const){const invalid=[...origin];invalid[index]=bad;await expect(admin.query(originSql,invalid)).rejects.toMatchObject({code:'23503'});}
+    for(const [index,bad] of [[3,'child'],[5,'unknown'],[6,'human\n'],[7,'child'],[7,null],[8,null],[9,null],[10,null],[8,'episodes'],[9,'rejected'],[11,'[]']] as const){const invalid=[...origin];invalid[index]=bad;await expect(admin.query(originSql,invalid)).rejects.toMatchObject({code:'23514'});}
+    await expect(admin.query(originSql,[...origin.slice(0,5),'foundation',...origin.slice(6)])).rejects.toMatchObject({code:'23514'});
+    await admin.query(originSql,origin);
     const index=await admin.query("SELECT indexdef FROM pg_indexes WHERE schemaname='camery_script' AND indexname='development_runs_catalog_idx'");expect(index.rows[0]?.indexdef).toContain('run_id COLLATE "C" DESC');
     const briefIndex=await admin.query("SELECT indexdef FROM pg_indexes WHERE schemaname='camery_script' AND indexname='development_runs_brief_idx'");expect(briefIndex.rows[0]?.indexdef).toContain('(tenant_id, project_id, brief_id, brief_revision)');
-    expect((await admin.query('SELECT version FROM camery_script.migrations ORDER BY version')).rows).toEqual([{version:1},{version:2}]);
+    expect((await admin.query('SELECT version FROM camery_script.migrations ORDER BY version')).rows).toEqual([{version:1},{version:2},{version:3}]);
   }finally{
-    let failed=false;for(const cleanup of [...['reviews','candidates','runs','briefs'].map(table=>()=>admin.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[tenantId])),()=>admin.end()]){try{await cleanup();}catch{failed=true;}}
+    let failed=false;for(const cleanup of [...['run_origins','reviews','candidates','runs','briefs'].map(table=>()=>admin.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[tenantId])),()=>admin.end()]){try{await cleanup();}catch{failed=true;}}
     // oxlint-disable-next-line eslint/no-unsafe-finally -- Refuse to hide leaked scoped fixture records.
     if(failed)throw new Error('Development schema fixture cleanup failed');
   }

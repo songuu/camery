@@ -8,7 +8,7 @@ export async function grantDevelopmentRuntimeRole(pool:Pool,role:string):Promise
   try{
     client=await pool.connect();await client.query('BEGIN');
     await client.query(`GRANT USAGE ON SCHEMA camery_script TO "${role}"`);
-    await client.query(`GRANT SELECT,INSERT ON camery_script.briefs,camery_script.runs,camery_script.candidates,camery_script.reviews TO "${role}"`);await client.query('COMMIT');
+    await client.query(`GRANT SELECT,INSERT ON camery_script.briefs,camery_script.runs,camery_script.candidates,camery_script.reviews,camery_script.run_origins TO "${role}"`);await client.query('COMMIT');
   }catch{
     try{await client?.query('ROLLBACK');}catch{destroy=true;}
     throw new DevelopmentError('STORAGE_FAILED','grant development role');
@@ -34,10 +34,11 @@ export async function verifyDevelopmentRuntimeRole(pool:Pool):Promise<void>{
         AND has_table_privilege('camery_script.runs','SELECT') AND has_table_privilege('camery_script.runs','INSERT')
         AND has_table_privilege('camery_script.candidates','SELECT') AND has_table_privilege('camery_script.candidates','INSERT')
         AND has_table_privilege('camery_script.reviews','SELECT') AND has_table_privilege('camery_script.reviews','INSERT')
+        AND has_table_privilege('camery_script.run_origins','SELECT') AND has_table_privilege('camery_script.run_origins','INSERT')
         AND NOT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
           WHERE n.nspname !~ '^pg_' AND n.nspname<>'information_schema'
           AND CASE WHEN c.relkind IN ('r','p','v','m','f') THEN has_table_privilege(c.oid,CASE
-            WHEN n.nspname='camery_script' AND c.relname IN ('briefs','runs','candidates','reviews') THEN 'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+            WHEN n.nspname='camery_script' AND c.relname IN ('briefs','runs','candidates','reviews','run_origins') THEN 'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
             ELSE 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER' END) ELSE false END)
         AND NOT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
           WHERE n.nspname !~ '^pg_' AND n.nspname<>'information_schema'
@@ -45,7 +46,7 @@ export async function verifyDevelopmentRuntimeRole(pool:Pool):Promise<void>{
         AND NOT EXISTS(SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace
           WHERE n.nspname !~ '^pg_' AND n.nspname<>'information_schema'
           AND CASE WHEN c.relkind IN ('r','p','v','m','f') AND a.attnum>0 AND NOT a.attisdropped THEN has_column_privilege(c.oid,a.attnum,CASE
-            WHEN n.nspname='camery_script' AND c.relname IN ('briefs','runs','candidates','reviews') THEN 'UPDATE,REFERENCES'
+            WHEN n.nspname='camery_script' AND c.relname IN ('briefs','runs','candidates','reviews','run_origins') THEN 'UPDATE,REFERENCES'
             ELSE 'SELECT,INSERT,UPDATE,REFERENCES' END) ELSE false END)
         AND NOT EXISTS(SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace
           WHERE n.nspname !~ '^pg_' AND n.nspname<>'information_schema'

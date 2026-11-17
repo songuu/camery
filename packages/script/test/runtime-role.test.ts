@@ -17,10 +17,10 @@ function installer(options:{connect?:boolean;failure?:string;release?:boolean}={
   const query=vi.fn(async(sql:string)=>{if(options.failure&&sql.startsWith(options.failure))throw new Error('private');return {rows:[]};});
   const connect=vi.fn(async()=>{if(options.connect)throw new Error('private');return {query,release};});return {pool:{connect} as unknown as Pool,query,release,connect};
 }
-it('grants only schema usage and the four static append-only table capabilities in one explicit installer transaction',async()=>{
+it('grants only schema usage and the five static append-only table capabilities in one explicit installer transaction',async()=>{
   const db=installer();await grantDevelopmentRuntimeRole(db.pool,'development_runtime');expect(db.query.mock.calls.map(([sql])=>sql)).toEqual([
     'BEGIN','GRANT USAGE ON SCHEMA camery_script TO "development_runtime"',
-    'GRANT SELECT,INSERT ON camery_script.briefs,camery_script.runs,camery_script.candidates,camery_script.reviews TO "development_runtime"','COMMIT']);expect(db.release).toHaveBeenCalledOnce();
+    'GRANT SELECT,INSERT ON camery_script.briefs,camery_script.runs,camery_script.candidates,camery_script.reviews,camery_script.run_origins TO "development_runtime"','COMMIT']);expect(db.release).toHaveBeenCalledOnce();
 });
 it.each(['','role;DROP TABLE','role\n','a'.repeat(64),'UPPER'])('rejects installer role injection %j before connecting',async role=>{
   const db=installer();await expect(grantDevelopmentRuntimeRole(db.pool,role)).rejects.toMatchObject({code:'INVALID_INPUT'});expect(db.connect).not.toHaveBeenCalled();
