@@ -5,7 +5,7 @@ import {ProjectApplicationError} from '../src/projects/intent-contracts.js';
 import {ProjectIdentityError} from '../src/projects/contracts.js';
 import {VersionPersistenceError} from '@camery/versioning/node';
 import type {ProjectApplicationOptions} from '../src/projects/options.js';
-const methods=vi.hoisted(()=>Object.fromEntries(['state','listCandidates','candidate','previewChange','submitCandidate','prepareUpgrade','prepareDevelopment','adoptCandidate','rejectCandidate'].map(name=>[name,vi.fn()])));
+const methods=vi.hoisted(()=>Object.fromEntries(['state','listCandidates','candidate','previewChange','submitCandidate','prepareUpgrade','prepareDevelopment','adoptCandidate','rejectCandidate','readSnapshot','readObjectHistory','readReadyAsset'].map(name=>[name,vi.fn()])));
 vi.mock('../src/projects/application.js',()=>({ProjectApplication:class {constructor(){return methods;}}}));
 import {createApplication} from '../src/app.js';
 const headers={authorization:`Bearer cmry_${'b'.repeat(43)}`};const base='/api/v1/projects/project';const candidateId=id('http-change');
@@ -20,6 +20,19 @@ async function fixture(role:Role='admin',enabled=true){
 }
 beforeEach(()=>{for(const method of Object.values(methods))method.mockReset();methods.state!.mockResolvedValue(state);methods.listCandidates!.mockResolvedValue({contractVersion:1,items:[],nextCursor:null});for(const name of ['candidate','submitCandidate','prepareUpgrade','prepareDevelopment'])methods[name]!.mockResolvedValue(detail);for(const name of ['adoptCandidate','rejectCandidate'])methods[name]!.mockResolvedValue(receipt);methods.previewChange!.mockResolvedValue({contractVersion:1,status:'candidate',snapshotRevision:5,writeVersion:2,differences:[],issues:[],warnings:[]});});
 afterEach(async()=>{await Promise.all(apps.splice(0).map(app=>app.close()));});
+it('exposes strictly bounded authenticated snapshot and history reads with the shared envelopes',async()=>{
+  const f=await fixture('viewer');const snapshot={contractVersion:1,projectKey:'project',projectId:state.projectId,schemaVersion:state.schemaVersion,snapshotRevision:5,writeVersion:2,scope:detail.scope,renditionId:null,nextCursor:null,counts:[],capabilities:{canWrite:false,canReview:false,canReadMedia:false},rows:[],relations:[],lineage:[],locks:[]};methods.readSnapshot!.mockResolvedValue(snapshot);
+  const response=await f.app.inject({url:base+'/workbench?expectedRevision=5&limit=200',headers});expect(response.statusCode,response.body).toBe(200);expect(response.json().data).toEqual(snapshot);expect(methods.readSnapshot).toHaveBeenCalledWith({subject:f.subject,projectId:'project',command:{expectedRevision:5,limit:200}});
+  for(const suffix of ['?tenantId=self','?limit=201','?collection=shot_lineage','?sceneId=foreign'])expect((await f.app.inject({url:base+'/workbench'+suffix,headers})).statusCode).toBe(400);
+  const objectId=id('history-shot');const history={contractVersion:1,projectKey:'project',projectId:state.projectId,collection:'shots',objectId,snapshotRevision:5,writeVersion:2,nextCursor:null,items:[{ref:{collection:'shots',id:objectId,version:1},parentVersion:null,snapshotRevision:5,changeId:null,deleted:false,value:{id:objectId,version:1}}]};methods.readObjectHistory!.mockResolvedValue(history);
+  const read=await f.app.inject({url:base+'/workbench/objects/shots/'+objectId+'/history?expectedRevision=5&limit=50',headers});expect(read.statusCode,read.body).toBe(200);expect(read.json().data).toEqual(history);expect(methods.readObjectHistory).toHaveBeenCalledWith({subject:f.subject,projectId:'project',collection:'shots',objectId,command:{expectedRevision:5,limit:50}});
+  expect((await f.app.inject({url:base+'/workbench/objects/shots/'+objectId+'/history?limit=51',headers})).statusCode).toBe(400);expect((await f.app.inject({url:base+'/workbench',headers:{}})).statusCode).toBe(401);
+});
+it('returns explicit asset unavailability without a file URL or treating metadata as a media capability',async()=>{
+  const f=await fixture('viewer');const assetId=id('asset');methods.readReadyAsset!.mockRejectedValue(new ProjectApplicationError('ASSET_NOT_READY','private file path unavailable'));
+  const url=base+'/workbench/assets/'+assetId+'/versions/1?expectedRevision=5';const response=await f.app.inject({url,headers});expect(response.statusCode,response.body).toBe(409);expect(response.json()).toEqual({code:'ASSET_NOT_READY',requestId:expect.any(String)});expect(methods.readReadyAsset).toHaveBeenCalledWith({subject:f.subject,projectId:'project',assetId,version:1,command:{expectedRevision:5}});
+  expect((await f.app.inject({url:url.replace('/1?','/zero?'),headers})).statusCode).toBe(400);methods.readReadyAsset!.mockResolvedValue({url:'file:///private'});expect((await f.app.inject({url,headers})).statusCode).toBe(503);
+});
 it('keeps disabled project routes absent and authenticates enabled reads before application access',async()=>{
   const off=await fixture('admin',false);expect((await off.app.inject({url:base+'/workbench/state',headers})).statusCode).toBe(404);
   const f=await fixture();expect((await f.app.inject({url:base+'/workbench/state'})).statusCode).toBe(401);expect(methods.state).not.toHaveBeenCalled();

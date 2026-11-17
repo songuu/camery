@@ -80,6 +80,14 @@ revision 5.2文件责任/有序验证（均L4，不按低风险标记并行）�
 
 revision 5.3责任：root独占IR/workbench DTO与单一回执schema复用、server projects应用/投影/catalog/controller/options、app/main/Development capabilities接线、显式追加catalog索引迁移、HTTP/PG组合；运行worker独占`projects/{adoption-role,config,runtime,ids}.ts`及对应测试、`deploy/projects.md`，runtime返回`{options:ProjectApplicationOptions,close}`不改main。前端worker独占web新`DevelopmentAdoption*.tsx/ts/css`、`api.ts`、DevelopmentPane/Workbench/App必要接线及web对应测试；沿现有视觉，不改root DTO或server。边界已冻结，文件互不相交；worker先红后绿、不提交/安装/PG/coverage，root串行组合及最小LOGIN/HTTP/浏览器/镜像/CI。完整P-APP其他工作台投影/补偿/媒体字节、T1.9其余能力和阶段1后续任务继续，不以此切片缩减整个目标。
 
+revision 5.4（共享读取，2026-11-17）延续OD-7与上位AC-VCA-02/06/10，不复制验收语义：补`readSnapshot`、`readObjectHistory`、`readReadyAsset`及正式内容浏览，保留既有候选/决定权威。只读PG适配器从原versioning快照与对象历史查询，不新增表/迁移/权限；普通读取不加载全部候选与全部历史，不分配身份、不写或调用模型。选择直接SELECT现有追加记录而非第二套投影主表，回滚只移除读取/UI接线，既存正式数据与意图保留。
+
+revision 5.4冻结契约：`GET P/workbench`输入episodeId/sceneId/renditionId/collection/expectedRevision/cursor/limit，最大200完整对象；页游标绑定普通与IR项目、真实用户、过滤及snapshotRevision，head变化明确SNAPSHOT_STALE，不拼接不同快照。范围只从已采用快照解析真实归属，返回实际版本引用、精确取用数值、业务关系与锁；跨范围的引用作为context对象，来源边不被标为generation_input。每页关系只随本页from对象返回，显式版本pin与当前版本分开，旧pin标stale而不改写。响应以完整行按字节预算分页，单对象超限明确拒绝，不截断正文。
+
+`GET P/workbench/objects/:collection/:objectId/history`最大50历史版本、包含删除墓碑和实际snapshot/changeId；游标另绑定collection/object及当前快照，读取在同一SQL视图核对版本头，已删除对象仍可读历史。`GET P/workbench/assets/:assetId/versions/:version`先认证、普通映射与实际资产版本校验，未装配归档/字节能力明确ASSET_NOT_READY；ready元信息也不伪造可读媒体句柄，公共快照/历史移除asset.file.path。所有成功沿统一envelope，HTTP新路由仍默认16KiB，browser DTO仍只IR/Zod；不把UI正文持久化浏览器。
+
+有序责任/证据（读取授权整体L4，不能以纯投影通过代替组合）：root拥有公共DTO、应用/HTTP/运行端口接线和真实PG/权限/稳定分页组合；只读存储worker仅`projects/read-store.ts`、独立reader测试；纯投影worker仅`projects/read-projection.ts`、独立projection测试；前端worker仅`FormalProject*.tsx/ts/css`、api方法、DevelopmentAdoptionPane必要入口与前端测试。接口先冻结，三个子模块无文件交叉且不调用彼此未实现内部逻辑，子任务只定向测试、不安装/提交/PG/coverage。root完成后串行组合、typed lint/13包/coverage、真实LOGIN/并发head更新/游标错绑/墓碑/素材未就绪、真实浏览器及镜像和远端CI。完整P-APP补偿/原生来源登记、T1.9剩余能力和阶段1后续任务仍保持未完成。
+
 回滚边界：新项目/显式升级后不能用只识别v0.5的旧镜像读取，先关闭新采用入口并保留新版历史，不能删除新集合或降版本伪装回退。完整OD-7真实文本质量仍需实际配置；新对象/桥接通过不能代替真人评分。实现前已检查placeholder、内部一致性、scope及歧义，本revision保留OD-1..7原有AC语义，未绑定外部Harness。
 
 OD-6文件责任：主agent负责`script/http`及node投影、`server/development*.ts`中的HTTP/options、`app.ts/main.ts`、包清单/锁、CI与组合验收；宿主worker仅负责新`server/development-config/runtime/host/task-role/worker-main.ts`及对应测试、build入口/构建测试、Dockerfile与宿主部署说明；前端worker仅负责`web/src/Development*.tsx`、development状态/样式/API-client方法与`App.tsx`及对应测试。共享契约先冻结后供前端消费，文件不得交叉修改，子任务不提交。API与worker连接池分离、运行时不迁移/授予权限；回滚以关闭功能和回退镜像为界，保留追加历史。L4组合由主agent执行，PG/覆盖率串行。
@@ -184,3 +192,17 @@ OD-6文件责任：主agent负责`script/http`及node投影、`server/developmen
 - 全仓日志 `artifacts/delivery/project-adoption-check-final.log` SHA-256=`36c07473093e099822ee3f58a92ea34ac33b9a11853aff6a6c712032726eab60`；最终浏览器 `result.json`=`57497972cd086455e002b67719aaa3bca1ce4371bbada291ddf3b3f054515c1b`，`report.html`=`06ad899073fdc7a8aa4444a9db9d5f6a82dba5119b06aac3d37e9371250a9e59`。本地验收工件不入库，提交与远端结果以实际 Actions 为准。
 - 实际镜像 `sha256:b0622bc9b05e7a4a79498f6f5e98545f32ddc3d9de73275725877a965c602da5` 构建成功；同镜像既有 API 两档2项、章节worker1项、原创开发API/worker1项串行通过。此项为既有镜像兼容回归，正式采用入口由专用LOGIN/真实PG HTTP及上述浏览器验收覆盖，未声称用户生产宿主已启用。构建日志SHA-256=`74abb4996fa74c5b9df5e4a38f2fc73b1d908ed5240b222438f520cbc0d56b96`；原创开发容器日志=`b5a9c37acf7b745529d1a27ff8c6992395c3bfe617952af948f28b06ad6552b4`。
 - 当前交付了正式开发采用入口；其他共享工作台投影、补偿、媒体字节、旧原生候选显式来源登记及T1.9其余能力继续实施。完整P-APP/G-PROJECT、OD-7/T1.3和阶段1仍未判完成；真实文本质量等实际配置，编辑器、法务及设计伙伴依用户安排后补，既有ComfyUI接线保持。
+
+## revision 5.4 正式快照、历史与浏览证据（2026-11-17）
+
+- 共享应用补齐 `readSnapshot`、`readObjectHistory`、`readReadyAsset`，与原候选/决定接口使用同一普通/IR身份和每请求授权。新 `PostgresProjectReadStore` 直接读取原版本数据，头/快照/pending数量在单SQL同MVCC视图绑定，历史以单SQL有界LATERAL查询；项目状态也切到该读口，不再加载整个候选及历史集合。复用既有采用账号SELECT，无新表、迁移、运行依赖或权限扩张；读取不分配身份、写入、触发模型或任务。
+- 正式快照最多200完整对象，按真实分集、场景、版本表现及集合选择，引用依赖明确标context。游标绑定普通/IR项目、真实用户、过滤和snapshotRevision，更新后明确SNAPSHOT_STALE；不拼新旧快照。每页983040字节按完整行缩页，单对象超限明确INPUT_LIMIT，不截断正文。原精确取用数值/有理数播放率保持；原无版本镜头沿革单独投影，不伪造对象身份。锁与实际引用版本、当前版本及stale原因可见，来源边不当generation_input。
+- 对象历史每页最多50，保留真实父版本、采用changeId、snapshotRevision及删除墓碑；游标另绑定对象与集合。严格核对SQL列/record/value/父链，既存高版本导入根仍合法。内部快照捕获上限64MiB、数组65536，超限与损坏明确区分。公共快照和历史移除资产本地file.path；readyAsset先核授权和实际版本，当前始终明确未装配归档/媒体读取能力，ready元信息不能替代实际句柄。
+- 正式内容面板由用户点击后懒加载，支持过滤、完整内容、关系/锁/沿革、固定快照翻页和历史。独立对象类型/标识入口可查询当前已删除对象，行按钮也可恢复历史；过期页清理后须明确刷新。关闭、身份/项目切换中止旧请求并忽略迟到结果；读取失败保留相应错误语义，401交会话处理。局部加载错误边界保留原工作区与会话，模块加载失败可以关闭，不自动刷新或把cached失败Promise包装成可恢复重试。
+- 先红后绿关闭实际审查/浏览器问题：补场景location引用和原spots上下文；合法长锁定理由/字段及2001条谱系不被新DTO短限误拒；panel/take从真实Shot继承rendition、锁只随选中target，避免反拉入其他表现；历史检验实际parent_version而非数字相邻，拒绝两个断根；删除对象历史补真实可到达入口；懒加载失败局部隔离；行历史按钮显式传collection/id，避免strict表单被额外version误拒。代码、TypeScript、安全和数据库复核无未闭合P0–P2。
+- `pnpm check`退出0：3209=20工具+3189包测试，652源文件策略零违规、typed lint与13包类型通过、13包覆盖率全部实际执行，6方法golden/10 Agent合成基线匹配。server普通426项覆盖98.33/95.69/99.42/99.70%，web133项98.28/95.31/98.87/99.63%，IR397项98.20/96.92/98.39/99.77%。未降低门槛、放大超时或删除旧断言。日志 `artifacts/delivery/project-read-check-first.log` SHA-256=`4aa5c4a3d309ca067f624051e7c3f14eba2ef751eb13447b7f6b80b8c92ef696`。
+- 最终服务端PG含普通共477项、53文件通过，覆盖98.23/96.31/99.72/99.90%；与整仓不重复相加。新增真实版本头/pending、采用后实际对象历史、墓碑、新pool重读、跨IRtenant同ID、固定快照翻页/更新拒绝、专用LOGIN认证GET无写与手工独立采用后的旧游标拒绝。原角色42501/ACL探针与源锁/事务回执回归保持。日志 `artifacts/delivery/project-read-server-pg-final.log` SHA-256=`f3d570462b832ac86111022a814340bf70004cf45cdf069aab7291204f34593d`。
+- 新9条真实Chromium流程、旧8采用及旧16开发回归均退出0。核心正式浏览重复3轮，包含50+9对象分页、实际行历史、场景/分集/表现选择、1/3到7/3取用与1001/1000播放率、旧world pin过期、资产409无假媒体、stale刷新、403/401、关闭/切项目迟到响应、独立墓碑查找及真实chunk abort局部关闭。root已查看桌面、320px和墓碑截图。夹具使用实际Nest/应用/版本引擎及明确内存端口，原生add/update/remove/adopt产生数据，不能替代真实PG、模型质量或人工验收。历史夹具/选择器/路由glob失败保留在historical-red，终止旧等待后重跑，没有把运行中句柄当成功。
+- 浏览器 `artifacts/delivery/formal-project-browser/result.json` SHA-256=`edabad3db6b4265256499180b82778c244b4acdfac94fd1f32727f0c321c8fe2`，`report.html`=`03b6b4e1e9e909fd7553f3e243c81ca296f8c903fe70bcebc582d6500fc5bc78`，同目录保留截图/trace。CLI不可用，沿既有Playwright/Chromium，无下载或新增依赖。
+- 镜像 `sha256:cf700a9a0ab3ed2866f729b923b99cb148b99f2c380bc99ceffe188d390d960d` 构建成功；同镜像既有API两档2项、章节worker1项和原创开发API/worker1项串行通过。这是镜像兼容回归，新读取由实际LOGIN/PG HTTP及浏览器组合验证，没有启用用户生产入口。构建日志SHA-256=`27fb9b203f5ec40f8534c53d6e54ba343bfe1d793561e5bd62a2101fa092ad08`，原创开发容器日志=`62f3a2b330fe81b0d8da9bf53f10b485e0e55d2073711f60fbc35ae5ed9b3eb5`。远端仍以最终提交对应实际CI为准。
+- 本批交付共享读取端口及原创开发上下文的正式浏览消费；完整工作台/剧本各页、草稿与补偿、原生来源登记、真实媒体归档及T1.9其余能力仍继续。完整P-APP/G-PROJECT、OD-7/T1.3和阶段1未据此判完成；真实文本配置/质量后续补，编辑器验收、法务与设计伙伴按用户要求后补，既有ComfyUI接线不变。

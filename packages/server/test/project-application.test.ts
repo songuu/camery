@@ -20,9 +20,10 @@ function fixture(){
   const state=createVersionState(upgradeV05Package(makePackage()));
   const identities={resolveProject:vi.fn(async()=>({tenantId:'tenant',projectId:'project',versionKey:key})),resolvePrincipal:vi.fn(async(_input:{tenantId:string;kind:'user';key:string})=>({tenantId:'tenant',kind:'user' as const,key:'user',principal:actor})),resolve:vi.fn(async()=>({scope:{tenantId:'tenant',projectId:'project'},versionKey:key,principal:actor}))};
   const versions={read:vi.fn(async()=>({state,writeVersion:1})),submitWithReceipt:vi.fn(),adoptGuarded:vi.fn(),rejectWithReceipt:vi.fn()};
+  const reads={head:vi.fn(async()=>({head:state.head,writeVersion:1,pendingCount:state.changes.filter(row=>row.status==='candidate').length})),history:vi.fn()};
   const intents={findCandidate:vi.fn(async(_input:{applicationId:string}):Promise<CandidateIntent|null>=>null),candidateForChange:vi.fn(async(_input:{changeId:string}):Promise<CandidateIntent|null>=>null),findDecision:vi.fn(async(_input:{requestId:string}):Promise<DecisionIntent|null>=>null),putCandidate:vi.fn(),putDecision:vi.fn(),readPreparationReceipt:vi.fn(async(_input:{applicationId:string}):Promise<ProjectActionReceipt|null>=>null),readDecisionReceipt:vi.fn(async(_input:{requestId:string}):Promise<ProjectActionReceipt|null>=>null),preparationReceiptWriter:vi.fn(),decisionReceiptWriter:vi.fn(),listCandidateHeaders:vi.fn(async()=>({items:[],nextCursor:null}))};
-  const development={store:{read:vi.fn(),isCurrent:vi.fn(),readForAdoption:vi.fn()},identities:{prepare:vi.fn()}};const newId=vi.fn(()=>id('allocated'));const options={tenantId:'tenant',identities,versions,intents,development,newId,now:()=> '2026-11-17T07:00:00.000Z'} as unknown as ProjectApplicationOptions;
-  return {application:new ProjectApplication(options),options,identities,versions,intents,development,newId,state};
+  const development={store:{read:vi.fn(),isCurrent:vi.fn(),readForAdoption:vi.fn()},identities:{prepare:vi.fn()}};const newId=vi.fn(()=>id('allocated'));const options={tenantId:'tenant',identities,versions,reads,intents,development,newId,now:()=> '2026-11-17T07:00:00.000Z'} as unknown as ProjectApplicationOptions;
+  return {application:new ProjectApplication(options),options,identities,versions,reads,intents,development,newId,state};
 }
 it('returns authorized mapped state without writing, allocating IDs or invoking a model',async()=>{
   const f=fixture();const result=await f.application.state({subject:subject(),projectId:'project'});expect(result.projectKey).toBe('project');expect(result.projectId).toBe(key.projectId);expect(result.snapshotRevision).toBe(5);expect(result.canWrite).toBe(true);expect(result.canReview).toBe(true);expect(f.newId).not.toHaveBeenCalled();expect(f.versions.submitWithReceipt).not.toHaveBeenCalled();expect(f.development.identities.prepare).not.toHaveBeenCalled();
@@ -47,7 +48,7 @@ it('shows native unmanaged candidates without granting them a fabricated source 
 
 function memory(){
   const f=fixture();let state=f.state;let writeVersion=1;let sequence=0;const candidates=new Map<string,CandidateIntent>();const decisions=new Map<string,DecisionIntent>();const preparations=new Map<string,ProjectActionReceipt>();const receipts=new Map<string,ProjectActionReceipt>();
-  f.newId.mockImplementation(()=>id('application-allocation-'+sequence++));f.versions.read.mockImplementation(async()=>({state,writeVersion}));
+  f.newId.mockImplementation(()=>id('application-allocation-'+sequence++));f.versions.read.mockImplementation(async()=>({state,writeVersion}));f.reads.head.mockImplementation(async()=>({head:state.head,writeVersion,pendingCount:state.changes.filter(row=>row.status==='candidate').length}));
   f.intents.findCandidate.mockImplementation(async(input:{applicationId:string})=>candidates.get(input.applicationId)??null);
   f.intents.candidateForChange.mockImplementation(async(input:{changeId:string})=>[...candidates.values()].find(row=>row.changeId===input.changeId)??null);
   f.intents.putCandidate.mockImplementation(async(input:CandidateIntentBody)=>{const candidate=CandidateIntentSchema.parse({...input,digest:projectIntentDigest(input),businessDigest:projectIntentDigest(input),createdAt:'2026-11-17T07:00:00.000Z'});candidates.set(candidate.applicationId,candidate);if(!candidate.request)preparations.set(candidate.applicationId,receipt(candidate.changeId,'unchanged'));return candidate;});
@@ -87,7 +88,7 @@ it.each(['adopt','reject'] as const)('fixes the first %s command and replays its
 it('rejects unmapped decisions, unavailable snapshots, wrong target bindings and stale writes explicitly',async()=>{
   const f=memory();await expect(f.application.adoptCandidate({subject:subject(),projectId:'project',candidateId:id('unknown'),requestId:'unknown',command:{scope:{kind:'project',id:key.projectId},expectedSnapshotRevision:5,expectedWriteVersion:1}})).rejects.toMatchObject({code:'SOURCE_POLICY_MISSING'});
   await expect(f.application.submitCandidate({subject:subject(),projectId:'project',command:{...f.command(),expectedWriteVersion:8}})).rejects.toMatchObject({code:'WRITE_VERSION_CONFLICT'});
-  f.versions.read.mockResolvedValueOnce(null as never);await expect(f.application.state({subject:subject(),projectId:'project'})).rejects.toMatchObject({code:'NOT_FOUND'});
+  f.reads.head.mockResolvedValueOnce(null as never);await expect(f.application.state({subject:subject(),projectId:'project'})).rejects.toMatchObject({code:'NOT_FOUND'});
   f.identities.resolveProject.mockResolvedValueOnce({tenantId:'tenant',projectId:'project',versionKey:{...key,projectId:id('wrong-project')}});await expect(f.application.state({subject:subject(),projectId:'project'})).rejects.toMatchObject({code:'STORAGE_FAILED'});
 });
 it('keeps a viewer readable without an actor binding and does not swallow other identity faults',async()=>{

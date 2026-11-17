@@ -1,5 +1,6 @@
 /** Browser-only memory ports. These exercise the real application/engine, never SQL atomicity or live model quality. */
-import {upgradeV05Package} from '@camery/ir';
+import {ChangeSetV06,upgradeV05Package} from '@camery/ir';
+import type {ChangeOp} from '@camery/ir';
 import {WorkbenchCandidatePageSchema} from '@camery/ir/workbench';
 import {createVersionState,submitChangeSet,adoptChangeSet,rejectChangeSet} from '@camery/versioning';
 import type {StoredVersionState,VersionProjectKey,PersistedChangeResult,VersionTransactionReceipt} from '@camery/versioning/node';
@@ -27,7 +28,39 @@ export function createProjectBrowserState(store:DevelopmentStore){
   const read=(mapped:VersionProjectKey)=>{const found=heads.get(projectKey(mapped));if(!found)throw new ProjectApplicationError('NOT_FOUND','browser project');return found;};
   function check(mapped:VersionProjectKey,expected:{expectedSnapshotRevision:number;expectedWriteVersion:number}|undefined){const found=read(mapped);if(expected&&(found.state.head.revision.number!==expected.expectedSnapshotRevision||found.writeVersion!==expected.expectedWriteVersion))throw new VersionPersistenceError('WRITE_VERSION_CONFLICT','browser CAS',mapped.projectId);return found;}
   const receipt=(candidate:CandidateIntent,result:Readonly<PersistedChangeResult>)=>ProjectActionReceiptSchema.parse({version:1,changeId:candidate.changeId,status:result.status,snapshotRevision:result.state.head.revision.number,writeVersion:result.writeVersion,issues:result.issues,warnings:result.warnings,adoption:result.state.adoptions.find(value=>value.change_set_id===candidate.changeId)??null,rejection:result.state.changes.find(value=>value.request.id===candidate.changeId)?.rejection??null});
+  let formal:{assetId:string;sceneId:string;renditionId:string;episodeId:string;shotId:string;deletedId:string;updatedId:string}|null=null;
+  function applyFormal(ops:ChangeOp[],base_revisions:{id:string;version:number}[]=[]){
+    const mapped=target('tenant','project');const found=read(mapped);const actor=principal('tenant','user','browser-human').principal;
+    const request=ChangeSetV06.parse({schema_version:'0.6.0-draft',id:newProjectObjectId(),base_revision:found.state.head.revision.number,base_revisions,author:actor,status:'candidate',ops});
+    const submitted=submitChangeSet(found.state,request);if(submitted.status!=='candidate')throw new Error('Browser native seed submission failed: '+JSON.stringify(submitted.issues));
+    const adopted=adoptChangeSet(submitted.state,request.id,{actor,scope:{kind:'project',id:mapped.projectId},at:new Date().toISOString(),authorize:()=>true});if(adopted.status!=='adopted')throw new Error('Browser native seed adoption failed: '+JSON.stringify(adopted.issues));
+    heads.set(projectKey(mapped),{state:adopted.state,writeVersion:found.writeVersion+2});
+  }
+  function seedFormal(){
+    const found=read(target('tenant','project'));const episode=found.state.head.episodes[0];if(!episode)throw new Error('Browser formal seed requires an adopted development');
+    const objectId=(slot:string)=>allocate(['formal-browser',slot]);const add=(collection:string,value:Record<string,unknown>)=>({op:'add',op_id:newProjectObjectId(),collection,value} as ChangeOp);
+    const assetId=objectId('asset');const sceneId=objectId('scene');const renditionId=objectId('rendition');const shotId=objectId('shot');const locationId=objectId('location');const segmentId=objectId('segment');
+    const props=Array.from({length:60},(_,index)=>({id:objectId('prop-'+index),version:1,name:'正式浏览道具 '+String(index).padStart(2,'0'),description:'完整的已采用道具正文 '+index}));
+    const state={summary:'正式内容原生夹具状态',characters:[]};
+    applyFormal([...props.map(value=>add('props',value)),
+      add('assets',{id:assetId,version:1,media_type:'video',description:'浏览器就绪元信息夹具，未安装媒体字节能力',origin:'generated',consent_ref:null,status:'ready',measured_seconds:10,generated_from_segment:{id:segmentId,version:1},file:{path:'fixture/private-formal-asset.mp4',sha256:'f'.repeat(64),mime_type:'video/mp4'}}),
+      add('locations',{id:locationId,version:1,name:'正式浏览地点',description:'读取范围内真实地点',spots:[{id:objectId('spot'),label:'原生站位标签'}]}),
+      add('renditions',{id:renditionId,version:1,label:'正式浏览版本表现',readiness:'ready',kind:'video',aspect_ratio:'16:9'}),
+      add('scenes',{id:sceneId,version:1,episode_id:episode.id,order_key:'001',title:'正式内容浏览场景',location_id:locationId,character_ids:[],script_text:'完整场景正文应随采用快照读取。',start_state:'开始',end_state:'结束'}),
+      add('shots',{id:shotId,version:1,rendition_id:renditionId,scene_id:sceneId,order_key:'001',beat_refs:[],visual_purpose:'显示精确取用',start_state:state,action:'精确时间浏览镜头',end_state:state,camera:{shot_size:'medium',angle:'eye_level',movement:'static',lens_mm:50,note:null},asset_ref_ids:[],duration:{planned:2000/1001,measured:null},continuity_break:null}),
+      add('segments',{id:segmentId,version:1,rendition_id:renditionId,target_mode:'fixture',purpose:'原生精确取用',planned_duration:10,handles:{head:0,tail:0},priority:'first',continuity_from:null}),
+      add('shot_takes',{id:objectId('take'),version:1,shot_id:shotId,segment_revision_id:{id:segmentId,version:1},media_asset_id:{id:assetId,version:1},source_in:1/3,source_out:7/3,timeline_offset:0,playback_rate:{numerator:1001,denominator:1000},audio_policy:'keep',visible_speaker_id:null,status:'adopted'})]);
+    applyFormal([{op:'lock',op_id:newProjectObjectId(),lock_id:objectId('lock'),target:shotId,fields:['action'],reason:'浏览器原生采用的内容锁定'}],[{id:shotId,version:1}]);
+    applyFormal([{op:'update',op_id:newProjectObjectId(),collection:'props',target:props[0]!.id,set:{description:'对象历史中的第二版完整正文'}}],[{id:props[0]!.id,version:1}]);
+    applyFormal([{op:'remove',op_id:newProjectObjectId(),collection:'props',target:props[1]!.id}],[{id:props[1]!.id,version:1}]);
+    const current=read(target('tenant','project')).state.head;if(current.schema_version!=='0.6.0-draft'||!current.worlds[0])throw new Error('Browser formal source world required');const world=current.worlds[0];
+    applyFormal([{op:'update',op_id:newProjectObjectId(),collection:'worlds',target:world.id,set:{setting:world.setting+'（正式设定第二版，原开发方案保留第一版引用）'}}],[{id:world.id,version:world.version}]);
+    formal={assetId,sceneId,renditionId,episodeId:episode.id,shotId,deletedId:props[1]!.id,updatedId:props[0]!.id};
+  }
+  function updateFormal(){if(!formal)throw new Error('Browser formal seed required');const found=read(target('tenant','project'));const prop=found.state.head.props.find(row=>row.id===formal!.updatedId)!;applyFormal([{op:'update',op_id:newProjectObjectId(),collection:'props',target:prop.id,set:{description:'独立采用后的新版本'}}],[{id:prop.id,version:prop.version}]);}
   const options:ProjectApplicationOptions={tenantId:'tenant',newId:newProjectObjectId,
+    reads:{async head(mapped){const found=read(mapped);return copy({head:found.state.head,writeVersion:found.writeVersion,pendingCount:found.state.changes.filter(change=>change.status==='candidate').length});},
+      async history(query){const found=read(query.target);if(found.state.head.revision.number!==query.expectedRevision)throw new ProjectApplicationError('SNAPSHOT_STALE','browser history');return copy({snapshotRevision:found.state.head.revision.number,writeVersion:found.writeVersion,items:found.state.revisions.filter(row=>row.collection===query.collection&&row.object_id===query.objectId&&row.snapshot_revision<=query.expectedRevision&&(query.beforeVersion===undefined||row.version<query.beforeVersion)).sort((left,right)=>right.version-left.version).slice(0,query.limit)});}},
     identities:{
       async resolveProject(input){const scope=ProjectIdentityScopeSchema.parse(input);return copy(project(scope.tenantId,scope.projectId));},
       async resolvePrincipal(input){const scope=PrincipalIdentityScopeSchema.parse(input);return copy(principal(scope.tenantId,scope.kind,scope.key));},
@@ -55,5 +88,5 @@ export function createProjectBrowserState(store:DevelopmentStore){
   };
   // Projects and account bindings are explicitly installed when this browser-only fixture starts.
   const install=()=>{project('tenant','project');project('tenant','project-two');principal('tenant','user','browser-human');};install();
-  return {options,reset(){ids.clear();heads.clear();candidates.clear();decisions.clear();preparation.clear();receipts.clear();install();},stats(){return {candidates:candidates.size,decisions:decisions.size,preparation:preparation.size,receipts:receipts.size,projects:[...heads.values()].map(value=>({revision:value.state.head.revision.number,writeVersion:value.writeVersion,episodes:value.state.head.episodes.length}))};}};
+  return {options,seedFormal,updateFormal,reset(){ids.clear();heads.clear();candidates.clear();decisions.clear();preparation.clear();receipts.clear();formal=null;install();},stats(){return {candidates:candidates.size,decisions:decisions.size,preparation:preparation.size,receipts:receipts.size,formal,projects:[...heads.values()].map(value=>({revision:value.state.head.revision.number,writeVersion:value.writeVersion,episodes:value.state.head.episodes.length}))};}};
 }

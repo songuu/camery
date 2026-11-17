@@ -8,6 +8,8 @@ import {DevelopmentCapabilitiesSchema,DevelopmentBriefListSchema,DevelopmentBrie
 import type {DevelopmentBriefWrite,DevelopmentStart,DevelopmentFoundationConfirm,DevelopmentEpisodesConfirm,DevelopmentRedo} from '@camery/script/http';
 import {WorkbenchStateSchema,WorkbenchCandidatePageSchema,WorkbenchCandidateDetailSchema,WorkbenchActionReceiptSchema,WorkbenchCandidateListQuerySchema,DevelopmentCandidatePrepareSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,workbenchEnvelope} from '@camery/ir/workbench';
 import type {DevelopmentCandidatePrepare,WorkbenchUpgradeInput,WorkbenchAdoptInput,WorkbenchRejectInput} from '@camery/ir/workbench';
+import {WorkbenchSnapshotSchema,WorkbenchReadQuerySchema,WorkbenchCollectionSchema,WorkbenchObjectRefSchema,WorkbenchObjectHistorySchema,WorkbenchHistoryQuerySchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
+import type {WorkbenchReadQuery,WorkbenchObjectRef,WorkbenchHistoryQuery} from '@camery/ir/workbench';
 const Id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
 const Me = z.strictObject({ tenantId: Id, userId: Id, grants: z.array(z.strictObject({ projectId: Id, role: z.string().min(1).max(32) })).max(10000) });
 export type Identity = z.infer<typeof Me>;
@@ -15,6 +17,7 @@ const Access = z.strictObject({ projectId: Id, permissions: z.array(z.string().m
 const Progress = z.strictObject({ offset: z.number().int().nonnegative(), version: z.number().int().positive() });
 export class ApiError extends Error { constructor(readonly code: string) { super(`Request failed (${code})`); this.name = 'ApiError'; } }
 function id(value: string): string { if (!Id.safeParse(value).success) throw new ApiError('INVALID_REQUEST'); return encodeURIComponent(value); }
+function workbenchQuery(input:Record<string,string|number|undefined>){const entries=Object.entries(input).filter((entry):entry is [string,string|number]=>entry[1]!==undefined);return entries.length?`?${entries.map(([key,value])=>`${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`:'';}
 export class ApiClient {
   readonly #credential: string; readonly #transport: typeof fetch;
   constructor(token: string, transport: typeof fetch = fetch) {
@@ -34,7 +37,7 @@ export class ApiClient {
     if (!response.ok) {
       const statusCodes: Record<number,string> = { 400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 413: 'INPUT_LIMIT', 415: 'UNSUPPORTED_FORMAT', 422: 'MALFORMED_DOCUMENT', 503: 'STORAGE_FAILED' };
       if(workbench){
-        const allowed:Record<string,number>={SCHEMA_UPGRADE_REQUIRED:409,PROJECT_BINDING_MISSING:409,PRINCIPAL_BINDING_MISSING:403,SOURCE_POLICY_MISSING:409,SNAPSHOT_STALE:409,WRITE_VERSION_CONFLICT:409};
+        const allowed:Record<string,number>={SCHEMA_UPGRADE_REQUIRED:409,PROJECT_BINDING_MISSING:409,PRINCIPAL_BINDING_MISSING:403,SOURCE_POLICY_MISSING:409,SNAPSHOT_STALE:409,WRITE_VERSION_CONFLICT:409,ASSET_NOT_READY:409};
         try{const problem=z.strictObject({code:z.string(),requestId:Id}).safeParse(await response.json());if(problem.success&&allowed[problem.data.code]===response.status)throw new ApiError(problem.data.code);}catch(problem){if(problem instanceof ApiError)throw problem;}
       }
       throw new ApiError(statusCodes[response.status] ?? 'HTTP_FAILED');
@@ -88,6 +91,23 @@ export class ApiClient {
   }
   developmentCapabilities(projectId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/capabilities`,DevelopmentCapabilitiesSchema,signal?{signal}:{});}
   private workbenchRequest<T>(path:string,schema:z.ZodType<T>,init:RequestInit={}){return this.request(path,schema,init,true);}
+  readWorkbenchSnapshot(projectId:string,query:WorkbenchReadQuery={},signal?:AbortSignal){
+    const parsed=WorkbenchReadQuerySchema.safeParse(query);if(!parsed.success)throw new ApiError('INVALID_REQUEST');const selection=parsed.data;
+    const response=WorkbenchSnapshotSchema.refine(value=>value.projectKey===projectId&&(selection.expectedRevision===undefined||value.snapshotRevision===selection.expectedRevision)&&value.renditionId===(selection.renditionId??null)&&
+      (selection.sceneId?value.scope.kind==='scene'&&value.scope.id===selection.sceneId:selection.episodeId?value.scope.kind==='episode'&&value.scope.id===selection.episodeId:value.scope.kind==='project'&&value.scope.id===value.projectId)&&
+      (selection.collection===undefined||value.rows.every(row=>row.role==='context'||row.ref.collection===selection.collection)));
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench${workbenchQuery(selection)}`,workbenchEnvelope(response),{signal:signal??null}).then(value=>value.data);
+  }
+  readWorkbenchObjectHistory(projectId:string,collection:WorkbenchObjectRef['collection'],objectId:string,query:WorkbenchHistoryQuery={},signal?:AbortSignal){
+    const parsed=WorkbenchHistoryQuerySchema.safeParse(query);if(!parsed.success||!WorkbenchCollectionSchema.safeParse(collection).success||!WorkbenchObjectRefSchema.shape.id.safeParse(objectId).success)throw new ApiError('INVALID_REQUEST');
+    const response=WorkbenchObjectHistorySchema.refine(value=>value.projectKey===projectId&&value.collection===collection&&value.objectId===objectId&&(parsed.data.expectedRevision===undefined||value.snapshotRevision===parsed.data.expectedRevision)&&value.items.every(row=>row.ref.collection===collection&&row.ref.id===objectId&&row.snapshotRevision<=value.snapshotRevision));
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench/objects/${id(collection)}/${id(objectId)}/history${workbenchQuery(parsed.data)}`,workbenchEnvelope(response),{signal:signal??null}).then(value=>value.data);
+  }
+  checkWorkbenchReadyAsset(projectId:string,assetId:string,version:number,expectedRevision?:number,signal?:AbortSignal){
+    const parsed=WorkbenchReadyAssetQuerySchema.safeParse({expectedRevision});if(!parsed.success||!WorkbenchObjectRefSchema.shape.id.safeParse(assetId).success||!WorkbenchObjectRefSchema.shape.version.safeParse(version).success)throw new ApiError('INVALID_REQUEST');
+    // No media transport is enabled: even a successful HTTP response must not become a fabricated URL.
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench/assets/${id(assetId)}/versions/${version}${workbenchQuery(parsed.data)}`,workbenchEnvelope(z.never()),{signal:signal??null}).then(value=>value.data);
+  }
   getWorkbenchState(projectId:string,signal?:AbortSignal){
     return this.workbenchRequest(`/projects/${id(projectId)}/workbench/state`,workbenchEnvelope(WorkbenchStateSchema.refine(value=>value.projectKey===projectId)),{signal:signal??null}).then(value=>value.data);
   }

@@ -10,6 +10,7 @@ import {PostgresProjectIntents} from './intent-store.js';
 import {verifyProjectIdentityReaderRole} from './identity-role.js';
 import {verifyProjectAdoptionRole} from './adoption-role.js';
 import {newProjectObjectId} from './ids.js';
+import {PostgresProjectReadStore} from './read-store.js';
 
 /** Runtime never provisions roles, migrations, projects, task workers or model sessions. */
 export async function createProjectRuntime(config:ProjectDeploymentConfig):Promise<{readonly options:ProjectApplicationOptions;close():Promise<void>}>{
@@ -23,7 +24,7 @@ export async function createProjectRuntime(config:ProjectDeploymentConfig):Promi
     const reader=poolFor(readerUrl);const adopter=poolFor(adopterUrl);
     await verifyProjectIdentityReaderRole(reader);await verifyProjectAdoptionRole(adopter);
     const source=new PostgresDevelopmentStore(adopter);
-    const options:ProjectApplicationOptions=Object.freeze({tenantId:tenantId!,identities:new PostgresProjectIdentityStore(reader),versions:new PostgresVersionStore(adopter),intents:new PostgresProjectIntents(adopter),development:Object.freeze({store:source,identities:new PostgresDevelopmentIrIdentities(adopter,source,newProjectObjectId)}),newId:newProjectObjectId});
+    const options:ProjectApplicationOptions=Object.freeze({tenantId:tenantId!,identities:new PostgresProjectIdentityStore(reader),versions:new PostgresVersionStore(adopter),reads:new PostgresProjectReadStore(adopter),intents:new PostgresProjectIntents(adopter),development:Object.freeze({store:source,identities:new PostgresDevelopmentIrIdentities(adopter,source,newProjectObjectId)}),newId:newProjectObjectId});
     return Object.freeze({options,close});
   }catch{await close().catch(()=>{});throw new Error('Project runtime startup failed');}
 }

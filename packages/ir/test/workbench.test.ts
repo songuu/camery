@@ -1,6 +1,6 @@
 import {expect,it} from 'vitest';
 import {fixtureId as id,changeSet} from './fixtures';
-import {DevelopmentCandidatePrepareSchema,WorkbenchActionReceiptSchema,WorkbenchAdoptSchema,WorkbenchCandidateListQuerySchema,WorkbenchCandidateSummarySchema,WorkbenchPreviewSchema,WorkbenchRejectSchema,WorkbenchStateSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,workbenchEnvelope} from '../src/workbench';
+import {DevelopmentCandidatePrepareSchema,WorkbenchActionReceiptSchema,WorkbenchAdoptSchema,WorkbenchCandidateListQuerySchema,WorkbenchCandidateSummarySchema,WorkbenchPreviewSchema,WorkbenchRejectSchema,WorkbenchStateSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,workbenchEnvelope,WorkbenchReadQuerySchema,WorkbenchObjectRowSchema,WorkbenchObjectHistorySchema} from '../src/workbench';
 
 const base={expectedSnapshotRevision:5,expectedWriteVersion:2};
 it('keeps browser commands strict and requires complete bases, host-free source pins and deliberate decisions',()=>{
@@ -32,4 +32,15 @@ it('bounds metadata pagination and retains existing strict ChangeSet validation 
   expect(WorkbenchPreviewSchema.safeParse({change:oversized,expectedSnapshotRevision:5}).success).toBe(false);
   expect(WorkbenchSubmitSchema.safeParse({...base,applicationId:'manual',change:oversized}).success).toBe(false);
   expect(WorkbenchPreviewSchema.safeParse({change:{...change,ops:[{...change.ops[0],set:{action:'大'.repeat(180000)}}]},expectedSnapshotRevision:5}).success).toBe(false);
+});
+it('separates versioned objects from unversioned lineage and strictly bounds read selectors',()=>{
+  expect(WorkbenchReadQuerySchema.parse({limit:'200',expectedRevision:'5',collection:'locks'})).toEqual({limit:200,expectedRevision:5,collection:'locks'});
+  for(const query of [{limit:201},{collection:'shot_lineage'},{actor:'self'},{expectedRevision:Number.MAX_SAFE_INTEGER+1},{cursor:'x'.repeat(4097)}])expect(WorkbenchReadQuerySchema.safeParse(query).success).toBe(false);
+  expect(WorkbenchObjectRowSchema.safeParse({ref:{collection:'shots',id:id('sh_1'),version:2},role:'owned',value:{id:id('sh_1'),version:1}}).success).toBe(false);
+});
+it('requires history values and tombstones to agree with the actual revision reference',()=>{
+  const ref={collection:'shots',id:id('sh_1'),version:2};const page={contractVersion:1,projectKey:'project',projectId:id('prj_demo'),collection:'shots',objectId:id('sh_1'),snapshotRevision:6,writeVersion:4,nextCursor:null,items:[{ref,parentVersion:1,snapshotRevision:6,changeId:id('remove-change'),deleted:true,value:null}]};
+  expect(WorkbenchObjectHistorySchema.parse(page).items[0]!.deleted).toBe(true);
+  expect(WorkbenchObjectHistorySchema.safeParse({...page,items:[{...page.items[0],deleted:false}]}).success).toBe(false);
+  expect(WorkbenchObjectHistorySchema.safeParse({...page,items:[{...page.items[0],deleted:false,value:{id:id('other'),version:2}}]}).success).toBe(false);
 });

@@ -1,9 +1,11 @@
-import {useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
+import {lazy,Suspense,useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
 import type {DevelopmentRunView} from '@camery/script/http';
 import type {DevelopmentCandidatePrepare,WorkbenchUpgradeInput,WorkbenchAdoptInput,WorkbenchRejectInput,WorkbenchState,WorkbenchCandidateSummary,WorkbenchCandidateDetail} from '@camery/ir/workbench';
 import {ApiClient,ApiError} from './api.js';
 import {AdoptionLifetime,AdoptionPending,adoptionSource,decisionReceiptFeedback} from './DevelopmentAdoptionState.js';
 import './development-adoption.css';
+import {FormalProjectBoundary} from './FormalProjectBoundary.js';
+const FormalProjectPane=lazy(async()=>({default:(await import('./FormalProjectPane.js')).FormalProjectPane}));
 
 interface Props {client:ApiClient;generation:number;projectId:string;run:DevelopmentRunView;onFailure:(error:unknown)=>void}
 type Action={kind:'prepare';command:DevelopmentCandidatePrepare}|{kind:'upgrade';command:WorkbenchUpgradeInput}|{kind:'adopt';candidateId:string;command:WorkbenchAdoptInput}|{kind:'reject';candidateId:string;command:WorkbenchRejectInput};
@@ -24,11 +26,12 @@ export function DevelopmentAdoptionPane(props:Props){
   const old=context.current;if(old.client!==props.client||old.generation!==props.generation||old.projectId!==props.projectId||old.runId!==props.run.runId)context.current={client:props.client,generation:props.generation,projectId:props.projectId,runId:props.run.runId,key:old.key+1};
   return <AdoptionSession key={context.current.key} {...props}/>;
 }
-function AdoptionSession({client,projectId,run,onFailure}:Props){
+function AdoptionSession({client,generation,projectId,run,onFailure}:Props){
   const [state,setState]=useState<WorkbenchState|null>(null);const [items,setItems]=useState<WorkbenchCandidateSummary[]>([]);const [detail,setDetail]=useState<WorkbenchCandidateDetail|null>(null);
   const [cursor,setCursor]=useState<string|null>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState<string|null>(null);const [message,setMessage]=useState<string|null>(null);const [reason,setReason]=useState('');const [hasPending,setHasPending]=useState(false);
   const [allCandidates,setAllCandidates]=useState(false);
   const [decisionIssues,setDecisionIssues]=useState<WorkbenchCandidateDetail['issues']>([]);
+  const [formalOpen,setFormalOpen]=useState(false);
   const lifetime=useRef(new AdoptionLifetime());const pending=useRef(new AdoptionPending<Action>());
   useLayoutEffect(()=>()=>{lifetime.current.close();pending.current.clear();},[]);
   function fail(problem:unknown){if(problem instanceof ApiError&&problem.code==='UNAUTHENTICATED'){onFailure(problem);return;}setError(errorText(problem));}
@@ -87,17 +90,19 @@ function AdoptionSession({client,projectId,run,onFailure}:Props){
     const command={scope:detail.scope,expectedSnapshotRevision:detail.snapshotRevision,expectedWriteVersion:detail.writeVersion};
     void execute(kind==='adopt'?{kind,candidateId:detail.candidateId,command}:{kind,candidateId:detail.candidateId,command:{...command,reason:reason.trim()}},crypto.randomUUID());
   }
-  return <DevelopmentAdoptionView state={state} items={items} detail={detail} busy={busy} error={error} message={message} pending={hasPending} reason={reason} nextCursor={cursor} sourceChanged={run.sourceChanged}
+  return <><DevelopmentAdoptionView state={state} items={items} detail={detail} busy={busy} error={error} message={message} pending={hasPending} reason={reason} nextCursor={cursor} sourceChanged={run.sourceChanged}
     decisionIssues={decisionIssues} runId={run.runId} allCandidates={allCandidates} onListScope={()=>{void toggleScope();}}
-    onRefresh={()=>{void refresh();}} onPrepare={prepare} onUpgrade={upgrade} onOpen={id=>{void open(id);}} onMore={()=>{void more();}} onAdopt={()=>decide('adopt')} onReject={()=>decide('reject')} onReason={setReason} onRetry={()=>{const original=pending.current.value;if(original)void execute(original.body,original.requestId);}}/>;
+    onFormalOpen={()=>setFormalOpen(true)} onRefresh={()=>{void refresh();}} onPrepare={prepare} onUpgrade={upgrade} onOpen={id=>{void open(id);}} onMore={()=>{void more();}} onAdopt={()=>decide('adopt')} onReject={()=>decide('reject')} onReason={setReason} onRetry={()=>{const original=pending.current.value;if(original)void execute(original.body,original.requestId);}}/>
+    {formalOpen&&<FormalProjectBoundary onClose={()=>setFormalOpen(false)}><Suspense fallback={<p className="development-hint" role="status">正在打开正式内容…</p>}><FormalProjectPane client={client} generation={generation} projectId={projectId} onFailure={onFailure} onClose={()=>setFormalOpen(false)}/></Suspense></FormalProjectBoundary>}</>;
 }
-interface ViewProps {state:WorkbenchState|null;items:readonly WorkbenchCandidateSummary[];detail:WorkbenchCandidateDetail|null;busy:boolean;error:string|null;message:string|null;decisionIssues?:WorkbenchCandidateDetail['issues'];pending:boolean;reason:string;nextCursor:string|null;sourceChanged:boolean;runId?:string;allCandidates?:boolean;onListScope?:()=>void;onRefresh:()=>void;onPrepare:()=>void;onUpgrade:()=>void;onOpen:(id:string)=>void;onMore:()=>void;onAdopt:()=>void;onReject:()=>void;onRetry:()=>void;onReason:(value:string)=>void}
+interface ViewProps {state:WorkbenchState|null;items:readonly WorkbenchCandidateSummary[];detail:WorkbenchCandidateDetail|null;busy:boolean;error:string|null;message:string|null;decisionIssues?:WorkbenchCandidateDetail['issues'];pending:boolean;reason:string;nextCursor:string|null;sourceChanged:boolean;runId?:string;allCandidates?:boolean;onFormalOpen?:()=>void;onListScope?:()=>void;onRefresh:()=>void;onPrepare:()=>void;onUpgrade:()=>void;onOpen:(id:string)=>void;onMore:()=>void;onAdopt:()=>void;onReject:()=>void;onRetry:()=>void;onReason:(value:string)=>void}
 export function DevelopmentAdoptionView(props:ViewProps){
   const {state,detail,busy,pending}=props;const reasonId=useId();const blocked=busy||pending;const legacy=state?.schemaVersion==='0.5.0-draft';
   const resumable=detail?.managed&&detail.status==='prepared'&&detail.source.kind==='development'&&detail.source.runId===props.runId;
   const adoptable=detail?.managed&&detail.status==='candidate'&&detail.canAdopt&&(detail.source.kind!=='development'||detail.source.state==='current');
   return <section className="development-adoption" aria-label="正式剧本采用"><header className="development-section-heading"><div><p className="development-kicker">从审阅稿到正式版本</p><h2>正式剧本</h2></div><button type="button" onClick={props.onRefresh} disabled={busy}>刷新正式版本</button></header>
     <p className="development-hint">设定与分集的审阅已完成。先准备候选并核对变更，再由有审阅权限的成员明确采用。</p>
+    {props.onFormalOpen&&<div className="development-actions"><button type="button" disabled={busy} onClick={props.onFormalOpen}>查看正式内容</button></div>}
     {props.error&&<p className="development-warning" role="alert">{props.error}</p>}{props.message&&<p className="development-notice" role="status">{props.message}</p>}{busy&&<p className="development-hint" role="status">正在核对正式版本与候选记录…</p>}
     {!!props.decisionIssues?.length&&<ul className="development-issues" aria-label="本次操作提示">{props.decisionIssues.map((issue,index)=><li key={index}>{reasons[issue.code]??(issue.message||explanation(issue.code))}{issue.where&&<small> · {issue.where}</small>}</li>)}</ul>}
     {pending&&<aside className="development-warning"><p>上次操作结果尚未确认。重试会使用原内容与原身份；刷新不会重新提交。</p><button type="button" disabled={busy} onClick={props.onRetry}>使用原请求重试</button></aside>}

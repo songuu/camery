@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {ChangeSet,StableId,SCHEMA_VERSION,LEGACY_SCHEMA_VERSION} from './schema';
+import {ChangeSet,StableId,EditableCollection,SCHEMA_VERSION,LEGACY_SCHEMA_VERSION} from './schema';
 
 const integer=z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const revision=integer.min(1);
@@ -54,3 +54,30 @@ export type WorkbenchRejectInput=z.infer<typeof WorkbenchRejectSchema>;
 export type WorkbenchUpgradeInput=z.infer<typeof WorkbenchUpgradeSchema>;
 export type WorkbenchSubmitInput=z.infer<typeof WorkbenchSubmitSchema>;
 export type WorkbenchPreviewInput=z.infer<typeof WorkbenchPreviewSchema>;
+
+export const WorkbenchCollectionSchema=z.enum([...EditableCollection.options,'locks']);
+export const WorkbenchObjectRefSchema=z.strictObject({collection:WorkbenchCollectionSchema,id:StableId,version:revision});
+export type WorkbenchObjectRef=z.infer<typeof WorkbenchObjectRefSchema>;
+export const WorkbenchReadQuerySchema=z.strictObject({episodeId:StableId.optional(),sceneId:StableId.optional(),renditionId:StableId.optional(),collection:WorkbenchCollectionSchema.optional(),
+  expectedRevision:z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),cursor:z.string().min(1).max(4096).optional(),limit:z.coerce.number().int().min(1).max(200).optional()});
+export type WorkbenchReadQuery=z.infer<typeof WorkbenchReadQuerySchema>;
+export const WorkbenchObjectRowSchema=z.strictObject({ref:WorkbenchObjectRefSchema,role:z.enum(['owned','context']),value:z.record(z.string(),z.unknown())})
+  .refine(row=>row.value['id']===row.ref.id&&row.value['version']===row.ref.version,{message:'Object value must match its revision reference'});
+export const WorkbenchRelationSchema=z.strictObject({kind:z.enum(['ownership','reference','provenance','shot_take','continuity']),from:WorkbenchObjectRefSchema,to:WorkbenchObjectRefSchema,field:text(512),pin:z.enum(['explicit','snapshot']),currentVersion:revision,stale:z.boolean()});
+export const WorkbenchSnapshotSchema=z.strictObject({contractVersion:z.literal(1),projectKey:id,projectId:StableId,schemaVersion:z.enum([LEGACY_SCHEMA_VERSION,SCHEMA_VERSION]),snapshotRevision:revision,writeVersion:revision,
+  scope:WorkbenchScopeSchema,renditionId:StableId.nullable(),nextCursor:z.string().max(4096).nullable(),counts:z.array(z.strictObject({collection:WorkbenchCollectionSchema,count:integer})).max(64),
+  capabilities:z.strictObject({canWrite:z.boolean(),canReview:z.boolean(),canReadMedia:z.literal(false)}),
+  rows:z.array(WorkbenchObjectRowSchema).max(200),relations:z.array(WorkbenchRelationSchema).max(10000),
+  lineage:z.array(z.strictObject({from_ids:z.array(StableId).min(1),to_ids:z.array(StableId).min(1),revision})).max(65536),
+  // Existing IR lock text is unbounded; the complete response byte budget limits transport size.
+  locks:z.array(z.strictObject({ref:WorkbenchObjectRefSchema,target:StableId,fields:z.array(z.string().min(1)).max(65536),ownerId:StableId,reason:z.string().min(1)})).max(65536),
+});
+export type WorkbenchSnapshot=z.infer<typeof WorkbenchSnapshotSchema>;
+export const WorkbenchHistoryQuerySchema=z.strictObject({expectedRevision:z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),cursor:z.string().min(1).max(4096).optional(),limit:z.coerce.number().int().min(1).max(50).optional()});
+export type WorkbenchHistoryQuery=z.infer<typeof WorkbenchHistoryQuerySchema>;
+export const WorkbenchObjectHistorySchema=z.strictObject({contractVersion:z.literal(1),projectKey:id,projectId:StableId,collection:WorkbenchCollectionSchema,objectId:StableId,snapshotRevision:revision,writeVersion:revision,nextCursor:z.string().max(4096).nullable(),
+  items:z.array(z.strictObject({ref:WorkbenchObjectRefSchema,parentVersion:revision.nullable(),snapshotRevision:revision,changeId:StableId.nullable(),deleted:z.boolean(),value:z.record(z.string(),z.unknown()).nullable()})
+    .refine(row=>row.deleted===(row.value===null)&&(!row.value||row.value['id']===row.ref.id&&row.value['version']===row.ref.version),{message:'Historical value binding'})).max(50),
+});
+export type WorkbenchObjectHistory=z.infer<typeof WorkbenchObjectHistorySchema>;
+export const WorkbenchReadyAssetQuerySchema=z.strictObject({expectedRevision:z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional()});

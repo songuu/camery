@@ -45,6 +45,10 @@ CAMERY_PROJECTS_ADOPTION_DATABASE_URL_FILE=/run/secrets/project-adopter-url
 
 ## 核验与回滚
 
+正式读取沿同一个功能开关，使用现有 adopter 的 SELECT 能力，不需要新增迁移、表或权限。`GET /api/v1/projects/:projectId/workbench` 支持 `episodeId`、`sceneId`、`renditionId`、`collection`、`expectedRevision`、`cursor`、`limit`；快照页最多 200 个对象、960 KiB 完整响应数据。对象历史 `GET .../workbench/objects/:collection/:objectId/history` 每页最多 50 版本，包括删除墓碑。游标绑定真实用户/项目/过滤/快照，头更新须重新读取，不能拼页。内部快照捕获资源界限为 64 MiB，超限明确拒绝；不会截断正文伪装完整记录。
+
+正式内容面板只在用户显式点击“查看正式内容”后加载。模块加载失败由局部错误边界处理，原候选及会话仍保留，不自动重新加载页面。资产公共投影移除本地路径，`GET .../workbench/assets/:assetId/versions/:version` 当前只提供授权、版本校验和明确未就绪结果；归档文件和媒体句柄仍须后续接入，不能仅依据 IR ready 元信息开放读取。
+
 安装后以真实用户会话验证：读取项目及既存绑定不会写入；缺失绑定明确返回缺失；来源变更、对象锁、CAS 冲突、权限撤销能阻止新写入；相同 application/request ID 重试恢复不可变 intent 和原回执，不能分配第二套对象或重复采用。独立 LOGIN 的集成测试包含真实新来源、局部身份、正式 submit、guarded adopt、两类回执及额外 ACL 的拒绝探针，需在专用测试数据库串行运行。协议夹具结果不等同真实文本质量、编辑器验收或法务/设计伙伴签核。
 
 回滚先关闭该入口、移除两个 secret 文件配置并重启 API，保留追加身份、intent、回执和版本历史。需要撤销运行凭据时由安装者处理，不能删记录伪装回退。包含新版 IR 集合或升级项目的数据库不能交给仅识别 v0.5 的旧镜像读取；保留兼容版本及备份。其他工作台投影、补偿、媒体字节及阶段 1 后续门槛仍按完整计划推进。

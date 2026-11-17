@@ -1,8 +1,8 @@
 import {z} from 'zod';
 import {AccessError,authorize,parseIdentity,permissionsFor} from '@camery/access';
 import type {Permission,SessionIdentity} from '@camery/access';
-import {ChangeSet,StableId} from '@camery/ir';
-import {WorkbenchStateSchema,WorkbenchPreviewSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,DevelopmentCandidatePrepareSchema,WorkbenchCandidateListQuerySchema} from '@camery/ir/workbench';
+import {Asset,ChangeSet,StableId} from '@camery/ir';
+import {WorkbenchStateSchema,WorkbenchPreviewSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,DevelopmentCandidatePrepareSchema,WorkbenchCandidateListQuerySchema,WorkbenchReadQuerySchema,WorkbenchHistoryQuerySchema,WorkbenchObjectHistorySchema,WorkbenchCollectionSchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
 import {freeze} from '@camery/methods';
 import {snapshotJson,JsonBoundaryError} from '@camery/methods/json';
 import {submitChangeSet} from '@camery/versioning';
@@ -16,6 +16,8 @@ import {projectIntentDigest} from './intent-store.js';
 import {resolveProjectAuthority} from './authority.js';
 import {projectCandidateDetail,projectPreview} from './projection.js';
 import type {ProjectApplicationOptions} from './options.js';
+import {projectReadSnapshot,redactReadObject} from './read-projection.js';
+import {encodeReadCursor,decodeReadCursor} from './read-cursor.js';
 
 interface Context {subject:unknown;projectId:string}
 const stable=StableId.refine(value=>value.length===26);
@@ -46,16 +48,52 @@ export class ProjectApplication{
     if(stored.state.head.revision.number!==command.expectedSnapshotRevision)throw new ProjectApplicationError('SNAPSHOT_STALE','snapshot base');
     if(command.expectedWriteVersion!==undefined&&stored.writeVersion!==command.expectedWriteVersion)throw new ProjectApplicationError('WRITE_VERSION_CONFLICT','write base');
   }
-  async state(input:Context){
-    const subject=this.subject(input,'project:read');const projectId=input.projectId;
-    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const stored=await this.read(binding.versionKey);
+  private async readHead(key:VersionProjectKey){
+    const stored=await this.options.reads.head(key);if(!stored)throw new ProjectApplicationError('NOT_FOUND','project snapshot');
+    if(stored.head.project.id!==key.projectId)throw new ProjectApplicationError('STORAGE_FAILED','read snapshot binding');return stored;
+  }
+  private async readCapabilities(subject:SessionIdentity,projectId:string){
     let actorId:string|null=null;
     try{const actor=await this.options.identities.resolvePrincipal({tenantId:subject.tenantId,kind:'user',key:subject.userId});actorId=actor.principal.id;}
     catch(error){if(!(error instanceof ProjectIdentityError)||error.code!=='PRINCIPAL_BINDING_MISSING')throw error;}
     const permissions=permissionsFor(subject,this.options.tenantId,projectId);
-    return WorkbenchStateSchema.parse({contractVersion:1,projectKey:projectId,projectId:binding.versionKey.projectId,schemaVersion:stored.state.head.schema_version,snapshotRevision:stored.state.head.revision.number,writeVersion:stored.writeVersion,actorId,
-      canWrite:actorId!==null&&permissions.includes('candidate:write'),canReview:actorId!==null&&permissions.includes('candidate:review'),nativePending:stored.state.changes.filter(row=>row.status==='candidate').length,
-      counts:Object.entries(stored.state.head).filter(([,value])=>Array.isArray(value)).map(([collection,value])=>({collection,count:(value as unknown[]).length}))});
+    return {actorId,canWrite:actorId!==null&&permissions.includes('candidate:write'),canReview:actorId!==null&&permissions.includes('candidate:review')};
+  }
+  async state(input:Context){
+    const subject=this.subject(input,'project:read');const projectId=input.projectId;
+    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const stored=await this.readHead(binding.versionKey);const capabilities=await this.readCapabilities(subject,projectId);
+    return WorkbenchStateSchema.parse({contractVersion:1,projectKey:projectId,projectId:binding.versionKey.projectId,schemaVersion:stored.head.schema_version,snapshotRevision:stored.head.revision.number,writeVersion:stored.writeVersion,...capabilities,nativePending:stored.pendingCount,
+      counts:Object.entries(stored.head).filter(([,value])=>Array.isArray(value)).map(([collection,value])=>({collection,count:(value as unknown[]).length}))});
+  }
+  async readSnapshot(input:Context&{command:unknown}){
+    const subject=this.subject(input,'project:read');const projectId=input.projectId;const query=capture(WorkbenchReadQuerySchema,input.command);
+    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const stored=await this.readHead(binding.versionKey);const capabilities=await this.readCapabilities(subject,projectId);
+    return projectReadSnapshot({projectKey:projectId,target:binding.versionKey,subjectId:subject.userId,...stored,query,capabilities:{canWrite:capabilities.canWrite,canReview:capabilities.canReview}});
+  }
+  async readObjectHistory(input:Context&{collection:string;objectId:string;command:unknown}){
+    const subject=this.subject(input,'project:read');const projectId=input.projectId;const collection=capture(WorkbenchCollectionSchema,input.collection);const objectId=capture(stable,input.objectId);const query=capture(WorkbenchHistoryQuerySchema,input.command);
+    const mapped=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const target=mapped.versionKey;const limit=query.limit??20;
+    const binding={kind:'history',projectKey:projectId,target,subjectId:subject.userId,collection,objectId};
+    const cursor=query.cursor?decodeReadCursor(binding,query.cursor,z.strictObject({snapshotRevision:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),beforeVersion:z.number().int().positive().max(Number.MAX_SAFE_INTEGER)})):undefined;
+    if(cursor&&query.expectedRevision!==undefined&&cursor.snapshotRevision!==query.expectedRevision)throw new ProjectApplicationError('INVALID_INPUT','history cursor revision');
+    const expectedRevision=cursor?.snapshotRevision??query.expectedRevision??(await this.readHead(target)).head.revision.number;
+    const read=await this.options.reads.history({target,collection,objectId,expectedRevision,...(cursor?{beforeVersion:cursor.beforeVersion}:{}),limit:limit+1});
+    if(!read)throw new ProjectApplicationError('NOT_FOUND','project history');if(read.snapshotRevision!==expectedRevision)throw new ProjectApplicationError('SNAPSHOT_STALE','history snapshot');
+    if(!read.items.length&&!cursor)throw new ProjectApplicationError('NOT_FOUND','object history');
+    const items=read.items.slice(0,limit).map(row=>({ref:{collection,id:objectId,version:row.version},parentVersion:row.parent_version,snapshotRevision:row.snapshot_revision,changeId:row.change_set_id,deleted:row.value===null,value:row.value===null?null:redactReadObject(collection,row.value)}));
+    const page=()=>WorkbenchObjectHistorySchema.parse({contractVersion:1,projectKey:projectId,projectId:target.projectId,collection,objectId,snapshotRevision:read.snapshotRevision,writeVersion:read.writeVersion,
+      nextCursor:read.items.length>items.length&&items.length?encodeReadCursor(binding,{snapshotRevision:read.snapshotRevision,beforeVersion:items.at(-1)!.ref.version}):null,items});
+    while(true){const result=page();try{snapshotJson(result,983040,65536);return result;}catch(error){if(!(error instanceof JsonBoundaryError)||error.code!=='INPUT_LIMIT')throw new ProjectApplicationError('STORAGE_FAILED','history response');if(items.length<=1)throw new ProjectApplicationError('INPUT_LIMIT','history object');items.pop();}}
+  }
+  async readReadyAsset(input:Context&{assetId:string;version:unknown;command:unknown}):Promise<never>{
+    const subject=this.subject(input,'project:read');const projectId=input.projectId;const assetId=capture(stable,input.assetId);const version=capture(z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),input.version);const query=capture(WorkbenchReadyAssetQuerySchema,input.command);
+    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const head=await this.readHead(binding.versionKey);const expectedRevision=query.expectedRevision??head.head.revision.number;
+    if(head.head.revision.number!==expectedRevision)throw new ProjectApplicationError('SNAPSHOT_STALE','asset snapshot');
+    const history=await this.options.reads.history({target:binding.versionKey,collection:'assets',objectId:assetId,expectedRevision,...(version<Number.MAX_SAFE_INTEGER?{beforeVersion:version+1}:{}),limit:1});
+    const row=history?.items[0];if(!row||row.version!==version||row.value===null)throw new ProjectApplicationError('NOT_FOUND','asset version');
+    if(!Asset.safeParse(row.value).success)throw new ProjectApplicationError('STORAGE_FAILED','asset version record');
+    // A stored ready flag and path do not prove an authorized, archived media capability.
+    throw new ProjectApplicationError('ASSET_NOT_READY','asset bytes capability unavailable');
   }
   async listCandidates(input:Context&{runId?:string;cursor?:string;limit?:number}){
     const subject=this.subject(input,'project:read');const projectId=input.projectId;const query=capture(WorkbenchCandidateListQuerySchema,{...(input.runId===undefined?{}:{runId:input.runId}),...(input.cursor===undefined?{}:{cursor:input.cursor}),...(input.limit===undefined?{}:{limit:input.limit})});

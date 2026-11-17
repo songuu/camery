@@ -3,7 +3,7 @@ import type {DynamicModule} from '@nestjs/common';
 import {z} from 'zod';
 import {accessId} from '@camery/access';
 import {StableId} from '@camery/ir';
-import {DevelopmentCandidatePrepareSchema,WorkbenchAdoptSchema,WorkbenchCandidateDetailSchema,WorkbenchCandidateListQuerySchema,WorkbenchCandidatePageSchema,WorkbenchPreviewSchema,WorkbenchPreviewResultSchema,WorkbenchRejectSchema,WorkbenchStateSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchActionReceiptSchema} from '@camery/ir/workbench';
+import {DevelopmentCandidatePrepareSchema,WorkbenchAdoptSchema,WorkbenchCandidateDetailSchema,WorkbenchCandidateListQuerySchema,WorkbenchCandidatePageSchema,WorkbenchPreviewSchema,WorkbenchPreviewResultSchema,WorkbenchRejectSchema,WorkbenchStateSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchActionReceiptSchema,WorkbenchSnapshotSchema,WorkbenchReadQuerySchema,WorkbenchHistoryQuerySchema,WorkbenchObjectHistorySchema,WorkbenchCollectionSchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
 import {snapshotJson,JsonBoundaryError} from '@camery/methods/json';
 import {RequireAccess} from '../policy.js';
 import type {AuthRequest} from '../policy.js';
@@ -31,13 +31,25 @@ function idempotency(request:AuthRequest,applicationId?:string):string{
 }
 async function envelope<S extends z.ZodType>(schema:S,result:Promise<unknown>,request:AuthRequest):Promise<{data:z.infer<S>;requestId:string}>{
   const data=await result;
-  try{return {data:schema.parse(snapshotJson(data,1048576)),requestId:request.id};}
+  try{return {data:schema.parse(snapshotJson(data,1048576,65536)),requestId:request.id};}
   catch{throw new ProjectApplicationError('STORAGE_FAILED','HTTP response projection');}
 }
 const candidateIdSchema=StableId.refine(value=>value.length===26);
 @Controller('api/v1/projects/:projectId')
 class ProjectController{
   constructor(@Inject(APPLICATION) private readonly application:ProjectApplication){}
+  @Get('workbench') @RequireAccess('project:read')
+  snapshot(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Query() input:unknown){
+    return envelope(WorkbenchSnapshotSchema,this.application.readSnapshot({subject:request.principal,projectId,command:query(WorkbenchReadQuerySchema,input)}),request);
+  }
+  @Get('workbench/objects/:collection/:objectId/history') @RequireAccess('project:read')
+  history(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Param('collection') collection:string,@Param('objectId') objectId:string,@Query() input:unknown){
+    return envelope(WorkbenchObjectHistorySchema,this.application.readObjectHistory({subject:request.principal,projectId,collection:parse(WorkbenchCollectionSchema,collection),objectId:parse(candidateIdSchema,objectId),command:query(WorkbenchHistoryQuerySchema,input)}),request);
+  }
+  @Get('workbench/assets/:assetId/versions/:version') @RequireAccess('project:read')
+  asset(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Param('assetId') assetId:string,@Param('version') version:string,@Query() input:unknown){
+    return envelope(z.never(),this.application.readReadyAsset({subject:request.principal,projectId,assetId:parse(candidateIdSchema,assetId),version:parse(z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),version),command:query(WorkbenchReadyAssetQuerySchema,input)}),request);
+  }
   @Get('workbench/state') @RequireAccess('project:read')
   state(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Query() input:unknown){
     query(z.strictObject({}),input);return envelope(WorkbenchStateSchema,this.application.state({subject:request.principal,projectId}),request);
