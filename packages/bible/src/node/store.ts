@@ -10,7 +10,7 @@ import { createChunkPlan, validateChunkPlan } from '../chunks.js';
 import { validateChunkRecord } from '../extraction.js';
 import { assembleBibleCandidate } from '../candidate.js';
 import { confirmBible, rejectBibleCandidate } from '../confirmation.js';
-import { bibleRunDigest, executionForChunks, RunKeySchema, StartRunSchema } from './contracts.js';
+import { bibleRunDigest, executionForChunks, RunKeySchema, StartRunSchema,BibleReviewedSourceSchema } from './contracts.js';
 import type { BibleProgress, BibleRun, BibleRunKey, BibleStore, StartBibleRun } from './contracts.js';
 
 const Method=Pin.refine(value=>value.id==='story-bible-extract'&&value.version.trim()===value.version&&Hash.safeParse(value.digest).success);
@@ -115,6 +115,23 @@ export class PostgresBibleStore implements BibleStore {
   }
   async read(input:BibleRunKey):Promise<BibleProgress> {
     const key=scope(input);return this.transaction(key,async client=>{const run=await this.requiredRun(client,key);const records=await this.records(client,run);const candidate=await this.candidate(client,run,records);const review=await this.review(client,run,candidate);return freeze({run,records,candidate,review});});
+  }
+  /** Caller owns the open READ COMMITTED transaction. Hold original source/run locks through its final write. */
+  async readForOutline(client:PoolClient,input:unknown):Promise<BibleProgress>{
+    const command=freeze(parse(BibleReviewedSourceSchema,copy(input),'reviewed source'));const key=scope({tenantId:command.tenantId,projectId:command.projectId,runId:command.runId});
+    try{
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_ingest',key.tenantId,key.projectId,command.documentId])]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_bible',...keys(key)])]);
+      const run=await this.requiredRun(client,key);const identity=run.source.source;
+      if(run.digest!==command.runDigest||identity.documentId!==command.documentId||identity.revision!==command.revision||identity.sourceDigest!==command.sourceDigest)throw new BibleError('CONFLICT','reviewed source binding');
+      const records=await this.records(client,run),candidate=await this.candidate(client,run,records),review=await this.review(client,run,candidate);
+      if(review?.status!=='confirmed')throw new BibleError('INCOMPLETE','source confirmation');
+      if(review.digest!==command.reviewDigest)throw new BibleError('CONFLICT','source confirmation binding');
+      const loaded=await readSourceDocument(client,{tenantId:key.tenantId,projectId:key.projectId,documentId:identity.documentId,kind:identity.kind});
+      const current=captureSource({...asSourceInput(run.source),...loaded});
+      if(canonical(current.source)!==canonical(identity))throw new BibleError('CONFLICT','current reviewed source');
+      return freeze({run,records,candidate,review});
+    }catch(error){if(error instanceof BibleError)throw error;if(error instanceof ImportError&&error.code==='NOT_FOUND')throw new BibleError('NOT_FOUND','reviewed source');throw new BibleError('STORAGE_FAILED','reviewed source read');}
   }
   async saveChunk(input:BibleRunKey,supplied:ChunkRecord):Promise<ChunkRecord> {
     const key=scope(input);const captured=copy(supplied);parse(z.object({digest:Hash}),captured,'chunk digest');

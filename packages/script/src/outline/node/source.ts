@@ -82,7 +82,7 @@ function build(descriptor:OutlineSourceDescriptor,input:unknown):OutlineSourceSn
   const material=normalizeMaterial(descriptor,input);const body={version:1 as const,descriptor,material,references:references(descriptor,material)};
   return deepFreeze(copy({...body,digest:hash(body)},OUTLINE_SOURCE_BYTES));
 }
-function translate(error:unknown):never{
+export function outlineSourceFailure(error:unknown):never{
   if(error instanceof OutlineError)throw error;
   if(error instanceof DevelopmentError||error instanceof BibleError){
     const code=error.code;
@@ -96,36 +96,41 @@ export function validateOutlineSourceSnapshot(input:unknown):OutlineSourceSnapsh
   try{
     const snapshot=capture(Snapshot,input,'source snapshot',OUTLINE_SOURCE_BYTES);const actual=build(snapshot.descriptor,snapshot.material);
     if(snapshot.digest!==actual.digest||hash(snapshot.references)!==hash(actual.references))failed('CONFLICT','snapshot.binding');return actual;
-  }catch(error){return translate(error);}
+  }catch(error){return outlineSourceFailure(error);}
 }
 /**
  * Trusted store.read reconstructs the original candidate/review audit. Capture only complete writing material,
  * not the full original document, before awaiting currentness. OL-3 must recheck under source locks when writing;
  * these separate reads cannot prove atomic freshness or authorize a caller.
  */
-export async function resolveOutlineSource(input:unknown,stores:Stores):Promise<OutlineSourceSnapshot>{
+export function captureStoredOutlineSource(input:unknown,progress:unknown):OutlineSourceSnapshot{
   const descriptor=deepFreeze(capture(OutlineSourceDescriptorSchema,input,'source descriptor',8192));
-  const key=deepFreeze({tenantId:descriptor.tenantId,projectId:descriptor.projectId,runId:descriptor.runId});
   try{
     if(descriptor.kind==='development'){
-      const store=stores.development;if(!store)failed('INCOMPLETE','development store');const read=store.read.bind(store),current=store.isCurrent.bind(store);
-      const progress=await read(key);const run=own(progress,'run');const foundation=own(progress,'foundation'),episodes=own(progress,'episodes');
+      const run=own(progress,'run');const foundation=own(progress,'foundation'),episodes=own(progress,'episodes');
       const foundationReview=own(foundation,'review'),episodesReview=own(episodes,'review'),foundationCandidate=own(foundation,'candidate'),episodesCandidate=own(episodes,'candidate');
       if(!foundationReview||!episodesReview||!foundationCandidate||!episodesCandidate||own(foundationReview,'status')!=='reviewed'||own(episodesReview,'status')!=='reviewed')failed('INCOMPLETE','development reviews');
       const captured=capture(DevelopmentProjection,{key:identity(run),brief:own(run,'brief'),foundationReview,episodesReview,foundationCandidateDigest:own(foundationCandidate,'digest'),episodesCandidateDigest:own(episodesCandidate,'digest')},'development source projection',OUTLINE_SOURCE_BYTES);
       matchKey(descriptor,captured.key);const brief=validateBrief(captured.brief);const reviewedFoundation=validateReviewedFoundation(brief,captured.foundationReview),reviewedEpisodes=validateReviewedEpisodes(brief,reviewedFoundation,captured.episodesReview);
       if(brief.digest!==descriptor.briefDigest||reviewedFoundation.digest!==descriptor.foundationReviewDigest||reviewedEpisodes.digest!==descriptor.episodesReviewDigest||reviewedFoundation.candidateDigest!==captured.foundationCandidateDigest||reviewedEpisodes.candidateDigest!==captured.episodesCandidateDigest)failed('CONFLICT','development review binding');
-      const snapshot=build(descriptor,{brief,foundation:reviewedFoundation.output,episodes:reviewedEpisodes.output});
-      if(await current(key)!==true)failed('CONFLICT','current source');return snapshot;
+      return build(descriptor,{brief,foundation:reviewedFoundation.output,episodes:reviewedEpisodes.output});
     }
-    const store=stores.bible;if(!store)failed('INCOMPLETE','bible store');const read=store.read.bind(store),current=store.isCurrent.bind(store);
-    const progress=await read(key),run=own(progress,'run'),review=own(progress,'review'),candidate=own(progress,'candidate');
+    const run=own(progress,'run'),review=own(progress,'review'),candidate=own(progress,'candidate');
     if(!review||!candidate||own(review,'status')!=='confirmed')failed('INCOMPLETE','Bible confirmation');
     const fields=Object.fromEntries(['version','status','source','candidateDigest','actorId','at','digest','entities','relations','claims'].map(field=>[field,own(review,field)]));
     const captured=capture(BibleProjection,{key:identity(run),runSource:own(own(run,'source'),'source'),candidateDigest:own(candidate,'digest'),review:fields},'Bible source projection',OUTLINE_SOURCE_BYTES);
     matchKey(descriptor,captured.key);
     if(!canonicalTime(captured.review.at)||captured.review.digest!==descriptor.reviewDigest||captured.review.candidateDigest!==captured.candidateDigest||hash(captured.review.source)!==hash(captured.runSource))failed('CONFLICT','Bible review binding');
-    const snapshot=build(descriptor,{source:captured.review.source,entities:captured.review.entities,relations:captured.review.relations,claims:captured.review.claims});
+    return build(descriptor,{source:captured.review.source,entities:captured.review.entities,relations:captured.review.relations,claims:captured.review.claims});
+  }catch(error){return outlineSourceFailure(error);}
+}
+/** Separate reads cannot prove atomic freshness; final writes use the same-transaction source reader. */
+export async function resolveOutlineSource(input:unknown,stores:Stores):Promise<OutlineSourceSnapshot>{
+  const descriptor=deepFreeze(capture(OutlineSourceDescriptorSchema,input,'source descriptor',8192));
+  const key=deepFreeze({tenantId:descriptor.tenantId,projectId:descriptor.projectId,runId:descriptor.runId});
+  try{
+    const store=descriptor.kind==='development'?stores.development:stores.bible;if(!store)failed('INCOMPLETE',descriptor.kind+' store');
+    const read=store.read.bind(store),current=store.isCurrent.bind(store);const snapshot=captureStoredOutlineSource(descriptor,await read(key));
     if(await current(key)!==true)failed('CONFLICT','current source');return snapshot;
-  }catch(error){return translate(error);}
+  }catch(error){return outlineSourceFailure(error);}
 }

@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 2 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 3 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -24,7 +24,7 @@ Revision 2 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md`
 | --- | --- | --- | --- |
 | OL-1 契约、引用验证、规则和题材资产 | `packages/script/src/outline/*`、对应单测、明确子路径导出；无外部依赖 | L2 | AC-OL-1/2；领域增量已验证，见下方证据 |
 | OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；库级及实际旧来源读口组合已验证，生产持久宿主/API仍属后续任务 |
-| OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；待做 |
+| OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；先事务存储/来源锁，再预算工作流与进程恢复，实施中 |
 | OL-4 鉴权 API 和编辑审阅页面 | server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；待做 |
 | OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；待做 |
 | OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；待做 |
@@ -75,3 +75,33 @@ Revision 2 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md`
 - 两个公开浏览器入口经 Vite 实际构建，3 个 ES chunks 共 201405 字节，未出现 Node 内置或 external 占位。未新增大纲页面，不把浏览器模块构建称为用户流程验收。日志：`artifacts/delivery/outline-ol2-browser-bundle.log` SHA-256=`604825df0c41895fb459bce65e99516147cc9a2d0376ad1cc32c9bd8aea654d0`。
 - 整仓日志 `artifacts/delivery/outline-ol2-workspace-check.log` SHA-256=`c8cf009dfbc2fb47b68f781af4be581c71490be92041ca2fe532fe5955550f18`；最终 PG 日志 `artifacts/delivery/outline-ol2-source-pg-final.log` SHA-256=`b945866ba260b07fdf77a45a6a8f717d4fe6a40a10270bc34f7b6d4a08889852`。推送后仍以精确提交对应的真实远端 CI 终态为准。
 - 下一步 OL-3：追加大纲持久候选/人审及单阶段 durable/预算宿主，在最终写入事务内重新锁定并检查实际来源；之后继续 OL-4/5/6。完整 T1.4 和阶段 1 仍未完成。真实文本模型/人工质量待实际配置，编辑器、法务及设计伙伴依用户安排后补，现有 ComfyUI 接线未变。
+
+## Revision 3 · OL-3 顺序与恢复边界
+
+AC 语义不变。先追加独立 `camery_outline` schema 的不可变简报/运行/候选/人审及最小 LOGIN，再接现有 AgentRuntime、BudgetLedger 和 Durable。前半交付不能判 OL-3 完成，真实 SIGKILL/unknown/预算与大纲宿主仍需后半实际证据。
+
+| 工作 / 依赖 | 文件集合 | 风险 / 验收 |
+| --- | --- | --- |
+| 同事务来源读口 | Bible node store/contracts 与 script outline source-transaction；复用既有 Development readForAdoption | L3；原文→Bible run锁顺序、原审计重建、同连接阻塞与回滚 |
+| 运行契约与不可变存储 | outline node persistence-contracts/store、独立 installer/migrations | L3；并发幂等、完整封套、原收据、旧结果保存、新审阅新鲜度、原ACK与损坏拒绝 |
+| 独立最小身份 | outline runtime-role 与实际 LOGIN 测试 | L4；仅本域SELECT/INSERT及来源必需SELECT，无UPDATE/DELETE/继承/转授权/额外对象能力 |
+| 单阶段预算工作流 | outline workflow、节点契约及 dispatcher；依赖存储 | L3；固定任务/模型身份、预算先分配、精确journal与unknown不重发 |
+| 真实恢复与交付 | 实际PG/子进程/整仓/远端CI；依赖以上 | L3；提交丢ACK、SIGKILL、新pool、未知结果对账、精确提交CI |
+
+选择追加独立 schema，不改变旧迁移checksum、旧 LOGIN 权限或旧任务版本。安装者显式迁移，普通运行构造器不迁移/授权。失败仅回滚本事务；卸载代码保留历史数据，不删除用户来源。
+
+锁顺序固定为本域 brief→run→来源域既有锁；只读/保存已执行候选可仅锁本域 run，且不再反向请求本域 brief。来源域从不请求 outline 锁；跨域消费者须遵循此外层→来源域顺序。Development仍用 brief→排序后的实际owner/run，Bible仍用文档→run；不改其原顺序。外层同连接事务结束前持有全部来源锁。首次 start/审阅在插入前读最新自身brief并重建当前来源；已付旧结果按冻结run保存，避免丢失回执。原决定幂等ACK先匹配语义请求和当前授权，再判断新的新鲜度，不把历史成功改写为失败。
+
+公开start只接来源描述符，完整来源JSON由同事务实际存储读口生成，不能由请求自报。存档run同时固定实际来源、方法、执行画像与简报，后续modelIdentity/callID必须匹配。完整大纲输出512KiB及封套2MiB保持；工作流使用引用输入/持久结果，不能为适配旧Agent/Worker容量而截断大纲或全局放宽旧门槛。
+
+## OL-3 前半：不可变存储与来源事务
+
+- 新增独立 `camery_outline` 简报/run/候选/人审四表及显式 checksum installer，没有改写旧迁移。`PostgresOutlineStore` 接来源描述符；在外层事务内调用现有 Development `readForAdoption` 或新增 Bible `readForOutline`，原始候选/审计与当前来源都由旧域实际存储重建。同一连接持有本域和来源锁直到 COMMIT，Bible seam 不另开连接、不提交或释放调用方连接。
+- 简报修订、运行请求、候选原始模型画像/call ID、人工决定和各列/record/digest均严格绑定。run还按指定revision读取真实历史brief父行，拒绝一致重算自身摘要却不匹配真实父行的快照；历史读取不改读latest，也不新增反向brief锁。完整封套仍逐条验证，聚合progress不被旧256KiB限制截断。
+- 同一运行/候选/决定并发提交幂等；保存已执行旧结果不因来源过期丢失原收据。首次审阅重新核当前自身简报和来源；原语义决定重试先做当前人类授权，再返回原actor/time，允许提交确认丢失后恢复。历史拒绝不解锁下游。损坏行、原候选/人审不一致、失效源和不可用存储保持明确不同语义。
+- 独立LOGIN只获四表SELECT/INSERT及11张来源表SELECT，不能自安装或读迁移ledger；认证、预算和durable仍需其它连接池。安装助手只给固定对象授权，不创建角色或改写源数据。运行检查覆盖角色标志、继承/成员、表/列/序列、schema能力和转授权；所有实际权限负向mutation探针均有随机测试租户/项目/对象条件，权限回归也不会扩大清理或修改范围。
+- 先红后绿修复：默认repeatable read在等待来源锁期间固定旧snapshot，旧实现错误通过来源过期审阅；现以 `BEGIN ISOLATION LEVEL READ COMMITTED` 固定新事务。PG反例先用 `pg_blocking_pids` 证明实际等待，再提交新来源，当前实现明确拒绝。新迁移路径原未被Git属性覆盖，现追加精确LF规则，并以实际 `git check-attr` 和SQL原始字节验证；覆盖率沙箱不同账号时只给该只读命令添加精确workspace级safe.directory，不改全局Git配置。同步connect异常与Promise拒绝均脱敏，失败rollback销毁连接。
+- 本轮新增普通测试187项（script185、Bible2）：执行/运行纯契约80、存储协议77、installer/role28、Bible同事务seam2；原来源PG夹具抽成无全局生命周期的非test支持模块，原4项断言保持。测试模型响应/人工主体仍为显式夹具，不证明真实模型推理、账单或真人质量评价。
+- 最终 `pnpm check` 退出0：3673 = 20工具 + 3653包测试，688源文件策略零问题、typed lint与13包类型检查通过、13个覆盖率任务全部实际执行；6方法黄金用例与10 Agent合成基线匹配。script838项覆盖98.55/97.41/99.49/99.19%，Bible267项98.21/97.23/97.79/99.60%，门槛未降低。全仓日志 `artifacts/delivery/outline-ol3-workspace-check-final.log` SHA-256=`11a3c1af1836eedef07aa2c696892a53aacea4f586be0c1d9d356677de9fb4e8`。
+- 新增9项PG用例验证两种来源实际持锁至大纲人审提交、新pool恢复、提交已成功但确认丢失、旧源结果保存/首次人审拒绝、原决定重新授权、损坏数据拒绝、默认RR竞态，以及专用LOGIN两条来源业务正向、19项缺权限、24项扩权及4个42501探针。最终 `pnpm test:script:local --coverage` 退出0：890项 = 838普通 + 52 PG（旧43+新9，不与整仓重复相加），41文件，覆盖98.92/97.60/100/99.83%。日志 `artifacts/delivery/outline-ol3-pg-verified.log` SHA-256=`7395623a21872e77e98a3c206eee6c4032da7f11a5ec8753418a8989b71c7afa`。代码、TypeScript及数据库复审无未闭合P0–P2；精确提交远端CI仍以实际终态为准。
+- 本批是 OL-3 的存储/权限前半。专用预算工作流、SIGKILL、大纲unknown结果恢复及真实宿主接线仍待后半；之后继续API/页面/正式采用。完整OL-3、T1.4及阶段1均未判完成；真实文本模型/人工质量、编辑器、法务、设计伙伴仍按原安排后补。

@@ -16,6 +16,8 @@ export const ExecutionSchema=z.strictObject({
 export type BibleExecution=z.infer<typeof ExecutionSchema>;
 export const RunKeySchema=z.strictObject({tenantId:Id,projectId:Id,runId:Id});
 export type BibleRunKey=z.infer<typeof RunKeySchema>;
+export const BibleReviewedSourceSchema=RunKeySchema.extend({runDigest:Hash,documentId:Id,revision:Integer.min(1),sourceDigest:Hash,reviewDigest:Hash});
+export type BibleReviewedSource=z.infer<typeof BibleReviewedSourceSchema>;
 export const StartRunSchema=RunKeySchema.extend({documentId:Id,kind:z.enum(['novel','script']),expectedRevision:Integer.min(1),expectedSourceDigest:Hash,
   method:Pin,execution:ExecutionSchema,chunkLimits:z.strictObject({maxCharacters:Integer.min(2).max(20000).optional(),maxBytes:Integer.min(4).max(60000).optional()}).optional()});
 export type StartBibleRun=z.infer<typeof StartRunSchema>;

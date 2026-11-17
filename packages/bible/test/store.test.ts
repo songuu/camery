@@ -38,6 +38,26 @@ function database(options:{connectFailure?:boolean;fail?:string[];migrations?:Ro
   const pool={connect} as unknown as Pool;return {store:new PostgresBibleStore(pool),pool,query,connect,release,data,options};
 }
 async function complete(db:ReturnType<typeof database>){await db.store.start(command);for(const record of fx.candidate.records)await db.store.saveChunk(key,record);return db.store.materialize(key);}
+it('reads confirmed Bible audits on the caller transaction, locking document before run without taking ownership',async()=>{
+  const db=database();await complete(db);const review=await db.store.confirm(key,fx.decision,fx.host);const run=(await db.store.read(key)).run;
+  const client=await db.pool.connect();db.query.mockClear();db.release.mockClear();db.connect.mockClear();
+  const descriptor={...key,runDigest:run.digest,documentId:'book',revision:1,sourceDigest:run.source.source.sourceDigest,reviewDigest:review.digest};
+  expect((await db.store.readForOutline(client,descriptor)).review).toEqual(review);
+  expect(db.query.mock.calls.slice(0,2).map(call=>JSON.parse(call[1]![0] as string)[0])).toEqual(['camery_ingest','camery_bible']);
+  expect(db.query.mock.calls.some(call=>['BEGIN','COMMIT','ROLLBACK'].includes(call[0]))).toBe(false);expect(db.connect).not.toHaveBeenCalled();expect(db.release).not.toHaveBeenCalled();
+  db.data.snapshot=appendNovelBatch(db.data.snapshot as never,{tenantId:'tenant',projectId:'project',documentId:'book',batchId:'next',expectedRevision:1,text:'已变更的后文。'}).snapshot;
+  await expect(db.store.readForOutline(client,descriptor)).rejects.toMatchObject({code:'CONFLICT'});
+});
+it('rejects unconfirmed, misbound and unavailable transaction sources with safe codes',async()=>{
+  const db=database();await complete(db);const run=(await db.store.read(key)).run;const client=await db.pool.connect();
+  const descriptor={...key,runDigest:run.digest,documentId:'book',revision:1,sourceDigest:run.source.source.sourceDigest,reviewDigest:'a'.repeat(64)};
+  await expect(db.store.readForOutline(client,descriptor)).rejects.toMatchObject({code:'INCOMPLETE'});
+  const review=await db.store.confirm(key,fx.decision,fx.host);const actual={...descriptor,reviewDigest:review.digest};
+  for(const bad of [{...actual,runDigest:'b'.repeat(64)},{...actual,documentId:'wrong'},{...actual,revision:2},{...actual,sourceDigest:'b'.repeat(64)},{...actual,reviewDigest:'b'.repeat(64)}])await expect(db.store.readForOutline(client,bad)).rejects.toMatchObject({code:'CONFLICT'});
+  await expect(db.store.readForOutline(client,{...actual,runId:'absent'})).rejects.toMatchObject({code:'NOT_FOUND'});
+  await expect(db.store.readForOutline(client,{})).rejects.toMatchObject({code:'INVALID_INPUT'});
+  db.options.fail=['SELECT pg_advisory'];await expect(db.store.readForOutline(client,actual)).rejects.toMatchObject({code:'STORAGE_FAILED'});
+});
 it('pins an actual source and immutable execution plan, and idempotently keeps the initial creation time',async()=>{
   const db=database(); const first=await db.store.start(command);expect(first.source.document).toEqual(fx.source.document);expect(first.createdAt).toBe('2026-11-16T10:00:00.000Z');
   db.data.snapshot=appendNovelBatch(db.data.snapshot as never,{tenantId:'tenant',projectId:'project',documentId:'book',batchId:'next',expectedRevision:1,text:'追加内容'}).snapshot;

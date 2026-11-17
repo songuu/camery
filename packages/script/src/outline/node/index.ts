@@ -3,3 +3,8 @@ export * from './source.js';
 export * from './method-assets.js';
 export * from './generation.js';
 export * from './review.js';
+export * from './persistence-contracts.js';
+export * from './store.js';
+export * from './migrate.js';
+export * from './runtime-role.js';
+export * from './source-transaction.js';

@@ -61,7 +61,13 @@ pnpm check
 | `generateOutline` / `createOutlineCandidate` | 单次 MethodRunner 调用或原 Agent finish-output 收据构造候选；核对原始请求/输出绑定，保留外部结果，不修复重试 |
 | `reviewOutline` / `rejectOutline` | 由受信任人类宿主显式决定，编辑后重算完整规则，逐辅轴记录人工抽离判断，逐实际问题记录豁免理由 |
 | `validateOutlineCandidate` / `validateReviewedOutline` | 绑定当前简报、实际来源和原候选的完整性重放；读取审计仍须可信存储及应用权限 |
+| `PostgresOutlineStore` | 追加式简报/run/候选/人审；start只接来源描述符，首次审阅同事务锁源；旧已付结果可保存，历史ACK重新授权且保留原时间 |
+| `migrateOutline` / `grantOutlineRuntimeRole` / `verifyOutlineRuntimeRole` | 独立schema的显式安装与最小LOGIN校验；运行时不自迁移/授权，来源域仅SELECT |
 
 来源目录 ID 的含义由来源快照摘要及 JSON pointer 共同确定；不能把相同路径的 ID 当作跨来源同一实体。素材仅为规划，不产生 ready 媒体。情绪和秒数是创作估计，规则报告与人工审阅不等于观众效果、质量评分或法务签核。
 
-简报≤16KiB，来源快照（含最多2048条引用目录）≤512KiB，大纲输出≤512KiB，候选/审阅封套≤2MiB；超限拒绝而不截断。模型宿主仍须显式配置适配输入/输出容量。来源读取与当前性检查是分离的读操作，最终写入必须在 OL-3 的事务内重新锁定和检查来源。当前尚未提供大纲持久化、预算宿主、HTTP/页面或正式 IR 采用；完整范围和证据见[大纲实施计划](../../docs/plan/dramaturgy-phase1.md)。
+简报≤16KiB，来源快照（含最多2048条引用目录）≤512KiB，大纲输出≤512KiB，候选/审阅封套≤2MiB；超限拒绝而不截断。模型宿主仍须显式配置适配输入/输出容量。独立 `resolveOutlineSource` 是分离读取；`PostgresOutlineStore` 的首次start/审阅则在显式 READ COMMITTED 事务中重建并锁定实际来源，直到本域记录提交。来源锁顺序仍为 Development brief→实际owner/run，或 Bible 文档→run；外层先获取 outline brief→run，来源域不反向请求 outline 锁。
+
+持久run固定简报、实际来源快照、方法及执行画像；候选必须匹配该run原始模型身份与 `outlineCallId(key)`。完整读取逐条重建候选与人审审计，存档SHA只证明完整性。首次审阅拒绝过期来源，重复同一决定仍须当前人类权限，但返回原actor/time；提交丢失ACK可重读。来源、候选或审计损坏明确失败，不伪造“已批准”。执行画像只冻结预算参数，大纲专用 BudgetLedger/Durable 宿主、SIGKILL/unknown恢复、HTTP/页面和正式 IR 采用仍待后续实施，不能从存储测试判整个 OL-3 完成。
+
+安装需先准备既有 ingest/Bible/Development schema，再由受信安装者调用 `migrateOutline(admin)`。独立LOGIN仅获得 outline四表SELECT/INSERT及来源11表SELECT，不读取迁移ledger，不修改来源或已有记录；认证、预算和任务使用其它池。追加迁移SQL固定LF，校验原始字节checksum；源表与旧迁移/角色权限保持原样。完整范围和证据见[大纲实施计划](../../docs/plan/dramaturgy-phase1.md)。
