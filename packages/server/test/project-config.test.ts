@@ -1,0 +1,21 @@
+import {mkdtemp,writeFile,rm,rmdir} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {expect,it,vi} from 'vitest';
+import {readProjectConfig} from '../src/projects/config.js';
+async function fixture(){const directory=await mkdtemp(join(tmpdir(),'camery-project-config-'));const reader=join(directory,'reader');const adopter=join(directory,'adopter');await writeFile(reader,'postgresql://reader:fixture@localhost/camery\n');await writeFile(adopter,'postgresql://adopter:fixture@localhost/camery\n');const env={CAMERY_PROJECTS_ENABLED:'1',CAMERY_TENANT_ID:'tenant',CAMERY_PROJECTS_READER_DATABASE_URL_FILE:reader,CAMERY_PROJECTS_ADOPTION_DATABASE_URL_FILE:adopter};return {directory,reader,adopter,env,cleanup:async()=>{await Promise.all([rm(reader,{force:true}),rm(adopter,{force:true})]);await rmdir(directory);}};}
+it('is disabled by default and rejects ambiguous leftover or malformed deployment data',async()=>{
+  expect(await readProjectConfig({})).toBeNull();expect(await readProjectConfig({CAMERY_PROJECTS_ENABLED:'0',CAMERY_TENANT_ID:'tenant'})).toBeNull();
+  for(const env of [{CAMERY_PROJECTS_ENABLED:'true'},{CAMERY_PROJECTS_ENABLED:'1'}, {CAMERY_PROJECTS_READER_DATABASE_URL_FILE:'secret'}, {CAMERY_PROJECTS_ENABLED:'0',CAMERY_PROJECTS_ADOPTION_DATABASE_URL_FILE:'secret'}])await expect(readProjectConfig(env)).rejects.toThrow('Invalid project configuration');
+});
+it('captures the two independent secret paths and tenant before the first await',async()=>{const f=await fixture();try{const pending=readProjectConfig(f.env);f.env.CAMERY_TENANT_ID='changed';f.env.CAMERY_PROJECTS_ADOPTION_DATABASE_URL_FILE='missing';expect(await pending).toEqual({tenantId:'tenant',readerDatabaseUrl:'postgresql://reader:fixture@localhost/camery',adoptionDatabaseUrl:'postgresql://adopter:fixture@localhost/camery'});expect(Object.isFrozen(await readProjectConfig({...f.env,CAMERY_PROJECTS_ADOPTION_DATABASE_URL_FILE:f.adopter}))).toBe(true);}finally{await f.cleanup();}});
+it('rejects getters without invoking them and disallows shared credential files or identities',async()=>{const f=await fixture();try{const getter=vi.fn(()=>{throw new Error('private');});const env=Object.defineProperty({...f.env},'CAMERY_TENANT_ID',{get:getter});await expect(readProjectConfig(env)).rejects.toThrow('Invalid project configuration');expect(getter).not.toHaveBeenCalled();await expect(readProjectConfig({...f.env,CAMERY_PROJECTS_ADOPTION_DATABASE_URL_FILE:f.reader})).rejects.toThrow('Invalid project configuration');await writeFile(f.adopter,'postgresql://reader:fixture@localhost/camery');await expect(readProjectConfig(f.env)).rejects.toThrow('Invalid project configuration');}finally{await f.cleanup();}});
+it('requires regular bounded UTF-8 PostgreSQL secret files and redacts all failures',async()=>{const f=await fixture();try{
+  for(const file of ['',f.directory,join(f.directory,'missing')])await expect(readProjectConfig({...f.env,CAMERY_PROJECTS_READER_DATABASE_URL_FILE:file})).rejects.toThrow('Invalid project configuration');
+  for(const body of ['x'.repeat(8193),'https://private.example','postgresql://reader:fixture@localhost/camery\n\n',Buffer.from([0xff])]){await writeFile(f.reader,body);await expect(readProjectConfig(f.env)).rejects.toThrow('Invalid project configuration');}
+}finally{await f.cleanup();}});
+it('rejects direct credentials and mismatched database authorities while accepting CRLF termination',async()=>{const f=await fixture();try{
+  for(const key of ['CAMERY_PROJECTS_READER_DATABASE_URL','CAMERY_PROJECTS_ADOPTION_DATABASE_URL'])await expect(readProjectConfig({...f.env,[key]:'postgresql://private/secret'})).rejects.toThrow('Invalid project configuration');
+  for(const body of ['postgresql://adopter:fixture@elsewhere/camery','postgresql://adopter:fixture@localhost:9999/camery','postgresql://adopter:fixture@localhost/other','postgresql://localhost/camery']){await writeFile(f.adopter,body);await expect(readProjectConfig(f.env)).rejects.toThrow('Invalid project configuration');}
+  await writeFile(f.adopter,'postgresql://adopter:fixture@localhost:5432/camery\r\n');expect(await readProjectConfig(f.env)).toMatchObject({tenantId:'tenant'});
+}finally{await f.cleanup();}});

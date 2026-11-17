@@ -31,7 +31,7 @@ class DevelopmentController{
   constructor(@Inject(OPTIONS) private readonly options:DevelopmentApiOptions){}
   @Get('capabilities') @RequireAccess('project:read')
   capabilities(@Param('projectId') projectId:string){
-    const preset=this.options.presetFor(projectId);return {canStart:!!preset,modelLabel:preset?.label??null,defaultEpisodeCount:10,
+    const preset=this.options.presetFor(projectId);return {canStart:!!preset,modelLabel:preset?.label??null,defaultEpisodeCount:10,formalAdoption:!!this.options.formalAdoption,
       budget:preset?{currency:preset.execution.currency,tokens:preset.execution.limits.tokens,costMicros:preset.execution.limits.costMicros}:null};
   }
   @Get() @RequireAccess('project:read')

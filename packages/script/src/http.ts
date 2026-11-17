@@ -5,7 +5,7 @@ import {BriefInputSchema,DevelopmentBriefSchema,FoundationOutputSchema,EpisodeOu
 const Time=z.iso.datetime({precision:3});
 const ReviewState=z.enum(['reviewed','rejected']);
 const Budget=z.strictObject({currency:z.string().regex(/^[A-Z]{3}$(?![\s\S])/),tokens:Integer,costMicros:Integer});
-export const DevelopmentCapabilitiesSchema=z.strictObject({canStart:z.boolean(),modelLabel:Text(200).nullable(),budget:Budget.nullable(),defaultEpisodeCount:z.literal(10)});
+export const DevelopmentCapabilitiesSchema=z.strictObject({canStart:z.boolean(),modelLabel:Text(200).nullable(),budget:Budget.nullable(),defaultEpisodeCount:z.literal(10),formalAdoption:z.boolean().default(false)});
 export type DevelopmentCapabilities=z.infer<typeof DevelopmentCapabilitiesSchema>;
 export const DevelopmentBriefWriteSchema=BriefInputSchema.omit({tenantId:true,projectId:true,revision:true}).extend({expectedRevision:Integer.max(Number.MAX_SAFE_INTEGER-1)});
 export type DevelopmentBriefWrite=z.infer<typeof DevelopmentBriefWriteSchema>;

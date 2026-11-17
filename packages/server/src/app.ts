@@ -20,12 +20,17 @@ import { IngestModule } from './ingest.js';
 import type { SourceStores } from './ingest.js';
 import { POLICY, RequireAccess } from './policy.js';
 import type { AccessPolicy, AuthRequest } from './policy.js';
+import {ProjectModule} from './projects/http.js';
+import type {ProjectApplicationOptions} from './projects/options.js';
+import {ProjectIdentityError} from './projects/contracts.js';
+import {ProjectApplicationError} from './projects/intent-contracts.js';
+import {VersionPersistenceError} from '@camery/versioning/node';
 export { RequireAccess } from './policy.js';
 
 const SERVICE = Symbol('camery.access.service');
 // Public access stays private to this module so new business routes must declare a policy.
 const Public = (): MethodDecorator => SetMetadata(POLICY, 'public');
-export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly bibles?:BibleApiOptions; readonly development?:DevelopmentApiOptions; readonly frontendDirectory?: string }
+export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly bibles?:BibleApiOptions; readonly development?:DevelopmentApiOptions; readonly projects?:ProjectApplicationOptions; readonly frontendDirectory?: string }
 
 class AccessGuard implements CanActivate {
   private readonly reflector = new Reflector();
@@ -68,6 +73,13 @@ class SafeErrors implements ExceptionFilter {
     } else if (error instanceof DevelopmentError) {
       code=error.code;
       status=({INVALID_INPUT:400,INPUT_LIMIT:413,INVALID_REFERENCE:422,CONFLICT:409,FORBIDDEN:403,INVALID_EVIDENCE:422,INCOMPLETE:409,NOT_FOUND:404,STORAGE_FAILED:503} as const)[error.code];
+    } else if(error instanceof ProjectIdentityError){
+      code=error.code;status=({INVALID_INPUT:400,PROJECT_BINDING_MISSING:409,PRINCIPAL_BINDING_MISSING:403,BINDING_CONFLICT:409,STORAGE_FAILED:503} as const)[error.code];
+    } else if(error instanceof ProjectApplicationError){
+      code=error.code;status=({INVALID_INPUT:400,INPUT_LIMIT:413,CONFLICT:409,NOT_FOUND:404,STORAGE_FAILED:503,SNAPSHOT_STALE:409,WRITE_VERSION_CONFLICT:409,SCHEMA_UPGRADE_REQUIRED:409,SOURCE_POLICY_MISSING:409,ASSET_NOT_READY:409} as const)[error.code];
+    } else if(error instanceof VersionPersistenceError){
+      const versions:Record<string,{code:string;status:number}>={SNAPSHOT_STALE:{code:'SNAPSHOT_STALE',status:409},WRITE_VERSION_CONFLICT:{code:'WRITE_VERSION_CONFLICT',status:409},PROJECT_NOT_FOUND:{code:'NOT_FOUND',status:404},ADOPTION_SOURCE_CHANGED:{code:'CONFLICT',status:409},ADOPTION_SOURCE_UNREVIEWED:{code:'CONFLICT',status:409},ADOPTION_SOURCE_MISSING:{code:'CONFLICT',status:409}};
+      const failure=Object.hasOwn(versions,error.code)?versions[error.code]:undefined;code=failure?.code??'STORAGE_FAILED';status=failure?.status??503;
     } else if (error instanceof HttpException) {
       status = error.getStatus(); code = status === 404 ? 'NOT_FOUND' : 'REQUEST_REJECTED';
     }
@@ -108,7 +120,8 @@ export class AccessModule {
 
 /** No trusting proxy identity, credential cookies, global user state or request/header logging. */
 export async function createApplication(options: AccessOptions): Promise<NestFastifyApplication> {
-  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : []),...(options.bibles?[BibleModule.register(options.bibles)]:[]),...(options.development?[DevelopmentModule.register(options.development)]:[])] }) class ApplicationModule {}
+  if(options.projects&&options.projects.tenantId!==options.tenantId)throw new Error('Project tenant mismatch');
+  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : []),...(options.bibles?[BibleModule.register(options.bibles)]:[]),...(options.development?[DevelopmentModule.register(options.development)]:[]),...(options.projects?[ProjectModule.register(options.projects)]:[])] }) class ApplicationModule {}
   const app = await NestFactory.create<NestFastifyApplication>(ApplicationModule,
     new FastifyAdapter({ logger: false, trustProxy: false, bodyLimit: 16384, routerOptions: { maxParamLength: 512 }, genReqId: () => randomUUID() }),
     { logger: false, abortOnError: false });
@@ -123,6 +136,7 @@ export async function createApplication(options: AccessOptions): Promise<NestFas
       if (route.url === '/api/v1/projects/:projectId/scripts/:documentId/:format' && route.method === 'PUT') route.bodyLimit = 8_000_000;
       if (route.url === '/api/v1/projects/:projectId/bibles/:runId/confirm' && route.method === 'POST') route.bodyLimit = 2_097_152;
       if (route.url === '/api/v1/projects/:projectId/development/:runId/:stage/confirm' && route.method === 'POST') route.bodyLimit = 524288;
+      if (route.method === 'POST' && ['/api/v1/projects/:projectId/workbench/candidates','/api/v1/projects/:projectId/workbench/changes/preview'].includes(route.url)) route.bodyLimit = 532480;
   });
   if (options.frontendDirectory) await app.register(fastifyStatic, { root: options.frontendDirectory, wildcard: false, index: ['index.html'], cacheControl: false });
   await app.init(); await app.getHttpAdapter().getInstance().ready();

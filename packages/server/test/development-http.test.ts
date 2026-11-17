@@ -60,7 +60,7 @@ it('denies an editor review, rejects invalid stages and refuses injected authori
 });
 it('reads capabilities, list filters and optional brief revision without enabling unavailable text generation',async()=>{
   const f=await fixture('editor');expect((await f.app.inject({url:base+'/capabilities',headers})).json()).toMatchObject({canStart:true,defaultEpisodeCount:10,modelLabel:'测试原创模型'});
-  f.presetFor.mockReturnValue(null);expect((await f.app.inject({url:base+'/capabilities',headers})).json()).toEqual({canStart:false,defaultEpisodeCount:10,modelLabel:null,budget:null});
+  f.presetFor.mockReturnValue(null);expect((await f.app.inject({url:base+'/capabilities',headers})).json()).toEqual({canStart:false,defaultEpisodeCount:10,modelLabel:null,budget:null,formalAdoption:false});
   expect((await f.app.inject({url:base+'?cursor=abc&briefId=idea',headers})).statusCode).toBe(200);expect(f.catalog.list).toHaveBeenLastCalledWith({tenantId:'tenant',projectId:'project',cursor:'abc',briefId:'idea'});
   expect((await f.app.inject({url:base+'?cursor=a&cursor=b',headers})).statusCode).toBe(400);
   expect((await f.app.inject({url:base+'/briefs?cursor=abc',headers})).statusCode).toBe(200);expect(f.briefs.list).toHaveBeenCalledWith({tenantId:'tenant',projectId:'project',cursor:'abc'});

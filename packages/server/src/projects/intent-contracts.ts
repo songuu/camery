@@ -3,6 +3,7 @@ import {ChangeSet,StableId} from '@camery/ir';
 import {Id,Hash,Text,Integer} from '@camery/script/contracts';
 import {DevelopmentAdoptionSourceSchema,DevelopmentFormalIdentitiesSchema,DevelopmentReviewerBindingsSchema,DevelopmentVersionKeySchema} from '@camery/script/node';
 import {ProjectIdentityScopeSchema} from './contracts.js';
+import {WorkbenchActionReceiptSchema} from '@camery/ir/workbench';
 
 export const APPLICATION_BYTES=1048576;
 export const ApplicationActorSchema=z.strictObject({kind:z.enum(['user','agent_run','system']),key:Id,id:StableId.refine(value=>value.length===26)});
@@ -34,14 +35,9 @@ export const DecisionIntentBodySchema=z.strictObject({version:z.literal(1),scope
 export type DecisionIntentBody=z.infer<typeof DecisionIntentBodySchema>;
 export interface DecisionIntent extends DecisionIntentBody {readonly digest:string;readonly businessDigest:string;readonly createdAt:string}
 export const DecisionIntentSchema=DecisionIntentBodySchema.safeExtend({digest:Hash,businessDigest:Hash,createdAt:z.iso.datetime({precision:3})});
-const issue=z.strictObject({code:Text(128),where:z.string().max(2048),message:z.string().max(4096)});
-export const ProjectActionReceiptSchema=z.strictObject({version:z.literal(1),changeId:StableId,status:z.enum(['candidate','adopted','rejected','conflicted','unchanged']),snapshotRevision:Integer.min(1),writeVersion:Integer.min(1),
-  issues:z.array(issue).max(500),warnings:z.array(issue).max(500),
-  adoption:z.strictObject({change_set_id:StableId,actor_id:StableId,scope:ApplicationScopeSchema,from_revision:Integer.min(1),to_revision:Integer.min(1),at:z.iso.datetime({precision:3})}).nullable(),
-  rejection:z.strictObject({actor_id:StableId,reason:Text(500),at:z.iso.datetime({precision:3})}).nullable(),
-});
+export const ProjectActionReceiptSchema=WorkbenchActionReceiptSchema;
 export type ProjectActionReceipt=z.infer<typeof ProjectActionReceiptSchema>;
 export class ProjectApplicationError extends Error{
   override readonly name='ProjectApplicationError';
-  constructor(readonly code:'INVALID_INPUT'|'INPUT_LIMIT'|'CONFLICT'|'NOT_FOUND'|'STORAGE_FAILED',readonly operation:string){super(`Project application ${operation} failed (${code})`);}
+  constructor(readonly code:'INVALID_INPUT'|'INPUT_LIMIT'|'CONFLICT'|'NOT_FOUND'|'STORAGE_FAILED'|'SNAPSHOT_STALE'|'WRITE_VERSION_CONFLICT'|'SCHEMA_UPGRADE_REQUIRED'|'SOURCE_POLICY_MISSING'|'ASSET_NOT_READY',readonly operation:string){super(`Project application ${operation} failed (${code})`);}
 }

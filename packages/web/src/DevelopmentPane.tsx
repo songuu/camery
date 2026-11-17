@@ -4,6 +4,7 @@ import type {DevelopmentBriefView,DevelopmentBriefWrite,DevelopmentStart,Develop
 import {ApiClient,ApiError} from './api.js';
 import {DevelopmentWorkbench,type BriefFields} from './DevelopmentWorkbench.js';
 import {developmentRedoKey,developmentRedoRequest} from './development-review-state.js';
+import {DevelopmentAdoptionPane} from './DevelopmentAdoptionPane.js';
 interface Props {client:ApiClient;generation:number;projectId:string;permissions:readonly string[];onFailure:(error:unknown)=>void}
 /** A keyed session/project lifetime keeps credentials and drafts in memory and ignores late mutation acknowledgements. */
 export function DevelopmentPane({client,generation,projectId,permissions,onFailure}:Props){
@@ -81,6 +82,7 @@ export function DevelopmentPane({client,generation,projectId,permissions,onFailu
     runs={runs.data?{items:runs.data.pages.flatMap(page=>page.items),nextCursor:runs.data.pages.at(-1)?.nextCursor??null}:null} savedBrief={savedBrief} composeVersion={composeVersion}
     detail={detail.data??null} status={status.data??null} canEdit={permissions.includes('task:run')} canReview={permissions.includes('candidate:review')} busy={busy??(detail.isFetching&&runId?'正在恢复开发记录':null)} error={error} message={message}
     redoOptions={redo.data??null} pendingRedoStages={pendingRedoStages} onRedo={stage=>{void redoStage(stage);}}
+    adoption={capabilities.data&&detail.data&&detail.data.runId===runId&&detail.data.foundation.review?.status==='reviewed'&&detail.data.episodes.review?.status==='reviewed'?(capabilities.data.formalAdoption?<DevelopmentAdoptionPane client={client} generation={generation} projectId={projectId} run={detail.data} onFailure={onFailure}/>:<section className="development-section"><h3>正式剧本</h3><p className="development-hint">本项目尚未启用正式采用。设定与分集的审阅记录已保存。</p></section>):undefined}
     onSave={fields=>{void save(fields);}} onStart={()=>{void start();}} onNew={newBrief} onOpenBrief={id=>{void openBrief(id);}} onOpenRun={openRun} onMoreBriefs={()=>{void briefs.fetchNextPage();}} onMoreRuns={()=>{void runs.fetchNextPage();}} onRefresh={()=>{void refresh();}}
     onConfirm={(stage,decision)=>{void review(stage,decision);}} onReject={(stage,reason)=>{void review(stage,reason);}}/>;
 }

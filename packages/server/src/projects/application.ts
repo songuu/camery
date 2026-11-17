@@ -1,0 +1,175 @@
+import {z} from 'zod';
+import {AccessError,authorize,parseIdentity,permissionsFor} from '@camery/access';
+import type {Permission,SessionIdentity} from '@camery/access';
+import {ChangeSet,StableId} from '@camery/ir';
+import {WorkbenchStateSchema,WorkbenchPreviewSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,DevelopmentCandidatePrepareSchema,WorkbenchCandidateListQuerySchema} from '@camery/ir/workbench';
+import {freeze} from '@camery/methods';
+import {snapshotJson,JsonBoundaryError} from '@camery/methods/json';
+import {submitChangeSet} from '@camery/versioning';
+import type {StoredVersionState,VersionProjectKey} from '@camery/versioning/node';
+import {prepareDevelopmentDraft,finalizeDevelopmentChangeSet,createDevelopmentSourceGuard} from '@camery/script/node';
+import {Id} from '@camery/script/contracts';
+import {ProjectIdentityError} from './contracts.js';
+import {ProjectApplicationError} from './intent-contracts.js';
+import type {CandidateIntent,CandidateIntentBody,DecisionIntentBody} from './intent-contracts.js';
+import {projectIntentDigest} from './intent-store.js';
+import {resolveProjectAuthority} from './authority.js';
+import {projectCandidateDetail,projectPreview} from './projection.js';
+import type {ProjectApplicationOptions} from './options.js';
+
+interface Context {subject:unknown;projectId:string}
+const stable=StableId.refine(value=>value.length===26);
+function capture<S extends z.ZodType>(schema:S,input:unknown):z.infer<S>{
+  try{const parsed=schema.safeParse(snapshotJson(input,540672));if(parsed.success)return freeze(parsed.data) as z.infer<S>;}
+  catch(error){if(error instanceof JsonBoundaryError&&error.code==='INPUT_LIMIT')throw new ProjectApplicationError('INPUT_LIMIT','command boundary');}
+  throw new ProjectApplicationError('INVALID_INPUT','command boundary');
+}
+const expectation=(value:{expectedSnapshotRevision:number;expectedWriteVersion:number})=>({expectedSnapshotRevision:value.expectedSnapshotRevision,expectedWriteVersion:value.expectedWriteVersion});
+const sameTarget=(left:VersionProjectKey,right:VersionProjectKey)=>left.tenantId===right.tenantId&&left.projectId===right.projectId;
+
+/** One host boundary for authenticated project commands. Reads never allocate identities or initialize projects. */
+export class ProjectApplication{
+  constructor(private readonly options:ProjectApplicationOptions){}
+  private subject(input:Context,permission:Permission):SessionIdentity{
+    const subject=parseIdentity(input.subject);authorize(subject,this.options.tenantId,input.projectId,permission);return subject;
+  }
+  private async authority(input:Context,permission:Permission){
+    const subject=this.subject(input,permission);
+    const bound=await resolveProjectAuthority({identities:this.options.identities,subject,projectId:input.projectId,permission});
+    return {...bound,subject,actor:{kind:'user' as const,key:subject.userId,id:bound.principal.id}};
+  }
+  private async read(key:VersionProjectKey):Promise<StoredVersionState>{
+    const stored=await this.options.versions.read(key);if(!stored)throw new ProjectApplicationError('NOT_FOUND','project snapshot');
+    if(stored.state.head.project.id!==key.projectId)throw new ProjectApplicationError('STORAGE_FAILED','project snapshot binding');return stored;
+  }
+  private checkBase(stored:StoredVersionState,command:{expectedSnapshotRevision:number;expectedWriteVersion?:number}):void{
+    if(stored.state.head.revision.number!==command.expectedSnapshotRevision)throw new ProjectApplicationError('SNAPSHOT_STALE','snapshot base');
+    if(command.expectedWriteVersion!==undefined&&stored.writeVersion!==command.expectedWriteVersion)throw new ProjectApplicationError('WRITE_VERSION_CONFLICT','write base');
+  }
+  async state(input:Context){
+    const subject=this.subject(input,'project:read');const projectId=input.projectId;
+    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const stored=await this.read(binding.versionKey);
+    let actorId:string|null=null;
+    try{const actor=await this.options.identities.resolvePrincipal({tenantId:subject.tenantId,kind:'user',key:subject.userId});actorId=actor.principal.id;}
+    catch(error){if(!(error instanceof ProjectIdentityError)||error.code!=='PRINCIPAL_BINDING_MISSING')throw error;}
+    const permissions=permissionsFor(subject,this.options.tenantId,projectId);
+    return WorkbenchStateSchema.parse({contractVersion:1,projectKey:projectId,projectId:binding.versionKey.projectId,schemaVersion:stored.state.head.schema_version,snapshotRevision:stored.state.head.revision.number,writeVersion:stored.writeVersion,actorId,
+      canWrite:actorId!==null&&permissions.includes('candidate:write'),canReview:actorId!==null&&permissions.includes('candidate:review'),nativePending:stored.state.changes.filter(row=>row.status==='candidate').length,
+      counts:Object.entries(stored.state.head).filter(([,value])=>Array.isArray(value)).map(([collection,value])=>({collection,count:(value as unknown[]).length}))});
+  }
+  async listCandidates(input:Context&{runId?:string;cursor?:string;limit?:number}){
+    const subject=this.subject(input,'project:read');const projectId=input.projectId;const query=capture(WorkbenchCandidateListQuerySchema,{...(input.runId===undefined?{}:{runId:input.runId}),...(input.cursor===undefined?{}:{cursor:input.cursor}),...(input.limit===undefined?{}:{limit:input.limit})});
+    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});
+    return this.options.intents.listCandidateHeaders({scope:{tenantId:subject.tenantId,projectId},target:binding.versionKey,subjectId:subject.userId,...query});
+  }
+  async candidate(input:Context&{candidateId:string}){
+    const subject=this.subject(input,'project:read');const candidateId=capture(stable,input.candidateId);const projectId=input.projectId;
+    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const scope={tenantId:subject.tenantId,projectId};
+    const intent=await this.options.intents.candidateForChange({scope,changeId:candidateId});
+    if(intent&&!sameTarget(intent.target,binding.versionKey))throw new ProjectApplicationError('STORAGE_FAILED','candidate target');
+    const stored=await this.read(binding.versionKey);const preparation=intent?await this.options.intents.readPreparationReceipt({scope,applicationId:intent.applicationId}):null;
+    let canReview=permissionsFor(subject,this.options.tenantId,projectId).includes('candidate:review');
+    if(canReview){try{await this.options.identities.resolvePrincipal({tenantId:subject.tenantId,kind:'user',key:subject.userId});}catch(error){if(error instanceof ProjectIdentityError&&error.code==='PRINCIPAL_BINDING_MISSING')canReview=false;else throw error;}}
+    let sourceState:'current'|'stale'|'unavailable'='current';
+    if(intent?.source.kind==='development'){
+      const source=intent.source.source;
+      try{
+        const progress=await this.options.development.store.read({tenantId:source.tenantId,projectId:source.projectId,runId:source.runId});
+        const current=await this.options.development.store.isCurrent({tenantId:source.tenantId,projectId:source.projectId,runId:source.runId});
+        sourceState=current&&progress.run.digest===source.runDigest&&progress.run.brief.digest===source.briefDigest&&progress.foundation.review?.status==='reviewed'&&progress.foundation.review.digest===source.foundationReviewDigest&&progress.episodes.review?.status==='reviewed'&&progress.episodes.review.digest===source.episodesReviewDigest?'current':'stale';
+      }catch{sourceState='unavailable';}
+    }
+    return projectCandidateDetail({projectKey:projectId,state:stored.state,writeVersion:stored.writeVersion,candidateId,intent,preparation,canReview,sourceState});
+  }
+  private manualPolicy(request:ChangeSet,stored:StoredVersionState):void{
+    // A manual command cannot manufacture or rewrite a reviewed development source receipt.
+    // Inspect commands directly: dependent split IDs can make a side-effect-free preview unavailable.
+    const head=stored.state.head as unknown as Record<string,unknown>;
+    for(const op of request.ops){
+      if(!('collection' in op)||!['development_plans','episode_plans'].includes(op.collection))continue;
+      if(op.op==='add')throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual development source');
+      if(op.op!=='replace'&&op.op!=='update')continue;
+      const before=(head[op.collection]??[]) as {id:string;source:unknown}[];const previous=before.find(row=>row.id===op.target);
+      const fields=op.op==='replace'?op.value:op.set;
+      if(op.op==='update'&&!Object.hasOwn(fields,'source'))continue;
+      if(!previous||!Object.hasOwn(fields,'source')||projectIntentDigest(previous.source)!==projectIntentDigest(fields['source']))throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual development source');
+    }
+  }
+  async previewChange(input:Context&{command:unknown}){
+    const command=capture(WorkbenchPreviewSchema,input.command);const authority=await this.authority(input,'candidate:write');
+    if(command.change.author.kind!=='user'||command.change.author.id!==authority.actor.id)throw new AccessError('FORBIDDEN');
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);this.manualPolicy(command.change,stored);
+    return projectPreview({state:stored.state,writeVersion:stored.writeVersion,result:submitChangeSet(stored.state,command.change),candidateId:command.change.id});
+  }
+  private digest(authority:Awaited<ReturnType<ProjectApplication['authority']>>,action:string,command:unknown,runId?:string){
+    return projectIntentDigest({version:1,scope:authority.scope,target:authority.versionKey,actor:authority.actor,action,command,...(runId===undefined?{}:{runId})});
+  }
+  private async existing(authority:Awaited<ReturnType<ProjectApplication['authority']>>,applicationId:string,commandDigest:string){
+    const saved=await this.options.intents.findCandidate({scope:authority.scope,applicationId});
+    if(saved&&(saved.commandDigest!==commandDigest||saved.actor.id!==authority.actor.id||saved.actor.key!==authority.actor.key||!sameTarget(saved.target,authority.versionKey)))throw new ProjectApplicationError('CONFLICT','application command identity');return saved;
+  }
+  private async finishCandidate(input:Context,intent:CandidateIntent){
+    const key={scope:intent.scope,applicationId:intent.applicationId};
+    if(!await this.options.intents.readPreparationReceipt(key)){
+      if(!intent.request)throw new ProjectApplicationError('STORAGE_FAILED','unchanged preparation receipt');
+      await this.options.versions.submitWithReceipt(intent.target,intent.request,{expectation:intent.expectation,newId:this.options.newId},this.options.intents.preparationReceiptWriter(intent));
+    }
+    return this.candidate({...input,candidateId:intent.changeId});
+  }
+  async prepareDevelopment(input:Context&{runId:string;command:unknown}){
+    const command=capture(DevelopmentCandidatePrepareSchema,input.command);const runId=capture(Id,input.runId);const authority=await this.authority(input,'candidate:write');
+    const context={subject:authority.subject,projectId:authority.scope.projectId};
+    const digest=this.digest(authority,'development',command,runId);const existing=await this.existing(authority,command.applicationId,digest);if(existing)return this.finishCandidate(context,existing);
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version!=='0.6.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','development preparation');
+    const source={...authority.scope,runId,runDigest:command.runDigest,briefDigest:command.briefDigest,foundationReviewDigest:command.foundationReviewDigest,episodesReviewDigest:command.episodesReviewDigest};
+    const prepared=await this.options.development.identities.prepare({source,target:authority.versionKey});
+    const foundation=prepared.progress.foundation.review;const episodes=prepared.progress.episodes.review;
+    if(foundation?.status!=='reviewed'||episodes?.status!=='reviewed')throw new ProjectApplicationError('CONFLICT','reviewed development source');
+    const mapReviewer=async(key:string)=>({key,id:(await this.options.identities.resolvePrincipal({tenantId:authority.scope.tenantId,kind:'user',key})).principal.id});
+    const reviewers={foundation:await mapReviewer(foundation.actorId),episodes:await mapReviewer(episodes.actorId)};
+    const draft=prepareDevelopmentDraft({progress:prepared.progress,source,identities:prepared.identities,reviewers,head:stored.state.head});const changeId=this.options.newId();
+    const request=draft.operations.length?finalizeDevelopmentChangeSet({draft,changeSetId:changeId,author:{kind:'user',id:authority.actor.id},operationIds:draft.operations.map(row=>({slot:row.slot,id:this.options.newId()}))}):null;
+    const saved=await this.options.intents.putCandidate({version:1,scope:authority.scope,applicationId:command.applicationId,actor:authority.actor,target:authority.versionKey,commandDigest:digest,expectation:expectation(command),changeId,request,source:{kind:'development',mapperVersion:1,source,identities:prepared.identities,reviewers}} satisfies CandidateIntentBody);
+    return this.finishCandidate(context,saved);
+  }
+  async submitCandidate(input:Context&{command:unknown}){
+    const command=capture(WorkbenchSubmitSchema,input.command);const authority=await this.authority(input,'candidate:write');
+    const context={subject:authority.subject,projectId:authority.scope.projectId};
+    if(command.change.author.kind!=='user'||command.change.author.id!==authority.actor.id)throw new AccessError('FORBIDDEN');
+    const digest=this.digest(authority,'manual',command);const existing=await this.existing(authority,command.applicationId,digest);if(existing)return this.finishCandidate(context,existing);
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);this.manualPolicy(command.change,stored);
+    const saved=await this.options.intents.putCandidate({version:1,scope:authority.scope,applicationId:command.applicationId,actor:authority.actor,target:authority.versionKey,commandDigest:digest,source:{kind:'manual'},expectation:expectation(command),changeId:command.change.id,request:command.change} satisfies CandidateIntentBody);
+    return this.finishCandidate(context,saved);
+  }
+  async prepareUpgrade(input:Context&{command:unknown}){
+    const command=capture(WorkbenchUpgradeSchema,input.command);const authority=await this.authority(input,'candidate:write');
+    const context={subject:authority.subject,projectId:authority.scope.projectId};
+    const digest=this.digest(authority,'schema-upgrade',command);const existing=await this.existing(authority,command.applicationId,digest);if(existing)return this.finishCandidate(context,existing);
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version!=='0.5.0-draft')throw new ProjectApplicationError('CONFLICT','schema already upgraded');
+    const request=ChangeSet.parse({schema_version:'0.6.0-draft',id:this.options.newId(),author:{kind:'user',id:authority.actor.id},base_revision:stored.state.head.revision.number,base_revisions:[],status:'candidate',ops:[{op_id:this.options.newId(),op:'upgrade_schema',from:'0.5.0-draft',to:'0.6.0-draft'}]});
+    const result=submitChangeSet(stored.state,request);if(result.status!=='candidate')throw new ProjectApplicationError('CONFLICT','pending changes block schema upgrade');
+    const saved=await this.options.intents.putCandidate({version:1,scope:authority.scope,applicationId:command.applicationId,actor:authority.actor,target:authority.versionKey,commandDigest:digest,source:{kind:'manual'},expectation:expectation(command),changeId:request.id,request});return this.finishCandidate(context,saved);
+  }
+  async adoptCandidate(input:Context&{candidateId:string;requestId:string;command:unknown}){return this.decide(input,'adopt');}
+  async rejectCandidate(input:Context&{candidateId:string;requestId:string;command:unknown}){return this.decide(input,'reject');}
+  private async decide(input:Context&{candidateId:string;requestId:string;command:unknown},action:'adopt'|'reject'){
+    // Review authorization precedes all intent lookups, including exact historical ACK recovery.
+    const projectId=input.projectId;const subject=this.subject({subject:input.subject,projectId},'candidate:review');
+    const candidateId=capture(stable,input.candidateId);const requestId=capture(Id,input.requestId);
+    const command=action==='adopt'?capture(WorkbenchAdoptSchema,input.command):capture(WorkbenchRejectSchema,input.command);
+    const authority=await this.authority({subject,projectId},'candidate:review');
+    const candidate=await this.options.intents.candidateForChange({scope:authority.scope,changeId:candidateId});
+    if(!candidate)throw new ProjectApplicationError('SOURCE_POLICY_MISSING','unmanaged candidate decision');
+    if(!sameTarget(candidate.target,authority.versionKey))throw new ProjectApplicationError('STORAGE_FAILED','decision target');
+    if(!candidate.request)throw new ProjectApplicationError('CONFLICT','unchanged candidate decision');
+    const key={scope:authority.scope,actorKind:authority.actor.kind,actorKey:authority.actor.key,requestId};const previous=await this.options.intents.findDecision(key);
+    const body:DecisionIntentBody={version:1,scope:authority.scope,requestId,actor:authority.actor,changeId:candidateId,action,adoptionScope:command.scope,expectation:expectation(command),reason:'reason' in command&&typeof command.reason==='string'?command.reason:null,at:previous?.at??this.options.now?.()??new Date().toISOString()};
+    const decision=await this.options.intents.putDecision(body);const receipt=await this.options.intents.readDecisionReceipt(key);if(receipt)return receipt;
+    const options={actor:authority.principal,scope:decision.adoptionScope,at:decision.at,authorize:authority.authorize,expectation:decision.expectation};const writer=this.options.intents.decisionReceiptWriter(decision,candidate);
+    if(action==='adopt'){
+      const guard=candidate.source.kind==='development'?createDevelopmentSourceGuard(this.options.development.store,candidate.source.source):async()=>{};
+      await this.options.versions.adoptGuarded(authority.versionKey,candidateId,options,guard,writer);
+    }else await this.options.versions.rejectWithReceipt(authority.versionKey,candidateId,options,decision.reason!,writer);
+    const saved=await this.options.intents.readDecisionReceipt(key);if(!saved)throw new ProjectApplicationError('STORAGE_FAILED','decision receipt');return saved;
+  }
+}

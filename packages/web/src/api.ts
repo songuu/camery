@@ -6,6 +6,8 @@ import { BibleCapabilitiesSchema, BibleRunListSchema, BibleStatusSchema, BibleRu
 import type { BibleStart, BibleConfirm } from '@camery/bible/http';
 import {DevelopmentCapabilitiesSchema,DevelopmentBriefListSchema,DevelopmentBriefViewSchema,DevelopmentBriefWriteSchema,DevelopmentRunListSchema,DevelopmentStatusSchema,DevelopmentRunViewSchema,DevelopmentStartSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema,DevelopmentRedoSchema,DevelopmentRedoOptionsSchema,boundedDevelopmentSchema} from '@camery/script/http';
 import type {DevelopmentBriefWrite,DevelopmentStart,DevelopmentFoundationConfirm,DevelopmentEpisodesConfirm,DevelopmentRedo} from '@camery/script/http';
+import {WorkbenchStateSchema,WorkbenchCandidatePageSchema,WorkbenchCandidateDetailSchema,WorkbenchActionReceiptSchema,WorkbenchCandidateListQuerySchema,DevelopmentCandidatePrepareSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,workbenchEnvelope} from '@camery/ir/workbench';
+import type {DevelopmentCandidatePrepare,WorkbenchUpgradeInput,WorkbenchAdoptInput,WorkbenchRejectInput} from '@camery/ir/workbench';
 const Id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
 const Me = z.strictObject({ tenantId: Id, userId: Id, grants: z.array(z.strictObject({ projectId: Id, role: z.string().min(1).max(32) })).max(10000) });
 export type Identity = z.infer<typeof Me>;
@@ -19,7 +21,7 @@ export class ApiClient {
     if (!/^cmry_[A-Za-z0-9_-]{43}$(?![\s\S])/.test(token)) throw new ApiError('INVALID_CREDENTIAL');
     this.#credential = token; this.#transport = transport;
   }
-  private async request<T>(path: string, schema: z.ZodType<T> | null, init: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, schema: z.ZodType<T> | null, init: RequestInit = {}, workbench = false): Promise<T> {
     let response: Response;
     try {
       const deadline = AbortSignal.timeout(30_000);
@@ -31,6 +33,10 @@ export class ApiClient {
     } catch (error) { throw new ApiError(error instanceof Error && error.name === 'AbortError' ? 'CANCELLED' : error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'NETWORK_FAILED'); }
     if (!response.ok) {
       const statusCodes: Record<number,string> = { 400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 413: 'INPUT_LIMIT', 415: 'UNSUPPORTED_FORMAT', 422: 'MALFORMED_DOCUMENT', 503: 'STORAGE_FAILED' };
+      if(workbench){
+        const allowed:Record<string,number>={SCHEMA_UPGRADE_REQUIRED:409,PROJECT_BINDING_MISSING:409,PRINCIPAL_BINDING_MISSING:403,SOURCE_POLICY_MISSING:409,SNAPSHOT_STALE:409,WRITE_VERSION_CONFLICT:409};
+        try{const problem=z.strictObject({code:z.string(),requestId:Id}).safeParse(await response.json());if(problem.success&&allowed[problem.data.code]===response.status)throw new ApiError(problem.data.code);}catch(problem){if(problem instanceof ApiError)throw problem;}
+      }
       throw new ApiError(statusCodes[response.status] ?? 'HTTP_FAILED');
     }
     if (schema === null) return undefined as T;
@@ -81,6 +87,39 @@ export class ApiClient {
     return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}/reject`,boundedBibleSchema(BibleRunViewSchema),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
   }
   developmentCapabilities(projectId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/capabilities`,DevelopmentCapabilitiesSchema,signal?{signal}:{});}
+  private workbenchRequest<T>(path:string,schema:z.ZodType<T>,init:RequestInit={}){return this.request(path,schema,init,true);}
+  getWorkbenchState(projectId:string,signal?:AbortSignal){
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench/state`,workbenchEnvelope(WorkbenchStateSchema.refine(value=>value.projectKey===projectId)),{signal:signal??null}).then(value=>value.data);
+  }
+  listWorkbenchCandidates(projectId:string,runId?:string,cursor?:string,signal?:AbortSignal){
+    const parsed=WorkbenchCandidateListQuerySchema.safeParse({runId,cursor});if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    const params=[...(parsed.data.runId===undefined?[]:[`runId=${encodeURIComponent(parsed.data.runId)}`]),...(cursor===undefined?[]:[`cursor=${encodeURIComponent(cursor)}`])];const query=params.length?`?${params.join('&')}`:'';
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench/candidates${query}`,workbenchEnvelope(WorkbenchCandidatePageSchema.refine(value=>value.items.every(item=>item.projectKey===projectId&&(runId===undefined||item.source.kind!=='development'||item.source.runId===runId)))),{signal:signal??null}).then(value=>value.data);
+  }
+  getWorkbenchCandidate(projectId:string,candidateId:string,signal?:AbortSignal){
+    const parsed=WorkbenchCandidateDetailSchema.shape.candidateId.safeParse(candidateId);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench/candidates/${id(candidateId)}`,workbenchEnvelope(WorkbenchCandidateDetailSchema.refine(value=>value.projectKey===projectId&&value.candidateId===candidateId)),{signal:signal??null}).then(value=>value.data);
+  }
+  prepareDevelopmentCandidate(projectId:string,runId:string,command:DevelopmentCandidatePrepare,signal?:AbortSignal){
+    const parsed=DevelopmentCandidatePrepareSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.workbenchRequest(`/projects/${id(projectId)}/development/${id(runId)}/candidates`,workbenchEnvelope(WorkbenchCandidateDetailSchema.refine(value=>value.projectKey===projectId&&value.applicationId===parsed.data.applicationId&&value.source.kind==='development'&&value.source.runId===runId)),{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':parsed.data.applicationId},body:JSON.stringify(parsed.data),signal:signal??null}).then(value=>value.data);
+  }
+  prepareWorkbenchUpgrade(projectId:string,command:WorkbenchUpgradeInput,signal?:AbortSignal){
+    const parsed=WorkbenchUpgradeSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench/schema-upgrade`,workbenchEnvelope(WorkbenchCandidateDetailSchema.refine(value=>value.projectKey===projectId&&value.applicationId===parsed.data.applicationId&&value.source.kind==='manual')),{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':parsed.data.applicationId},body:JSON.stringify(parsed.data),signal:signal??null}).then(value=>value.data);
+  }
+  adoptWorkbenchCandidate(projectId:string,candidateId:string,requestId:string,command:WorkbenchAdoptInput,signal?:AbortSignal){
+    const parsed=WorkbenchAdoptSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.workbenchDecision(projectId,candidateId,requestId,'adopt',parsed.data,signal);
+  }
+  rejectWorkbenchCandidate(projectId:string,candidateId:string,requestId:string,command:WorkbenchRejectInput,signal?:AbortSignal){
+    const parsed=WorkbenchRejectSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.workbenchDecision(projectId,candidateId,requestId,'reject',parsed.data,signal);
+  }
+  private workbenchDecision(projectId:string,candidateId:string,requestId:string,action:'adopt'|'reject',command:WorkbenchAdoptInput|WorkbenchRejectInput,signal?:AbortSignal){
+    if(!WorkbenchCandidateDetailSchema.shape.candidateId.safeParse(candidateId).success||!Id.safeParse(requestId).success)throw new ApiError('INVALID_REQUEST');
+    return this.workbenchRequest(`/projects/${id(projectId)}/workbench/candidates/${id(candidateId)}/${action}`,workbenchEnvelope(WorkbenchActionReceiptSchema.refine(value=>value.changeId===candidateId)),{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':requestId},body:JSON.stringify(command),signal:signal??null}).then(value=>value.data);
+  }
   developmentBriefList(projectId:string,cursor?:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/briefs${cursor===undefined?'':`?cursor=${encodeURIComponent(cursor)}`}`,boundedDevelopmentSchema(DevelopmentBriefListSchema),signal?{signal}:{});}
   developmentList(projectId:string,cursor?:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development${cursor===undefined?'':`?cursor=${encodeURIComponent(cursor)}`}`,boundedDevelopmentSchema(DevelopmentRunListSchema),signal?{signal}:{});}
   developmentBrief(projectId:string,briefId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/briefs/${id(briefId)}`,boundedDevelopmentSchema(DevelopmentBriefViewSchema.refine(value=>value.brief.briefId===briefId)),signal?{signal}:{});}

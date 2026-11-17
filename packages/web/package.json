@@ -1,6 +1,6 @@
 {
   "name": "@camery/web", "version": "0.1.0", "private": true, "type": "module",
   "scripts": { "dev": "vite --host 127.0.0.1", "build": "vite build", "typecheck": "tsc --noEmit", "test": "vitest run", "test:coverage": "vitest run --coverage" },
-  "dependencies": { "@camery/script": "workspace:*", "@camery/bible": "workspace:*", "@camery/ingest": "workspace:*", "react": "19.3.1", "react-dom": "19.3.1", "@tanstack/react-query": "5.107.1", "zustand": "5.1.0", "zod": "^4.6.7" },
+  "dependencies": { "@camery/ir": "workspace:*", "@camery/script": "workspace:*", "@camery/bible": "workspace:*", "@camery/ingest": "workspace:*", "react": "19.3.1", "react-dom": "19.3.1", "@tanstack/react-query": "5.107.1", "zustand": "5.1.0", "zod": "^4.6.7" },
   "devDependencies": { "@types/node": "^22.20.5", "@types/react": "19.3.0", "@types/react-dom": "19.3.0", "@vitejs/plugin-react": "6.3.0", "vite": "8.3.8", "@vitest/coverage-v8": "^5.1.0", "typescript": "^7.0.2", "vitest": "^5.1.0" }
 }

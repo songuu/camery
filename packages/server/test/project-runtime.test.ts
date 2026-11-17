@@ -1,0 +1,22 @@
+import {EventEmitter} from 'node:events';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import type {PoolConfig} from 'pg';
+const mocks=vi.hoisted(()=>({pools:[] as (EventEmitter&{config:PoolConfig;end:ReturnType<typeof vi.fn>})[],reader:vi.fn(),adopter:vi.fn(),constructFailure:0}));
+vi.mock('pg',async original=>({...await original<typeof import('pg')>(),Pool:vi.fn(function(config:PoolConfig){if(mocks.constructFailure===mocks.pools.length+1)throw new Error('private connection string');const pool=Object.assign(new EventEmitter(),{config,end:vi.fn(async()=>{})});mocks.pools.push(pool);return pool;})}));
+vi.mock('../src/projects/identity-role.js',()=>({verifyProjectIdentityReaderRole:mocks.reader}));
+vi.mock('../src/projects/adoption-role.js',()=>({verifyProjectAdoptionRole:mocks.adopter}));
+import {createProjectRuntime} from '../src/projects/runtime.js';
+const config={tenantId:'tenant',readerDatabaseUrl:'postgresql://reader:private@localhost/camery',adoptionDatabaseUrl:'postgresql://adopter:private@localhost/camery'};
+beforeEach(()=>{mocks.pools.length=0;mocks.constructFailure=0;mocks.reader.mockReset().mockResolvedValue(undefined);mocks.adopter.mockReset().mockResolvedValue(undefined);});
+afterEach(()=>vi.restoreAllMocks());
+it('wires distinct reader and adopter pools without models, workers, migrations or project creation',async()=>{
+  const ready=await createProjectRuntime(config);expect(mocks.pools.map(pool=>pool.config)).toEqual([expect.objectContaining({connectionString:config.readerDatabaseUrl,max:4,connectionTimeoutMillis:5000,query_timeout:15000,statement_timeout:15000}),expect.objectContaining({connectionString:config.adoptionDatabaseUrl,max:4,connectionTimeoutMillis:5000,query_timeout:15000,statement_timeout:15000})]);
+  expect(mocks.reader).toHaveBeenCalledWith(mocks.pools[0]);expect(mocks.adopter).toHaveBeenCalledWith(mocks.pools[1]);expect(ready.options.tenantId).toBe('tenant');expect(ready.options.newId()).toMatch(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
+  expect(ready.options.identities).toMatchObject({pool:mocks.pools[0]});for(const store of [ready.options.versions,ready.options.intents,ready.options.development.store,ready.options.development.identities])expect(store).toMatchObject({pool:mocks.pools[1]});expect(ready.options.development.identities).toMatchObject({source:ready.options.development.store});
+  const log=vi.spyOn(console,'error').mockImplementation(()=>{});for(const pool of mocks.pools)pool.emit('error',new Error('private credential'));expect(log.mock.calls.flat().join(' ')).not.toContain('private');expect(log).toHaveBeenCalledTimes(2);
+  await Promise.all([ready.close(),ready.close()]);expect(mocks.pools.map(pool=>pool.end.mock.calls.length)).toEqual([1,1]);
+});
+it.each(['reader','adopter'] as const)('closes both pools after %s privilege verification fails and hides driver credentials',async role=>{mocks[role].mockRejectedValue(new Error('private credential'));await expect(createProjectRuntime(config)).rejects.toThrow('Project runtime startup failed');expect(mocks.pools.map(pool=>pool.end.mock.calls.length)).toEqual([1,1]);});
+it('closes the first pool if second construction fails',async()=>{mocks.constructFailure=2;await expect(createProjectRuntime(config)).rejects.toThrow('Project runtime startup failed');expect(mocks.pools[0]!.end).toHaveBeenCalledOnce();});
+it('attempts every shutdown once even if an earlier pool fails',async()=>{const ready=await createProjectRuntime(config);mocks.pools[0]!.end.mockRejectedValue(new Error('private credential'));await expect(ready.close()).rejects.toThrow('Project runtime shutdown failed');await expect(ready.close()).rejects.toThrow('Project runtime shutdown failed');expect(mocks.pools.map(pool=>pool.end.mock.calls.length)).toEqual([1,1]);});
+it('captures config before the first await and rejects getters before creating resources',async()=>{const changed={...config};const pending=createProjectRuntime(changed);changed.tenantId='changed';changed.adoptionDatabaseUrl='private';const ready=await pending;expect(ready.options.tenantId).toBe('tenant');expect(mocks.pools[1]!.config.connectionString).toBe(config.adoptionDatabaseUrl);await ready.close();const getter=vi.fn(()=>config.tenantId);await expect(createProjectRuntime(Object.defineProperty({...config},'tenantId',{get:getter}))).rejects.toThrow('Project runtime startup failed');expect(getter).not.toHaveBeenCalled();expect(mocks.pools).toHaveLength(2);});

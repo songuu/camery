@@ -5,5 +5,5 @@ export interface DevelopmentPreset {readonly methods:{readonly foundation:Method
 export interface DevelopmentApiOptions {
   readonly store:DevelopmentStore;readonly catalog:DevelopmentCatalogReader;readonly briefs:DevelopmentBriefCatalogReader;readonly tasks:Pick<DurableStore,'enqueue'|'get'|'steps'>;
   /** Deployment authority only; neither credentials nor model identities come from HTTP. */
-  readonly presetFor:(projectId:string)=>DevelopmentPreset|null;readonly now?:()=>string;
+  readonly presetFor:(projectId:string)=>DevelopmentPreset|null;readonly now?:()=>string;readonly formalAdoption?:boolean;
 }

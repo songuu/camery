@@ -564,6 +564,9 @@ importers:
       '@camery/ingest':
         specifier: workspace:*
         version: link:../ingest
+      '@camery/ir':
+        specifier: workspace:*
+        version: link:../ir
       '@camery/script':
         specifier: workspace:*
         version: link:../script
