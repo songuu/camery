@@ -51,7 +51,7 @@ export type OutlineIssueCode='REPEATED_CLIFFHANGER'|'LOW_EMOTION'|'LATE_OPENING_
 export interface OutlineIssue {readonly id:string;readonly code:OutlineIssueCode;readonly path:string;readonly episodeNumbers:readonly number[];readonly detail:string}
 export class OutlineError extends Error {
   override readonly name='OutlineError';
-  constructor(readonly code:'INVALID_INPUT'|'INPUT_LIMIT'|'INVALID_REFERENCE'|'INCOMPLETE',readonly operation:string,readonly path:string){
+  constructor(readonly code:'INVALID_INPUT'|'INPUT_LIMIT'|'INVALID_REFERENCE'|'INCOMPLETE'|'CONFLICT'|'FORBIDDEN'|'INVALID_EVIDENCE'|'NOT_FOUND'|'STORAGE_FAILED',readonly operation:string,readonly path:string){
     super(`Outline ${operation} failed (${code}) at ${path}`);
   }
 }

@@ -384,6 +384,9 @@ importers:
       '@camery/agents':
         specifier: workspace:*
         version: link:../agents
+      '@camery/bible':
+        specifier: workspace:*
+        version: link:../bible
       '@camery/durable':
         specifier: workspace:*
         version: link:../durable

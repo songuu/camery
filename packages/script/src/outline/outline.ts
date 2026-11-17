@@ -2,6 +2,7 @@ import { capture,deepFreeze } from './boundary.js';
 import { OutlineContextSchema,OutlineError,OutlineOutputSchema } from './contracts.js';
 import type { OutlineContext,OutlineIssue,OutlineIssueCode,OutlineOutput,RuleThresholds } from './contracts.js';
 import { captureRuleThresholds } from './profiles.js';
+import { assertOutlineSelection } from './selection.js';
 
 const fail=(path:string):never=>{throw new OutlineError('INVALID_REFERENCE','reference check',path);};
 function unique<T>(values:readonly T[],path:string):Set<T>{
@@ -15,9 +16,7 @@ function same<T>(values:readonly T[],expected:readonly T[],path:string):void{
 }
 export function captureOutlineContext(input:unknown):OutlineContext{
   const context=capture(OutlineContextSchema,input,'context',262144);
-  unique(context.sourceRefIds,'sourceRefIds');unique(context.paidEpisodeNumbers,'paidEpisodeNumbers');unique(context.auxiliaryGenres,'auxiliaryGenres');
-  if(context.auxiliaryGenres.includes(context.mainGenre))fail('auxiliaryGenres');
-  for(const [index,number] of context.paidEpisodeNumbers.entries())if(number>context.episodeCount)fail(`paidEpisodeNumbers.${index}`);
+  unique(context.sourceRefIds,'sourceRefIds');assertOutlineSelection(context);
   return deepFreeze(context);
 }
 function checkOrigins(context:OutlineContext,output:OutlineOutput):void{

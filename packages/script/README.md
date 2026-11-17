@@ -47,3 +47,21 @@ pnpm check
 `prepareDevelopmentDraft({progress,source,identities,reviewers,head})` 完整映射世界设定、人物开发、关系、主线和分集，保留原审核来源、对象 base 与预计写后依赖版本。只能消费可信存储读出的审核；摘要本身不授予批准。目标须显式升级到 v0.6。新设定不按姓名合并，缩集不删除人工场景或媒体；锁与引用冲突交给原版本引擎明确拒绝。
 
 `finalizeDevelopmentChangeSet({draft,changeSetId,author,operationIds})` 使用已固定身份生成候选 ChangeSet，不自行分配身份或采用。空 draft 表示相对该基线无变化，由共享采用应用保存 unchanged 意图，不造空 ChangeSet。宿主还须先解析共享项目/人类身份、持久化完整 intent，再通过同事务来源 guard 和正式采用服务处理。
+
+## T1.4 五件套大纲
+
+`@camery/script/outline/contracts` 和 `@camery/script/outline` 保持浏览器安全，提供五件套、题材、来源/简报契约和纯检查器。`@camery/script/outline/node` 提供下列宿主能力：
+
+| API | 行为 |
+| --- | --- |
+| `captureOutlineBrief` / `validateOutlineBrief` | 固定目标、备注、主辅题材全文摘要及完整有效规则阈值 |
+| `resolveOutlineSource(descriptor, stores)` | 从真实已审阅 Development 或已确认 Bible 读取完整创作材料，核对审计身份与当前性，派生引用目录；不遍历完整原文 |
+| `validateOutlineSourceSnapshot` | 重建来源材料/目录与摘要；只做完整性重放，不批准客户端 JSON |
+| `createOutlineMethodPack` / `prepareOutline` | 固定原创 `adaptation.outline@1.0.0`、题材及精确模型请求；动态正文只进入不可信数据封套 |
+| `generateOutline` / `createOutlineCandidate` | 单次 MethodRunner 调用或原 Agent finish-output 收据构造候选；核对原始请求/输出绑定，保留外部结果，不修复重试 |
+| `reviewOutline` / `rejectOutline` | 由受信任人类宿主显式决定，编辑后重算完整规则，逐辅轴记录人工抽离判断，逐实际问题记录豁免理由 |
+| `validateOutlineCandidate` / `validateReviewedOutline` | 绑定当前简报、实际来源和原候选的完整性重放；读取审计仍须可信存储及应用权限 |
+
+来源目录 ID 的含义由来源快照摘要及 JSON pointer 共同确定；不能把相同路径的 ID 当作跨来源同一实体。素材仅为规划，不产生 ready 媒体。情绪和秒数是创作估计，规则报告与人工审阅不等于观众效果、质量评分或法务签核。
+
+简报≤16KiB，来源快照（含最多2048条引用目录）≤512KiB，大纲输出≤512KiB，候选/审阅封套≤2MiB；超限拒绝而不截断。模型宿主仍须显式配置适配输入/输出容量。来源读取与当前性检查是分离的读操作，最终写入必须在 OL-3 的事务内重新锁定和检查来源。当前尚未提供大纲持久化、预算宿主、HTTP/页面或正式 IR 采用；完整范围和证据见[大纲实施计划](../../docs/plan/dramaturgy-phase1.md)。

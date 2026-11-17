@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 1 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 2 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -23,7 +23,7 @@ Revision 1 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md`
 | 任务 | 文件集合 / 依赖 | 风险 | 验收 / 当前状态 |
 | --- | --- | --- | --- |
 | OL-1 契约、引用验证、规则和题材资产 | `packages/script/src/outline/*`、对应单测、明确子路径导出；无外部依赖 | L2 | AC-OL-1/2；领域增量已验证，见下方证据 |
-| OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；待做 |
+| OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；库级及实际旧来源读口组合已验证，生产持久宿主/API仍属后续任务 |
 | OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；待做 |
 | OL-4 鉴权 API 和编辑审阅页面 | server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；待做 |
 | OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；待做 |
@@ -54,3 +54,24 @@ Revision 1 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md`
 - 另经 Vite 从新增公开 outline 入口实际打包浏览器 ES 模块，终态 0，194988 字节；没有 Node 内置依赖或浏览器 external 占位。此项验证模块可消费，不代表页面流程已实现。当前无新 HTTP/UI/PG 路径，因此不把旧浏览器或 PG 成果重报成本批新能力证据。
 - 最终日志 `artifacts/delivery/outline-workspace-check-final.log` SHA-256=`cc7e3c29519dc48c347c80c0e79e25edf3f890240f7c3412166e6892e72c50ce`；script 单包覆盖率日志 `artifacts/delivery/outline-script-coverage.log` SHA-256=`c07b56773bc737f2235c264dcc6872c81018504099348a19227f9e6e6ea807d6`。远端 CI 以推送后精确提交对应实际运行的终态为准。
 - 下一步继续 OL-2：从实际已审阅原创 Development / 已确认 StoryBible 读取不可变来源，固定题材与原创方法 pin、模型调用收据，并提供逐问题人工审阅/豁免。OL-2 至 OL-6 及完整 T1.4、阶段 1 均未完成；真实文本凭据/质量后补，编辑器、法务及设计伙伴确认依用户安排后补。
+
+## Revision 2 实施边界
+
+- AC 语义不变。追加 `outline/node`，生成/收据/摘要只在 Node 入口；已有两个浏览器入口保持纯契约/检查器。共享方法 DSL 仅补标准 `type: ["string", "null"]`，字符串边界仍生效；旧方法包字节与 pin 不变。
+- 大纲简报绑定 tenant/project/brief/revision、目标集数/时长、显式付费规划、主辅题材、有效阈值及原创题材全文摘要；模型方法版本固定。模型输入包含来源快照及精确引用目录，正文不进入受信任系统指令。收据必须匹配实际方法请求、作用域和原始输出，失败保留外部 outcome，不重试。
+- 来源适配器只从受信任宿主注入的现有 Development/Bible store 读取；检查实际审阅、来源描述符和当前性，返回有界完整创作材料及确定引用目录。快照校验只证明完整性，JSON/普通 SHA 不授权；OL-3 的最终写入仍需事务内再次锁定和检查实际来源，分离读取不冒充原子新鲜度保证。
+- 人审绑定当前来源、简报、候选摘要；修改后重新运行规则。抽离影响逐辅轴给人工判断及理由，其他规则逐 issue ID 豁免并保留理由，不允许通配。人工身份/时间/同步授权来自宿主，异步/异常授权失败闭合；审阅解锁下一步，不等同正式 IR 采用、质量分或法务签核。
+- 独立文件任务：共享 nullable DSL+测试（L2）；原创大纲 method pack+测试（L2）；简报/来源/生成/人审（依赖前两项，L3）。先定向红绿，再组合覆盖率、真实旧来源读口、整仓与精确提交远端 CI。持久化/页面/正式采用保持 OL-3/4/5 待办，不缩减最终范围。
+
+## OL-2 验证证据（2026-11-17）
+
+- 新增浏览器安全的生成/审阅数据契约、独立 Node 入口以及固定原创 `adaptation.outline@1.0.0`。方法 pin=`11035b982187e3b45b91f8692381b088ed0238a84d91d440bb9935c193475475`，完整结构与领域 Zod 字段/范围/枚举投影对照。共享 DSL 只追加标准可空字符串，旧 chapter 方法 pin=`44f4c043900f43f0896497ade9cf4e8ba0784fcd6f3b6e7d6ad12a6deb9b29f0` 保持，新旧方法基线通过；没有新增外部包，只追加已有 bible 工作区依赖及 3 行锁文件链接。
+- 简报固定 tenant/project/brief/revision、目标与题材正文摘要、完整有效阈值。来源读取复用实际 Development/Bible store 的原候选/审阅审计重放，核对来源描述符及当前性；完整材料在等待当前性之前捕获，不遍历原始 document。来源快照含完整引用目录最多 2048 条且≤512KiB，source ID 以快照摘要与具体路径限定含义，不当作跨来源全局实体身份。
+- 每次大纲仅执行一次实际结构化适配器调用，或使用原 Agent finish-output 收据构造候选；核对 method/tenant/connection/mode/call/input/output、network/effect/evidence，精确回放输入及回执。未知宿主轨迹保持 unknown，已识别真实完成后的领域错误/取消保持 completed，供应方失败不重试。此处“实际适配器”指真实协议实现，响应仍为明确合成夹具，不是供应方推理或计费证据。
+- 人审必须由受信任宿主提供规范 human 身份/作用域/时间及同步字面 true 授权。修改后重新验证全部结构和规则；每个辅轴有人工判断/理由，label_only 必须另有确切问题豁免；其余问题逐 ID 和理由，缺失/重复/多余/通配均拒绝。审阅重放需原候选及当前真实来源，重建整份 report、actor、时间与摘要；校验器只做存档完整性，客户端 SHA/JSON 不产生授权。拒绝仅保留理由，不解锁下游。
+- 本轮新增 179 项普通测试（script 152、methods 27）；source 45、method pack 56、生成/人审 51，覆盖精确协议回放、await 前捕获、执行元组篡改、模型 unknown/completed、候选/审计变更、单/双辅轴和人审异步失败闭合。合法超过旧 256KiB 封套、仍在 512KiB 输出限制内的大纲经单次生成、人审及重放通过，没有沿用旧预算或截断内容。
+- 新增 4 项实际 PG 来源组合测试，完整 `pnpm test:script:local --coverage` 终态 0：696 项 = 653 普通 + 43 PG（包含旧 39 和新 4，不与整仓重复相加）。实际写入和人审旧 Development/Bible，再经新 pool 重读、来源 resolver、单次大纲合成协议及测试宿主人审；旧简报/小说版本推进拒绝，损坏原审核被旧 store 拒绝。首轮 Bible 夹具执行身份不匹配被 INVALID_EVIDENCE 拒绝，只修夹具配置后完整重跑；未改生产校验、断言或超时。仅使用并清理随机测试租户，无新 schema 或生产来源迁移。这证明旧来源持久恢复与新领域组合，不是大纲自身持久化/预算恢复或真人质量验收。
+- 最终 `pnpm check` 终态 0：3486 = 20 工具 + 3466 包测试，677 源文件策略零问题，typed lint 与 13 包类型检查通过，13 个覆盖率任务全部实际执行，6 方法黄金用例及 10 Agent 合成基线匹配。script 653 项覆盖 98.75/97.29/100/99.81%，methods 255 项覆盖 97.25/96.02/98.94/99.68%，门槛保持 95%。代码与 TypeScript 复审无未闭合 P0–P2。
+- 两个公开浏览器入口经 Vite 实际构建，3 个 ES chunks 共 201405 字节，未出现 Node 内置或 external 占位。未新增大纲页面，不把浏览器模块构建称为用户流程验收。日志：`artifacts/delivery/outline-ol2-browser-bundle.log` SHA-256=`604825df0c41895fb459bce65e99516147cc9a2d0376ad1cc32c9bd8aea654d0`。
+- 整仓日志 `artifacts/delivery/outline-ol2-workspace-check.log` SHA-256=`c8cf009dfbc2fb47b68f781af4be581c71490be92041ca2fe532fe5955550f18`；最终 PG 日志 `artifacts/delivery/outline-ol2-source-pg-final.log` SHA-256=`b945866ba260b07fdf77a45a6a8f717d4fe6a40a10270bc34f7b6d4a08889852`。推送后仍以精确提交对应的真实远端 CI 终态为准。
+- 下一步 OL-3：追加大纲持久候选/人审及单阶段 durable/预算宿主，在最终写入事务内重新锁定并检查实际来源；之后继续 OL-4/5/6。完整 T1.4 和阶段 1 仍未完成。真实文本模型/人工质量待实际配置，编辑器、法务及设计伙伴依用户安排后补，现有 ComfyUI 接线未变。
