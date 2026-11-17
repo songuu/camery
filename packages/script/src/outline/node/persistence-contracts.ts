@@ -13,6 +13,7 @@ import { validateOutlineBrief } from './brief.js';
 import { hash } from './data.js';
 import { createOutlineMethodPack } from './method-assets.js';
 import { validateOutlineSourceSnapshot } from './source.js';
+import { validateOutlineCandidate } from './generation.js';
 
 export const OutlineKeySchema=z.strictObject({tenantId:Id,projectId:Id,runId:Id});
 export type OutlineRunKey=z.infer<typeof OutlineKeySchema>;
@@ -56,7 +57,14 @@ export function validateOutlineRun(keyInput:unknown,input:unknown):OutlineRun{
 }
 export const OUTLINE_WORKFLOW='adaptation.outline-stage';
 export const OUTLINE_WORKFLOW_VERSION=1;
+export const OutlineTaskReferenceSchema=z.strictObject({projectId:Id,runId:Id,runDigest:Hash});
+export function outlineTaskReference(run:OutlineRun):z.infer<typeof OutlineTaskReferenceSchema>{return deepFreeze({projectId:run.projectId,runId:run.runId,runDigest:run.digest});}
 export function outlineTaskId(input:unknown):string{return 'outline-'+hash(capture(OutlineKeySchema,input,'task key',2048));}
 export function outlineCallId(input:unknown):string{
   const key=capture(OutlineKeySchema,input,'call key',2048);return stepIdempotencyKey({tenantId:key.tenantId,taskId:outlineTaskId(key)},'agent.0.decision');
+}
+/** The caller supplies a fully validated immutable run; this checks evidence, never present-day authorization. */
+export function validateOutlineRunCandidate(run:OutlineRun,input:unknown):OutlineCandidate{
+  const candidate=validateOutlineCandidate(run.brief,run.source,input);const model=candidate.model,profile=run.execution;
+  if(model.callId!==outlineCallId({tenantId:run.tenantId,projectId:run.projectId,runId:run.runId})||model.connectionId!==profile.connectionId||model.modeDigest!==profile.modeDigest||model.modelIdentity!==profile.modelIdentity||model.evidence!==profile.evidence)throw new OutlineError('INVALID_EVIDENCE','run model binding','model');return candidate;
 }

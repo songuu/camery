@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 3 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 4 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -24,7 +24,7 @@ Revision 3 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md`
 | --- | --- | --- | --- |
 | OL-1 契约、引用验证、规则和题材资产 | `packages/script/src/outline/*`、对应单测、明确子路径导出；无外部依赖 | L2 | AC-OL-1/2；领域增量已验证，见下方证据 |
 | OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；库级及实际旧来源读口组合已验证，生产持久宿主/API仍属后续任务 |
-| OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；先事务存储/来源锁，再预算工作流与进程恢复，实施中 |
+| OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；核心存储/预算/恢复已验证；常驻宿主及认证服务组合仍待 OL-4/6 |
 | OL-4 鉴权 API 和编辑审阅页面 | server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；待做 |
 | OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；待做 |
 | OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；待做 |
@@ -105,3 +105,23 @@ AC 语义不变。先追加独立 `camery_outline` schema 的不可变简报/运
 - 最终 `pnpm check` 退出0：3673 = 20工具 + 3653包测试，688源文件策略零问题、typed lint与13包类型检查通过、13个覆盖率任务全部实际执行；6方法黄金用例与10 Agent合成基线匹配。script838项覆盖98.55/97.41/99.49/99.19%，Bible267项98.21/97.23/97.79/99.60%，门槛未降低。全仓日志 `artifacts/delivery/outline-ol3-workspace-check-final.log` SHA-256=`11a3c1af1836eedef07aa2c696892a53aacea4f586be0c1d9d356677de9fb4e8`。
 - 新增9项PG用例验证两种来源实际持锁至大纲人审提交、新pool恢复、提交已成功但确认丢失、旧源结果保存/首次人审拒绝、原决定重新授权、损坏数据拒绝、默认RR竞态，以及专用LOGIN两条来源业务正向、19项缺权限、24项扩权及4个42501探针。最终 `pnpm test:script:local --coverage` 退出0：890项 = 838普通 + 52 PG（旧43+新9，不与整仓重复相加），41文件，覆盖98.92/97.60/100/99.83%。日志 `artifacts/delivery/outline-ol3-pg-verified.log` SHA-256=`7395623a21872e77e98a3c206eee6c4032da7f11a5ec8753418a8989b71c7afa`。代码、TypeScript及数据库复审无未闭合P0–P2；精确提交远端CI仍以实际终态为准。
 - 本批是 OL-3 的存储/权限前半。专用预算工作流、SIGKILL、大纲unknown结果恢复及真实宿主接线仍待后半；之后继续API/页面/正式采用。完整OL-3、T1.4及阶段1均未判完成；真实文本模型/人工质量、编辑器、法务、设计伙伴仍按原安排后补。
+
+## Revision 4 · 单阶段预算与恢复
+
+AC语义不变。复用现有AgentRuntime、固定方法driver、BudgetLedger及Durable，不写第二套预算或未知调用机制。任务只有 `{projectId,runId,runDigest}` 引用；受信宿主从同一不可变run解析完整模型输入。引用driver同时核对原引用、trusted agent/方法/作用域，再以完整输入委托既有driver；policy摘要固定run、来源和协议版本。模型收据仍绑定实际完整请求，不改为引用JSON的摘要。
+
+ModelSession仅在未缓存的decision effect内由host factory构造，先分配预算再允许调用；恢复缓存journal无需供应方配置或新session。真正新调用前核当前简报/来源，已付历史结果继续保存。工作流输出与persist-step使用小引用，完整候选留DB；不改旧131072字节Agent上下文和1MiB Worker门槛，不截断合法512KiB大纲。
+
+dispatcher先核原任务/状态并排空journal尾部，再看candidate/review/currentness；终态无候选或unknown不造新ID重发。持久人审仍走已有显式人类授权，不能由task完成自动确认。新增profile/candidate/rejection完整重放供workflow与存储共用。
+
+顺序：固定共享进度/引用契约→独立dispatcher及夹具→预算workflow→进程内Actor/Worker回放→真实PG提交丢ACK、SIGKILL、unknown明确对账、低预算/旧来源拒绝→整仓与精确提交CI。纯引用dispatch/测试夹具为L2独立文件；生产预算与恢复编排L3在根实施；真实PG/coverage串行。真实文本质量及API/页面/常驻配置型宿主仍待OL-4后续，不用合成协议替代人工质量验收。
+
+## OL-3 后半：预算与原日志恢复证据
+
+- 新增113项普通测试：dispatcher32、进度35、workflow4、故障41、容量1。预算拒绝或来源变化在供应方session前失败闭合；factory等待中来源变更再次拒绝，恶意profile访问器不执行。原模型输入/输出与receipt绑定，不以引用替代实际请求摘要；storage失败、ACK丢失、历史人审和过期来源均保留原journal语义。代码、TypeScript及安全复核无未闭合P0–P2。
+- 容量夹具由实际Bible候选/确认流程产生，未自报已批准JSON。完整来源168240字节、模型输入171235字节，完整输出452106字节，经过一次真实协议适配器及Agent工作流。原131072/1048576/524288/2097152字节门槛未改，未截断正文。
+- 新增6项真实PG恢复用例：候选COMMIT后丢ACK并在人工审阅/来源变化后排空原尾部；decision提交前失败转unknown，保存原始完整Agent envelope，显式人工对账后新pool恢复；预算不足/旧来源零session；大输入/输出完整通过Worker；decision实际SQL提交后SIGKILL自有child，新pool不配置模型凭据恢复原候选且仅一份allocation。终态前结算明确拒绝，终态后以显式夹具账单结算；这不是实际供应方账单或真人质量证据。数据库只读复核无未闭合P0–P2。
+- 首轮1010项有1项失败：冷启动聚合入口在20秒检查点前仍停于模块加载。独立禁用tsx缓存复现原入口32553ms；child改为精确runtime模块导入后1172ms，不放宽20秒/原断言。完整重跑 `pnpm test:script:local --coverage` 终态0：1010项=952普通+58 PG（旧52+新6，不与整仓重复相加），48文件，覆盖98.66/97.08/100/99.77%，门槛保持95%。最终日志 `artifacts/delivery/outline-workflow-pg-verified.log` SHA-256=`a2b7ff240d4fea58be99353538df4fdee034b64fcf438372032ca2e9afdcc588`；失败日志 `outline-workflow-pg-first.log` SHA-256=`f409a3d3808a5b7f428a82c306a5e1628ebc15b0212e5f5e73c5f99520638a60`。
+- 整仓覆盖率首轮发现原聚合进度用例包含生成/保存/人审/读取/回放，分段计时合计11767ms，超过普通单测10秒。转为真实PG集成场景，保留全部容量/内容/单调用断言并增加新pool恢复，未改任何超时/门槛；普通容量用例仍完整验证大输入/输出。最终 `pnpm check` 终态0：3786项=20工具+3766普通，702源文件策略零问题，13包类型检查（10缓存/3实际）通过，13包覆盖率全部实际执行，6方法golden/10 Agent合成基线匹配。script951项覆盖98.31/96.85/99.51/99.16%。日志 `artifacts/delivery/outline-workflow-workspace-check-final.log` SHA-256=`e1c43c7c801fa822d6adde715f4d308a0c7d7a38566f21f74583437a2cd7c553`。
+- 最终真实PG完整复验退出0：1010项=951普通+59 PG（旧52+新增7），48文件，覆盖98.66/97.08/100/99.77%。新增聚合用例从真实Bible确认开始，大纲实际SQL保存后丢ACK，人工审阅后完整progress超过2MiB、三个封套各≤2MiB；新pool恢复原journal，整个progress逐字段不变、零新session、总模型调用/预算分配各一次。Docker在复验前曾停止，引擎恢复后原测试容器健康，再串行执行成功；未重建或删除原数据。最终日志 `artifacts/delivery/outline-workflow-pg-final-verified.log` SHA-256=`0335633395183465baf0c870c94613c0af8232f6799908adbf41efe7f8056541`。
+- 此批完成核心预算与恢复验证，继续OL-4的认证API、五件套编辑审阅页面及常驻配置宿主，之后OL-5正式IR与OL-6组合。完整T1.4/阶段1仍未完成；真实文本质量、编辑器、法务和设计伙伴依原安排后补，ComfyUI接线未改。精确提交远端CI以推送后实际终态为准。

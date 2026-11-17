@@ -1,6 +1,6 @@
 # Camery
 
-以分镜为核心的 AI 内容创作系统。当前按 [实施计划 v2.1](docs/plan/implementation_plan_v2.md) 开发阶段 0，产品方案见 [solution_v2.md](docs/product/solution_v2.md)。
+以分镜为核心的 AI 内容创作系统。当前按 [实施计划 v2.1](docs/plan/implementation_plan_v2.md) 推进阶段 1，产品方案见 [solution_v2.md](docs/product/solution_v2.md)。
 
 ## 本地开发
 
@@ -46,6 +46,8 @@ CI 对 pull request 和 push 执行相同的 `pnpm check`，再运行真实 Post
 [阶段1进展](docs/plan/phase1-progress.md)已接入[小说与剧本导入核心](packages/ingest/README.md)、认证来源HTTP和[React来源工作台](packages/web/README.md)：精确来源定位、分批幂等、PostgreSQL读取游标，以及Fountain/CSV/TSV/DOCX候选。StoryBible及后续生成链路仍按计划逐项实施。
 
 [StoryBible候选领域](packages/bible/README.md)提供有界分块、结构化抽取、跨块合并建议、精确引文与受信人工确认/拒绝；[PostgreSQL与逐块预算任务](packages/bible/POSTGRES.md)支持日志提交后SIGKILL、新连接恢复及未知结果对账。认证审阅应用、常驻服务接线、真实文本模型质量和人审仍按[T1.2计划](docs/plan/storybible-phase1.md)继续，不把候选或库级确认直接写入正式IR。
+
+[T1.4 剧作大纲](docs/plan/dramaturgy-phase1.md)已具备五件套契约、固定原创方法、已审阅 Development/Bible 来源、不可变 PostgreSQL 候选与显式人工审阅。单阶段预算工作流仅把运行引用写入任务日志，完整输入和输出保持原有容量；恢复沿用原任务、原模型回执和预算，未知结果须明确对账。认证 API、页面、常驻配置宿主及正式 IR 采用仍待推进；合成协议测试不代表真实文本质量或真人签核。
 
 [时间线代数](packages/timeline/README.md) 提供精确时间推算、锚点与音轨检查、不可变编辑；既定技术选择见 [ADR-001–019](docs/adr/README.md)。
 

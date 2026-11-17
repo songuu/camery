@@ -8,3 +8,6 @@ export * from './store.js';
 export * from './migrate.js';
 export * from './runtime-role.js';
 export * from './source-transaction.js';
+export * from './state.js';
+export * from './dispatch.js';
+export * from './workflow.js';

@@ -1,7 +1,7 @@
 import type { Pool,PoolClient } from 'pg';
 import { z } from 'zod';
 import { canonical,MethodRegistry } from '@camery/methods';
-import { Hash,Id } from '../../contracts.js';
+import { Id } from '../../contracts.js';
 import { canonicalTime } from '../../reviewed.js';
 import { capture,deepFreeze } from '../boundary.js';
 import { OutlineError } from '../contracts.js';
@@ -9,10 +9,9 @@ import { OUTLINE_ENVELOPE_BYTES } from '../generation-contracts.js';
 import type { OutlineCandidate,OutlineReviewHost,ReviewedOutline,RejectedOutline } from '../generation-contracts.js';
 import { captureOutlineBrief,validateOutlineBrief } from './brief.js';
 import { copy,hash } from './data.js';
-import { validateOutlineCandidate } from './generation.js';
 import { createOutlineMethodPack } from './method-assets.js';
-import { captureOutlineReviewHost,reviewOutline,rejectOutline,validateReviewedOutline } from './review.js';
-import { GetOutlineBriefSchema,OutlineBriefKeySchema,OutlineKeySchema,OutlineRunEnvelope,PutOutlineBriefSchema,StartOutlineSchema,outlineCallId,outlineExecution,outlineRunDigest,validateOutlineRun } from './persistence-contracts.js';
+import { captureOutlineReviewHost,reviewOutline,rejectOutline,validateReviewedOutline,validateRejectedOutline } from './review.js';
+import { GetOutlineBriefSchema,OutlineBriefKeySchema,OutlineKeySchema,OutlineRunEnvelope,PutOutlineBriefSchema,StartOutlineSchema,outlineExecution,outlineRunDigest,validateOutlineRun,validateOutlineRunCandidate as boundCandidate } from './persistence-contracts.js';
 import type { OutlineBriefKey,OutlineRun,OutlineRunKey,OutlineStore,OutlineProgress,StoredOutlineBrief } from './persistence-contracts.js';
 import { createOutlineSourceTransaction } from './source-transaction.js';
 import type { OutlineSourceTransaction } from './source-transaction.js';
@@ -26,7 +25,6 @@ const briefKeys=(key:OutlineBriefKey)=>[key.tenantId,key.projectId,key.briefId];
 const runKeys=(key:OutlineRunKey)=>[key.tenantId,key.projectId,key.runId];
 const briefFields='tenant_id,project_id,brief_id,revision,actor_id,digest,request_digest,record,created_at';
 const runFields='tenant_id,project_id,run_id,brief_id,brief_revision,brief_digest,source_digest,digest,request_digest,record,created_at';
-const rejectRecord=z.strictObject({version:z.literal(1),status:z.literal('rejected'),brief:z.unknown(),source:z.unknown(),candidateDigest:Hash,reason:z.string(),actorId:Id,at:z.string().max(24),digest:Hash});
 const failed=(operation:string):never=>{throw new OutlineError('STORAGE_FAILED',operation,'storage');};
 function timestamp(value:Date|string):string{const at=value instanceof Date?value.toISOString():value;if(!canonicalTime(at))failed('timestamp');return at;}
 function requestDigest(run:OutlineRun):string{return hash({briefId:run.brief.briefId,expectedRevision:run.brief.revision,expectedBriefDigest:run.brief.digest,source:run.source.descriptor,execution:run.execution,method:run.method});}
@@ -46,10 +44,6 @@ function decodeRun(row:RunRow,key:OutlineRunKey):OutlineRun{
     const run=validateOutlineRun(key,{...record,createdAt:timestamp(row.created_at)});
     if(row.brief_id!==run.brief.briefId||Number(row.brief_revision)!==run.brief.revision||row.brief_digest!==run.brief.digest||row.source_digest!==run.source.digest||row.digest!==run.digest||row.request_digest!==requestDigest(run))failed('run columns');return run;
   }catch{return failed('stored run');}
-}
-function boundCandidate(run:OutlineRun,input:unknown):OutlineCandidate{
-  const candidate=validateOutlineCandidate(run.brief,run.source,input);const model=candidate.model,profile=run.execution;
-  if(model.callId!==outlineCallId({tenantId:run.tenantId,projectId:run.projectId,runId:run.runId})||model.connectionId!==profile.connectionId||model.modeDigest!==profile.modeDigest||model.modelIdentity!==profile.modelIdentity||model.evidence!==profile.evidence)throw new OutlineError('INVALID_EVIDENCE','run model binding','model');return candidate;
 }
 
 /** Append-only internal repository. The host owns authentication; source JSON can only come from the trusted transaction reader. */
@@ -90,12 +84,8 @@ export class PostgresOutlineStore implements OutlineStore {
       if(reviews.rows.length>1)failed('review cardinality');const audit=reviews.rows[0];if(audit){
         checkScope(audit,key);if(!candidate)failed('review candidate');
         if(audit.status==='reviewed')review=validateReviewedOutline(run.brief,run.source,candidate,audit.record);
-        else if(audit.status==='rejected'){
-          const raw=capture(rejectRecord,audit.record,'stored rejection',OUTLINE_ENVELOPE_BYTES);
-          // Historical audit reconstruction only. It does not grant a current caller permission.
-          const actual=rejectOutline(run.brief,run.source,candidate,raw.reason,{tenantId:key.tenantId,projectId:key.projectId,actor:{kind:'human',id:raw.actorId},at:raw.at,authorize:()=>true});
-          if(hash(raw)!==hash(actual))failed('rejection binding');review=actual;
-        }else failed('review status');
+        else if(audit.status==='rejected')review=validateRejectedOutline(run.brief,run.source,candidate,audit.record);
+        else failed('review status');
         if(!review||review.digest!==audit.digest||reviewRequest(review)!==audit.request_digest)failed('review digest');
       }
     }catch{return failed('stored progress');}

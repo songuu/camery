@@ -34,10 +34,10 @@ export async function createDevelopmentSourceFixture(pool:Pool,target:SourceTarg
   return {target,key,store,put,descriptor,run};
 }
 
-export async function createBibleSourceFixture(pool:Pool,target:SourceTarget){
-  const template=reviewFixture(),key={...target,runId:'bible'};const documents=new PostgresDocumentStore(pool);await documents.append({...target,documentId:'book',batchId:'first',expectedRevision:0,text:template.source.document.text});
+export async function createBibleSourceFixture(pool:Pool,target:SourceTarget,template=reviewFixture()){
+  const key={...target,runId:'bible'};const documents=new PostgresDocumentStore(pool);await documents.append({...target,documentId:'book',batchId:'first',expectedRevision:0,text:template.source.document.text});
   const model=template.candidate.records[0]!.model;
-  const store=new PostgresBibleStore(pool);const run=await store.start({...key,documentId:'book',kind:'novel',expectedRevision:1,expectedSourceDigest:template.source.document.sourceDigest,method:template.candidate.method,chunkLimits:{maxCharacters:22,maxBytes:88},execution:{...execution,connectionId:model.connectionId,modeDigest:model.modeDigest,modelIdentity:model.modelIdentity,limits:{steps:10,tokens:1000,costMicros:0}}});
+  const store=new PostgresBibleStore(pool);const run=await store.start({...key,documentId:'book',kind:'novel',expectedRevision:1,expectedSourceDigest:template.source.document.sourceDigest,method:template.candidate.method,chunkLimits:{maxCharacters:template.plan.maxCharacters,maxBytes:template.plan.maxBytes},execution:{...execution,connectionId:model.connectionId,modeDigest:model.modeDigest,modelIdentity:model.modelIdentity,limits:{steps:10,tokens:1000,costMicros:0}}});
   for(const [index,entry] of template.candidate.records.entries()){
     const body={version:1 as const,planDigest:run.plan.digest,chunkId:run.plan.chunks[index]!.id,method:run.method,output:entry.output,model:{...entry.model,tenantId:target.tenantId}};await store.saveChunk(key,{...body,digest:hash(body)});
   }

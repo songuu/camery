@@ -13,6 +13,7 @@ const Decision=z.strictObject({candidateDigest:Hash,output:z.unknown(),ablations
 const Identity=z.strictObject({tenantId:Id,projectId:Id,actor:z.strictObject({kind:z.literal('human'),id:Id}),at:z.string().max(24)});
 const Reviewed=z.strictObject({version:z.literal(1),status:z.literal('reviewed'),brief:OutlineBriefSchema,source:z.unknown(),candidateDigest:Hash,
   output:z.unknown(),report:z.unknown(),ablations:Decision.shape.ablations,waivers:Decision.shape.waivers,actorId:Id,at:z.string().max(24),digest:Hash});
+const Rejected=z.strictObject({version:z.literal(1),status:z.literal('rejected'),brief:OutlineBriefSchema,source:z.unknown(),candidateDigest:Hash,reason:Text(1000),actorId:Id,at:z.string().max(24),digest:Hash});
 
 /** Capture a trusted host before persistence waits; it grants no permission by itself. */
 export function captureOutlineReviewHost(input:OutlineReviewHost):OutlineReviewHost{
@@ -71,4 +72,10 @@ export function rejectOutline(brief:unknown,source:unknown,candidateInput:unknow
   const reason=capture(Text(1000),reasonInput,'rejection reason',8192);permit(candidate.brief,'outline:reject',host);
   const body={version:1 as const,status:'rejected' as const,brief:candidate.brief,source:candidate.source,candidateDigest:candidate.digest,reason,actorId:host.actor.id,at:host.at};
   copy(body);return deepFreeze({...body,digest:hash(body)});
+}
+/** Rebuild only a trusted stored rejection. An unkeyed hash or this replay cannot grant a new caller approval. */
+export function validateRejectedOutline(brief:unknown,source:unknown,candidate:unknown,input:unknown):RejectedOutline{
+  const raw=capture(Rejected,input,'stored rejection',OUTLINE_ENVELOPE_BYTES);
+  const actual=rejectOutline(brief,source,candidate,raw.reason,{tenantId:raw.brief.tenantId,projectId:raw.brief.projectId,actor:{kind:'human',id:raw.actorId},at:raw.at,authorize:()=>true});
+  if(hash(raw)!==hash(actual))throw new OutlineError('CONFLICT','stored rejection binding','review');return actual;
 }
