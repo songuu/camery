@@ -10,7 +10,7 @@ import { PostgresBudgetLedger,migrateAgentBudgets } from '@camery/agents/node';
 import { migrateIngest } from '../../ingest/src/node/index.js';
 import { migrateBible } from '@camery/bible/node';
 import { migrateDevelopment } from '../src/node/index.js';
-import { PostgresOutlineStore,createOutlineWorkflow,enqueueOutlineTask,migrateOutline,prepareOutline,captureOutlineProgress } from '../src/outline/node/index.js';
+import { PostgresOutlineStore,createOutlineWorkflow,enqueueOutlineTask,migrateOutline,prepareOutline,captureOutlineProgress,projectOutlineRun } from '../src/outline/node/index.js';
 import { createDevelopmentSourceFixture,createBibleSourceFixture } from './outline-source-pg-support.js';
 import { outlineProtocolTransport,outlineSessionFactory } from './outline-workflow-pg-support.js';
 import { largeBibleFixture,progressBibleFixture } from './outline-capacity-support.js';
@@ -91,6 +91,8 @@ it('processes a legal large Bible input and full outline through the existing Wo
   const worker=new DurableWorker(f.durable);worker.register(createOutlineWorkflow({store:f.store,ledger:f.ledger,sessionFor:outlineSessionFactory(outlineProtocolTransport(()=>{calls++;},true))}));
   const result=await worker.runTask(f.task,'large-outline');expect(result?.status).toBe('succeeded');expect(calls).toBe(1);const progress=await f.store.read(f.key);
   expect(Buffer.byteLength(JSON.stringify(progress.candidate!.output))).toBeGreaterThan(262144);expect(progress.candidate?.output.assets).toHaveLength(128);expect(progress.candidate?.source).toEqual(f.run.source);
+  const publicView=projectOutlineRun(progress,true,result!);expect(publicView.state).toBe('awaiting_review');expect(publicView.candidate?.output).toEqual(progress.candidate!.output);
+  expect(publicView.source.material).toEqual(f.run.source.material);expect(publicView.candidate).not.toHaveProperty('model');
   const steps=await f.durable.steps(f.task);expect(steps.every(step=>Buffer.byteLength(JSON.stringify(step.input))<=131072)).toBe(true);expect(steps.every(step=>Buffer.byteLength(JSON.stringify(step.output))<=1048576)).toBe(true);expect(Buffer.byteLength(JSON.stringify(result!.output))).toBeLessThan(1024);
 });
 it('restores reviewed progress over two MiB from a new pool without truncation or duplicate calls',async()=>{

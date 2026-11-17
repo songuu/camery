@@ -1,5 +1,20 @@
 import { expect,it } from 'vitest';
 import { snapshotJson,guardJson,JsonBoundaryError } from '../src/json.js';
+it.each([
+  'x'.repeat(131072),
+  Array.from({length:95},(_,index)=>String.fromCharCode(index+32)).join('').repeat(512),
+  'plain'.repeat(1000)+'"\\\n'+'😀中文\ud800\udfff',
+  String.fromCharCode(...Array.from({length:65536},(_,index)=>index)),
+])('keeps exact large plain or escaped string budgets %#',text=>{
+  for(const value of [text,{[text.slice(0,1500)]:text},[text,text]]){
+    const bytes=Buffer.byteLength(JSON.stringify(value));expect(snapshotJson(value,bytes)).toEqual(value);
+    expect(()=>snapshotJson(value,bytes-1)).toThrow('INPUT_LIMIT');
+  }
+});
+it('spends each large plain string before visiting later hostile data',()=>{
+  let visited=false;const later=new Proxy({},{ownKeys(){visited=true;throw new Error('private');}}),text='x'.repeat(131072);
+  expect(()=>snapshotJson([text,text,later],200000)).toThrow('INPUT_LIMIT');expect(visited).toBe(false);
+});
 it.each([null,true,false,0,-0,-12,1.25,1e30,'ASCII','你好','😀','\ud800','\udfff','"\\\b\t\n\f\r\u0001',[],{},[1,null,'你'],{a:'😀',b:['\u0000']}])('snapshots exact logical JSON bytes %j',value=>{
   const bytes=Buffer.byteLength(JSON.stringify(value));expect(snapshotJson(value,bytes)).toEqual(value);
   expect(()=>guardJson(value,bytes-1)).toThrow('INPUT_LIMIT');

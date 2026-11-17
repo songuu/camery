@@ -11,3 +11,7 @@ export * from './source-transaction.js';
 export * from './state.js';
 export * from './dispatch.js';
 export * from './workflow.js';
+export * from './catalog.js';
+export * from './brief-catalog.js';
+export * from './source-catalog.js';
+export * from './read-model.js';

@@ -13,6 +13,8 @@ export function snapshotJson<T>(input: T, maxBytes=2_097_152, maxArrayLength=819
   const string=(value: string)=>{
     // Even ASCII needs at least one byte per UTF-16 unit, so reject giant strings without allocating encoded copies.
     if (value.length>remaining) fail('INPUT_LIMIT','JSON bytes');
+    // Plain ASCII is exactly one JSON byte per unit. Native scanning avoids a JS callback for every byte of large legal bodies.
+    if(!/[^\x20-\x21\x23-\x5b\x5d-\x7e]/.test(value)){spend(value.length+2);return;}
     spend(2);
     for(let i=0;i<value.length;i++) {
       const code=value.charCodeAt(i);
