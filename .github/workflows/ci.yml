@@ -101,6 +101,8 @@ jobs:
         run: pnpm test:private-api:local
       - name: Verify scoped worker, budget, persistent human gate and crash recovery
         run: pnpm test:private-worker:local
+      - name: Verify built original development API and worker with isolated HTTP protocol fixtures
+        run: pnpm test:private-development:local
       - name: Remove this job's private API database fixture
         if: always()
         run: |

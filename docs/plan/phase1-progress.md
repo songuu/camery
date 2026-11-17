@@ -128,3 +128,12 @@
 - 日志`%TEMP%/camery-development-persistence-check-final.log` SHA-256 `b13301719a44b9b513cb10831c78568c1e4cf9222e4f6385eac0d181295613d9`；`%TEMP%/camery-development-persistence-pg-coverage-final.log` SHA-256 `412e7b5af3c7db18d2a526fccfa014366d601a3829ef63ce8cc1a6ca4bde0dc9`。远端CI结果以最终提交的Actions为准。
 - 下一项是认证应用、工作台与常驻宿主，再继续正式开发IR/ChangeSet和真实文本模型质量。现有ComfyUI图像连接保持；未配置的真实文本供应方不能以协议夹具替代。完整T1.3与阶段1未完成；编辑器验收、法务签核、设计伙伴确认依用户安排后补。
 - 远端`e5ba0cd`在新增script PG步骤发现测试初始化顺序依赖：权限探针引用的认证表尚未安装，实际42P01而非预期42501。测试改为显式安装durable/预算/access/development迁移，保持42501断言；access仅测试依赖。随后新建独立随机空库完整252项及覆盖99.62/98.78/100/100%通过，结束清理该自有空库。日志`%TEMP%/camery-development-fresh-db-final.log` SHA-256 `88baacd7c72362a4cd46fb8edb128cf49cd74f639c29c1f1b3e863898121ca43`；最终远端CI以修复提交实际Actions为准。
+
+### T1.3 认证原创工作台与常驻宿主（2026-11-17）
+
+- 创意保存/恢复/修订、两阶段开始/读取/编辑确认/拒绝及整体新run重做，经同源认证API与可编辑工作台接入；固定两阶段模型/预算，仅受信宿主读取文件密钥。无文本配置时仍可保存/恢复，模型调用不由GET/刷新触发。独立数据/任务连接池、默认关闭开关、同镜像worker和两层Compose已交付，详见[实施与完整证据](original-development-phase1.md)和[部署说明](../../deploy/development.md)。
+- 最终`pnpm check`退出0：2632=20工具+2612普通，558文件策略零问题、lint、13包类型（11缓存/2实际）、13包覆盖率全部实际执行，6方法golden/10 Agent基线匹配。script247项覆盖99.23/98.10/100/100%，server156项98.96/95.84/100/100%，web103项99.72/100/100/100%。
+- script真实PG263项、server真实PG171项及覆盖门槛通过（分别包含普通247/156，不重复累加）。最终镜像下原创开发容器1项通过：独立三类角色、实际HTTP合成夹具两调用、人工上游传递、待审阅SIGKILL/重启、预算200tokens、无关任务/日志脱敏。原API两档2项和章节worker1项兼容通过。容器强杀窗口与核心PG的decision提交后窗口分别记录，不扩大证明范围。
+- 真实Chromium12项（3轮完整+9边界）通过，桌面/320px截图与4 traces已检查；网络丢ack沿用原ID、草稿跨tab保留、会话/项目迟到隔离、未访问页零后台请求、过期/unknown、字段/引用/字节闸门均有实际交互。所有context零JS pageerror；核心旅程零非注入console error。浏览器采用现有Playwright回退（agent-browser CLI缺失），无新下载；内存协议层与PG/镜像各自独立作证。
+- 整仓日志SHA-256 `9a44c5d4c867b3aea2386ded7037bcf48b4da17f2d51878f3e5856f5926db9e1`；最终容器日志 `8efe44c9497ae8860eee6f184af1c8665a3087d8b23fb07320e2c404f321025c`；浏览器result.json `f3ca8ab8e34517aac7a36e73df6f8066529c0998e8491c965a896646ca83853c`。远端CI以最终提交实际Actions为准。
+- 阶段1继续：当前重做为整体新run，逐阶段单独重做/下游影响、完整开发IR与ChangeSet正式采用仍未完成；真实文本模型质量及人工评分待实际配置。Resolve验收、法务签核、设计伙伴确认依用户安排后补。本批未改ComfyUI图像接线，未宣称完整T1.3或阶段1完成。

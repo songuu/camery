@@ -1,6 +1,6 @@
 # @camery/script · 原创开发核心
 
-实现v2.1 T1.3的两阶段候选契约：创意brief→世界观/人物/主线foundation→用户显式编辑审阅→分集episodes。领域与方法层及逐阶段PostgreSQL持久化、预算恢复已落地；常驻宿主、认证API、工作台和正式开发IR采用仍按[完整计划](../../docs/plan/original-development-phase1.md)继续。不能据库级测试判定完整T1.3或阶段1已完成。
+实现v2.1 T1.3的两阶段候选契约：创意brief→世界观/人物/主线foundation→用户显式编辑审阅→分集episodes。领域/方法、逐阶段PostgreSQL持久化、预算恢复、认证API、可编辑工作台和配置型常驻宿主已接入；正式开发IR采用与真实模型质量仍按[完整计划](../../docs/plan/original-development-phase1.md)继续。不能据库级测试判定完整T1.3或阶段1已完成。
 
 | API | 行为 |
 |---|---|
@@ -17,6 +17,8 @@
 | `validateReviewedFoundation` / `validateReviewedEpisodes` | 审计完整性重放，**不做认证**，不证明被引用candidate存在。应用必须从可信存储读取审核并核对原始候选身份，不能接受客户端自报批准 |
 
 `@camery/script/contracts`仅含Zod和擦除后的类型导入，可供后续浏览器契约复用；包根使用Node摘要能力，不导入浏览器。
+
+`@camery/script/http`提供浏览器安全白名单契约与完整逻辑JSON边界。node公开投影隐藏执行配置、原始模型回执、provider/driver错误；保存创意目录每页20个最新修订，可恢复尚未开始运行的创意。已有run状态先读取原Task，再读取追加审计，避免并发确认混合旧上游和新分集任务。HTTP项目权限、宿主配置和两层Compose见[部署说明](../../deploy/development.md)。
 
 创意最多2000 UTF-16单元；集数1–100、规划时长1–3600秒/集。应用默认10集的选择属于宿主，核心要求明确输入。完整brief逻辑JSON≤8KiB（包含version/digest），foundation≤32KiB、episodes≤64KiB，候选/审阅封套≤256KiB。数量上限不保证所有字段同时达上限仍符合总预算；超限明确拒绝，不截断。数据在Zod复制前经过描述符快照和逐字节计费，拒绝getter、循环、稀疏数组及任意原型。
 

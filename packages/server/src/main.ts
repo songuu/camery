@@ -11,15 +11,21 @@ import { verifyBibleTaskRuntimeRole } from './bible-task-role.js';
 import type { BibleApiOptions } from './bible-options.js';
 import { loadApplicationFeatures } from './features.js';
 import { PostgresDocumentStore, PostgresScriptStore, verifyIngestRuntimeRole } from '@camery/ingest/node';
+import { PostgresDevelopmentStore,PostgresDevelopmentCatalog,PostgresDevelopmentBriefCatalog,verifyDevelopmentRuntimeRole } from '@camery/script/node';
+import { readDevelopmentConfig } from './development-config.js';
+import { createDevelopmentModelRuntime } from './development-runtime.js';
+import { verifyDevelopmentTaskRuntimeRole } from './development-task-role.js';
+import type { DevelopmentApiOptions } from './development-options.js';
 
 // Migration and token issuance require a separate trusted installation identity.
 let pool: Pool | undefined;
 let biblePool:Pool|undefined;let taskPool:Pool|undefined;
+let developmentPool:Pool|undefined;let developmentTaskPool:Pool|undefined;
 let app: Awaited<ReturnType<typeof createApplication>> | undefined;
-const close=()=>releaseResources([()=>app?.close(),()=>pool?.end(),()=>biblePool?.end(),()=>taskPool?.end()]);
+const close=()=>releaseResources([()=>app?.close(),()=>pool?.end(),()=>biblePool?.end(),()=>taskPool?.end(),()=>developmentPool?.end(),()=>developmentTaskPool?.end()]);
 try {
   const features = loadApplicationFeatures(process.env);
-  const [config,bibleConfig] = await Promise.all([readRuntimeConfig(process.env),readBibleConfig(process.env)]);
+  const [config,bibleConfig,developmentConfig] = await Promise.all([readRuntimeConfig(process.env),readBibleConfig(process.env),readDevelopmentConfig(process.env)]);
   pool = new Pool({ connectionString: config.databaseUrl, max: 4, connectionTimeoutMillis: 5000, query_timeout: 5000 });
   pool.on('error', () => { console.error('API database connection unavailable'); });
   await verifyRuntimeRole(pool);
@@ -34,9 +40,20 @@ try {
     await verifyBibleRuntimeRole(biblePool);await verifyBibleTaskRuntimeRole(taskPool);
     bibles={store:new PostgresBibleStore(biblePool),catalog:new PostgresBibleCatalog(biblePool),tasks:new PostgresDurableStore(taskPool),presetFor:createBibleModelRuntime(bibleConfig).presetFor};
   }
+  let development:DevelopmentApiOptions|undefined;
+  if(developmentConfig){
+    if(developmentConfig.tenantId!==config.tenantId)throw new Error('Development tenant mismatch');
+    developmentPool=new Pool({connectionString:developmentConfig.developmentDatabaseUrl,max:4,connectionTimeoutMillis:5000,query_timeout:5000});
+    developmentTaskPool=new Pool({connectionString:developmentConfig.taskDatabaseUrl,max:4,connectionTimeoutMillis:5000,query_timeout:5000});
+    developmentPool.on('error',()=>console.error('Development storage connection unavailable'));
+    developmentTaskPool.on('error',()=>console.error('Development task connection unavailable'));
+    await verifyDevelopmentRuntimeRole(developmentPool);await verifyDevelopmentTaskRuntimeRole(developmentTaskPool);
+    development={store:new PostgresDevelopmentStore(developmentPool),catalog:new PostgresDevelopmentCatalog(developmentPool),briefs:new PostgresDevelopmentBriefCatalog(developmentPool),tasks:new PostgresDurableStore(developmentTaskPool),presetFor:createDevelopmentModelRuntime(developmentConfig).presetFor};
+  }
   app = await createApplication({ tenantId: config.tenantId, store: new PostgresSessionStore(pool),
     ...(features.sourceImports ? { sources: { novels: new PostgresDocumentStore(pool), scripts: new PostgresScriptStore(pool) } } : {}),
     ...(bibles?{bibles}:{}),
+    ...(development?{development}:{}),
     ...(features.frontendDirectory === undefined ? {} : { frontendDirectory: features.frontendDirectory }) });
   await app.listen(config.port, config.host);
   let stopping = false;

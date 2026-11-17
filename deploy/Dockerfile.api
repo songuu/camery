@@ -7,6 +7,7 @@ RUN npm install --global pnpm@12.3.4 --ignore-scripts --no-audit --no-fund
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/access/package.json ./packages/access/package.json
 COPY packages/bible/package.json ./packages/bible/package.json
+COPY packages/script/package.json ./packages/script/package.json
 COPY packages/agents/package.json ./packages/agents/package.json
 COPY packages/durable/package.json ./packages/durable/package.json
 COPY packages/methods/package.json ./packages/methods/package.json
@@ -21,6 +22,8 @@ COPY packages/access/tsconfig.json ./packages/access/tsconfig.json
 COPY packages/access/src ./packages/access/src
 COPY packages/bible/tsconfig.json ./packages/bible/tsconfig.json
 COPY packages/bible/src ./packages/bible/src
+COPY packages/script/tsconfig.json ./packages/script/tsconfig.json
+COPY packages/script/src ./packages/script/src
 COPY packages/agents/tsconfig.json ./packages/agents/tsconfig.json
 COPY packages/agents/src ./packages/agents/src
 COPY packages/durable/tsconfig.json ./packages/durable/tsconfig.json
@@ -56,6 +59,7 @@ COPY --from=build --chown=node:node /runtime/package.json ./package.json
 COPY --from=build --chown=node:node /workspace/packages/server/dist/main.mjs ./main.mjs
 COPY --from=build --chown=node:node /workspace/packages/server/dist/worker.mjs ./worker.mjs
 COPY --from=build --chown=node:node /workspace/packages/server/dist/bible-worker.mjs ./bible-worker.mjs
+COPY --from=build --chown=node:node /workspace/packages/server/dist/development-worker.mjs ./development-worker.mjs
 COPY --from=build --chown=node:node /workspace/packages/server/dist/content ./content
 COPY --from=build --chown=node:node /workspace/packages/web/dist ./public
 USER node

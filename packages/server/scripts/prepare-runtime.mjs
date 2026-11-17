@@ -121,7 +121,7 @@ export async function prepareRuntime(directory) {
   }
   await writeFile(manifestPath, `${JSON.stringify({
     name: manifest.name, version: manifest.version, private: true, type: 'module',
-    scripts: { start: 'node main.mjs', 'start:worker': 'node worker.mjs','start:bible-worker':'node bible-worker.mjs' },
+    scripts: { start: 'node main.mjs', 'start:worker': 'node worker.mjs','start:bible-worker':'node bible-worker.mjs','start:development-worker':'node development-worker.mjs' },
     dependencies: Object.fromEntries([...external].map(([name, value]) => [name, manifest.dependencies?.[name] ?? value.manifest.version])),
   }, null, 2)}\n`);
 }

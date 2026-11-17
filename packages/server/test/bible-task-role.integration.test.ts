@@ -90,6 +90,8 @@ it('rejects missing or expanded capabilities, outside-schema grants, role member
       [`GRANT CREATE ON SCHEMA ${schema} TO ${f.role}`, `REVOKE CREATE ON SCHEMA ${schema} FROM ${f.role}`],
       [`GRANT ${member} TO ${f.role} WITH INHERIT FALSE, SET TRUE`, `REVOKE ${member} FROM ${f.role}`],
       [`ALTER ROLE ${f.role} INHERIT`, `ALTER ROLE ${f.role} NOINHERIT`],
+      [`ALTER ROLE ${f.role} REPLICATION`, `ALTER ROLE ${f.role} NOREPLICATION`],
+      [`GRANT USAGE ON SCHEMA camery_durable TO ${f.role} WITH GRANT OPTION`, `REVOKE GRANT OPTION FOR USAGE ON SCHEMA camery_durable FROM ${f.role}`],
       [`REVOKE SELECT ON camery_durable.tasks FROM ${f.role}`, `GRANT SELECT ON camery_durable.tasks TO ${f.role}`],
       [`REVOKE UPDATE(project_id) ON camery_agents.budget_projects FROM ${f.role}`, `GRANT UPDATE(project_id) ON camery_agents.budget_projects TO ${f.role}`],
     ];

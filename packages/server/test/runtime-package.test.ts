@@ -18,7 +18,7 @@ it('removes bundled workspace sources and development metadata from the portable
     await writeFile(path.join(root, 'node_modules/pg/package.json'), JSON.stringify({ name: 'pg', version: '8.23.1' }));
     await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: '@camery/server', version: '0.1.0', type: 'module', dependencies: { '@camery/access': 'workspace:*', pg: '^8.23.1' }, devDependencies: { tsx: '*' }, scripts: { start: 'tsx src/main.ts' } }));
     await prepareRuntime(root);
-    expect(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))).toEqual({ name: '@camery/server', version: '0.1.0', private: true, type: 'module', scripts: { start: 'node main.mjs', 'start:worker': 'node worker.mjs','start:bible-worker':'node bible-worker.mjs' }, dependencies: { pg: '^8.23.1' } });
+    expect(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))).toEqual({ name: '@camery/server', version: '0.1.0', private: true, type: 'module', scripts: { start: 'node main.mjs', 'start:worker': 'node worker.mjs','start:bible-worker':'node bible-worker.mjs','start:development-worker':'node development-worker.mjs' }, dependencies: { pg: '^8.23.1' } });
     await expect(access(internal)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(access(link)).rejects.toMatchObject({ code: 'ENOENT' });
     expect(await readFile(path.join(root, 'node_modules/pg/index.js'), 'utf8')).toContain('external production');

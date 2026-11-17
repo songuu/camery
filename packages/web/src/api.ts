@@ -4,6 +4,8 @@ import type { SourceKind } from '@camery/ingest/contracts';
 import type { UploadFormat } from './view-types.js';
 import { BibleCapabilitiesSchema, BibleRunListSchema, BibleStatusSchema, BibleRunViewSchema, BibleStartSchema, BibleConfirmSchema, BibleRejectSchema, boundedBibleSchema } from '@camery/bible/http';
 import type { BibleStart, BibleConfirm } from '@camery/bible/http';
+import {DevelopmentCapabilitiesSchema,DevelopmentBriefListSchema,DevelopmentBriefViewSchema,DevelopmentBriefWriteSchema,DevelopmentRunListSchema,DevelopmentStatusSchema,DevelopmentRunViewSchema,DevelopmentStartSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema,boundedDevelopmentSchema} from '@camery/script/http';
+import type {DevelopmentBriefWrite,DevelopmentStart,DevelopmentFoundationConfirm,DevelopmentEpisodesConfirm} from '@camery/script/http';
 const Id = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
 const Me = z.strictObject({ tenantId: Id, userId: Id, grants: z.array(z.strictObject({ projectId: Id, role: z.string().min(1).max(32) })).max(10000) });
 export type Identity = z.infer<typeof Me>;
@@ -77,5 +79,29 @@ export class ApiClient {
   bibleReject(projectId:string,runId:string,reason:string){
     const parsed=BibleRejectSchema.safeParse({reason});if(!parsed.success)throw new ApiError('INVALID_REQUEST');
     return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}/reject`,boundedBibleSchema(BibleRunViewSchema),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  developmentCapabilities(projectId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/capabilities`,DevelopmentCapabilitiesSchema,signal?{signal}:{});}
+  developmentBriefList(projectId:string,cursor?:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/briefs${cursor===undefined?'':`?cursor=${encodeURIComponent(cursor)}`}`,boundedDevelopmentSchema(DevelopmentBriefListSchema),signal?{signal}:{});}
+  developmentList(projectId:string,cursor?:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development${cursor===undefined?'':`?cursor=${encodeURIComponent(cursor)}`}`,boundedDevelopmentSchema(DevelopmentRunListSchema),signal?{signal}:{});}
+  developmentBrief(projectId:string,briefId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/briefs/${id(briefId)}`,boundedDevelopmentSchema(DevelopmentBriefViewSchema.refine(value=>value.brief.briefId===briefId)),signal?{signal}:{});}
+  developmentPutBrief(projectId:string,command:DevelopmentBriefWrite){
+    const parsed=boundedDevelopmentSchema(DevelopmentBriefWriteSchema).safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/development/briefs`,boundedDevelopmentSchema(DevelopmentBriefViewSchema.refine(value=>value.brief.briefId===parsed.data.briefId&&value.brief.revision===parsed.data.expectedRevision+1)),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  developmentStart(projectId:string,command:DevelopmentStart){
+    const parsed=DevelopmentStartSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/development`,DevelopmentStatusSchema.refine(value=>value.runId===parsed.data.runId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  developmentRead(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/${id(runId)}`,boundedDevelopmentSchema(DevelopmentRunViewSchema.refine(value=>value.runId===runId)),signal?{signal}:{});}
+  developmentStatus(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/${id(runId)}/status`,DevelopmentStatusSchema.refine(value=>value.runId===runId),signal?{signal}:{});}
+  developmentConfirm(projectId:string,runId:string,stage:'foundation'|'episodes',decision:DevelopmentFoundationConfirm|DevelopmentEpisodesConfirm){
+    if(stage!=='foundation'&&stage!=='episodes')throw new ApiError('INVALID_REQUEST');
+    const parsed=stage==='foundation'?boundedDevelopmentSchema(DevelopmentFoundationConfirmSchema).safeParse(decision):boundedDevelopmentSchema(DevelopmentEpisodesConfirmSchema).safeParse(decision);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/development/${id(runId)}/${stage}/confirm`,boundedDevelopmentSchema(DevelopmentRunViewSchema.refine(value=>value.runId===runId)),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  developmentReject(projectId:string,runId:string,stage:'foundation'|'episodes',reason:string){
+    if(stage!=='foundation'&&stage!=='episodes')throw new ApiError('INVALID_REQUEST');
+    const parsed=DevelopmentRejectSchema.safeParse({reason});if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/development/${id(runId)}/${stage}/reject`,boundedDevelopmentSchema(DevelopmentRunViewSchema.refine(value=>value.runId===runId)),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
   }
 }

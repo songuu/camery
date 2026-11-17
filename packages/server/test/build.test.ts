@@ -14,7 +14,7 @@ it('builds native API/worker entrypoints with pinned data, no internal package i
   const directory = await mkdtemp(path.join(distribution, 'camery-server-build-'));
   try {
     const result = await buildServer(directory);
-    const outputs = await Promise.all(['main.mjs', 'worker.mjs','bible-worker.mjs'].map(name => readFile(path.join(directory, name), 'utf8')));
+    const outputs = await Promise.all(['main.mjs', 'worker.mjs','bible-worker.mjs','development-worker.mjs'].map(name => readFile(path.join(directory, name), 'utf8')));
     const externalImports = Object.values(result.metafile.outputs).flatMap(file => file.imports.filter(item => item.external).map(item => item.path));
     expect(externalImports.some(item => item.startsWith('@camery/'))).toBe(false);
     for (const output of outputs) expect(output).not.toContain('sourceMappingURL');
@@ -29,7 +29,7 @@ it('builds native API/worker entrypoints with pinned data, no internal package i
       'method-packs/chapter-segmentation/pack.yaml', 'method-packs/chapter-segmentation/rules/quality.json',
     ]);
     // Resolution remains at the server package: output needs only production packages, never tsx.
-    const executions = await Promise.all(['main.mjs', 'worker.mjs','bible-worker.mjs'].map(entry => new Promise<{ entry: string; code: number | null; output: string; killed: boolean }>((resolve, reject) => {
+    const executions = await Promise.all(['main.mjs', 'worker.mjs','bible-worker.mjs','development-worker.mjs'].map(entry => new Promise<{ entry: string; code: number | null; output: string; killed: boolean }>((resolve, reject) => {
       const child = spawn(process.execPath, [path.join(directory, entry)], {
         cwd: path.resolve(import.meta.dirname, '..'),
         env: { ...process.env, CAMERY_TENANT_ID: '', CAMERY_DATABASE_URL: '', CAMERY_DATABASE_URL_FILE: '' },
@@ -42,7 +42,7 @@ it('builds native API/worker entrypoints with pinned data, no internal package i
     const harnessKeys = Object.keys(process.env).filter(key => key.startsWith('VITEST') || ['NODE_OPTIONS', 'NODE_V8_COVERAGE', 'NODE_CHANNEL_FD', 'NODE_UNIQUE_ID'].includes(key));
     for (const execution of executions) {
       expect(execution, JSON.stringify({ harnessKeys })).toMatchObject({ code: 1, killed: false });
-      expect(execution.output).toContain(execution.entry === 'main.mjs' ? 'API startup failed' :execution.entry==='bible-worker.mjs'?'Bible worker unavailable': 'Worker startup failed');
+      expect(execution.output).toContain(execution.entry === 'main.mjs' ? 'API startup failed' :execution.entry==='bible-worker.mjs'?'Bible worker unavailable':execution.entry==='development-worker.mjs'?'Development worker unavailable': 'Worker startup failed');
       expect(execution.output).not.toMatch(/Cannot find|ERR_MODULE|\.ts:/);
     }
   } finally {

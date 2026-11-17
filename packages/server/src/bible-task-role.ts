@@ -2,7 +2,7 @@ import type { Pool } from 'pg';
 import { AccessError } from '@camery/access';
 
 interface Permission { readonly table: string; readonly read: boolean; readonly insert: boolean; readonly updates: readonly string[] }
-// Bible execution only: no collaboration trees, source rows, authentication, installation or settlement.
+// Shared text-stage execution only: no collaboration trees, source rows, authentication, installation or settlement.
 const permissions: readonly Permission[] = [
   { table: 'camery_durable.tasks', read: true, insert: true, updates: ['status', 'attempts', 'fence', 'owner', 'lease_until', 'available_at', 'failure_count', 'error', 'updated_at', 'output'] },
   { table: 'camery_durable.steps', read: true, insert: true, updates: ['status', 'error', 'output', 'updated_at'] },
@@ -48,12 +48,12 @@ export async function grantBibleTaskRuntimeRole(pool: Pool, role: string): Promi
 export async function verifyBibleTaskRuntimeRole(pool: Pool): Promise<void> {
   try {
     const identity = await pool.query<{ allowed: boolean }>(`
-      SELECT r.rolcanlogin AND NOT r.rolsuper AND NOT r.rolbypassrls AND NOT r.rolcreaterole AND NOT r.rolcreatedb AND NOT r.rolinherit
+      SELECT r.rolcanlogin AND NOT r.rolsuper AND NOT r.rolbypassrls AND NOT r.rolcreaterole AND NOT r.rolcreatedb AND NOT r.rolinherit AND NOT r.rolreplication
         AND session_user=current_user
         AND NOT EXISTS (SELECT 1 FROM pg_roles other_role WHERE other_role.oid<>r.oid AND pg_has_role(current_user,other_role.oid,'MEMBER'))
         AND NOT has_database_privilege(current_database(),'CREATE')
         AND NOT EXISTS (SELECT 1 FROM pg_namespace n WHERE ${userSchema}
-          AND (has_schema_privilege(n.oid,'CREATE') OR n.nspowner=r.oid))
+          AND (has_schema_privilege(n.oid,'CREATE') OR has_schema_privilege(n.oid,'USAGE WITH GRANT OPTION') OR n.nspowner=r.oid))
         AND has_schema_privilege('camery_durable','USAGE') AND has_schema_privilege('camery_agents','USAGE') AS allowed
       FROM pg_roles r WHERE r.rolname=current_user`);
     if (identity.rows[0]?.allowed !== true) throw new AccessError('FORBIDDEN');

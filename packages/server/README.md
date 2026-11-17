@@ -1,5 +1,25 @@
 # NestJS / Fastify 认证 API 骨架
 
+## T1.3 原创开发应用
+
+`CAMERY_DEVELOPMENT_ENABLED=1`显式开启原创开发，默认关闭。它与认证身份使用独立数据/任务连接池，启动只校验角色，不安装schema或授予能力。可信配置与同镜像`development-worker.mjs`宿主见[部署说明](../../deploy/development.md)。没有文本模型时仍能保存与恢复创意、查看和审阅历史候选；不能开始新生成。
+
+统一前缀`/api/v1/projects/:projectId/development`：
+
+| 路由 | 权限 / 行为 |
+|---|---|
+| `GET /capabilities`、`GET /` | `project:read`；配置可用性及运行目录 |
+| `GET /briefs`、`GET /briefs/:briefId?revision=...` | `project:read`；有界最新创意目录及明确历史/最新快照 |
+| `POST /briefs` | `task:run`；按expectedRevision追加创意，principal提供tenant/actor，不调用模型 |
+| `POST /` | `task:run`；固定宿主方法/模型/两份预算，使用新runId重做；队列仅传引用 |
+| `GET /:runId`、`GET /:runId/status` | `project:read`；只读已存阶段及原Task状态，不入队；不回传回执/执行配置/内部错误 |
+| `POST /:runId/:stage/confirm` | `candidate:review`；逐阶段保存原候选对应的人工编辑审计；设定确认解锁同一已授权两阶段计划的分集生成 |
+| `POST /:runId/:stage/reject` | `candidate:review`；明确拒绝原因，不覆盖首次审阅、不自动重发 |
+
+`stage`仅foundation/episodes；确认请求只含candidateDigest与严格阶段output，512KiB wire上限外仍受领域32/64KiB逻辑JSON限制。普通路由保持16KiB。body不能自报tenant、作者、授权、模型URL/密钥或method pin。首次确认由存储事务检查最新brief；同语义重试重新授权后返回原审计，历史付费结果可读。unknown等待受信operator对账。
+
+`pnpm test:private-development:local`用构建后的同一API/worker镜像、三种受限LOGIN和独立HTTP协议夹具验证配置、逐阶段调用/编辑、强杀后恢复、预算、会话撤销和日志脱敏。夹具发生实际HTTP请求，但没有真实文本模型推理/费用，不证明剧情质量或人工评分。阶段审阅也不等于正式IR采用。
+
 ## T1.1 来源服务与工作台
 
 同一应用镜像现在包含[来源工作台](../web/README.md)静态资源。来源API以`CAMERY_SOURCE_IMPORTS=1`显式开启；默认0保留阶段0认证运行方式。静态目录由受信配置`CAMERY_FRONTEND_DIRECTORY`指定（镜像内固定`/app/public`），没有前端跨域或代理身份信任。

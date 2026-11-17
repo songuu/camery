@@ -424,6 +424,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@camery/script':
+        specifier: workspace:*
+        version: link:../script
       '@camery/access':
         specifier: workspace:*
         version: link:../access
@@ -543,6 +546,9 @@ importers:
 
   packages/web:
     dependencies:
+      '@camery/script':
+        specifier: workspace:*
+        version: link:../script
       '@camery/bible':
         specifier: workspace:*
         version: link:../bible

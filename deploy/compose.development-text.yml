@@ -1,0 +1,47 @@
+# Add only after installing the trusted text profile/token, project budget and two restricted runtime identities.
+services:
+  api:
+    environment:
+      CAMERY_DEVELOPMENT_TEXT_CONFIG_FILE: /run/secrets/development_text_config
+      CAMERY_DEVELOPMENT_TEXT_TOKEN_FILE: /run/secrets/development_text_token
+    secrets:
+      - development_text_config
+      - development_text_token
+  development-worker:
+    image: camery-api:phase0
+    command: [node, development-worker.mjs]
+    restart: on-failure:3
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 1g
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    environment:
+      CAMERY_TENANT_ID: ${CAMERY_TENANT_ID:?Set the deployment tenant}
+      CAMERY_DEVELOPMENT_ENABLED: '1'
+      CAMERY_DEVELOPMENT_PROJECT_ID: ${CAMERY_DEVELOPMENT_PROJECT_ID:?Set the authorized development project}
+      CAMERY_DEVELOPMENT_DATABASE_URL_FILE: /run/secrets/development_database_url
+      CAMERY_DEVELOPMENT_TASK_DATABASE_URL_FILE: /run/secrets/development_task_database_url
+      CAMERY_DEVELOPMENT_TEXT_CONFIG_FILE: /run/secrets/development_text_config
+      CAMERY_DEVELOPMENT_TEXT_TOKEN_FILE: /run/secrets/development_text_token
+      CAMERY_DEVELOPMENT_WORKER_ID: ${CAMERY_DEVELOPMENT_WORKER_ID:-development-worker}
+      CAMERY_DEVELOPMENT_POLL_MS: ${CAMERY_DEVELOPMENT_POLL_MS:-1000}
+      CAMERY_DEVELOPMENT_RUNS_PER_ROUND: ${CAMERY_DEVELOPMENT_RUNS_PER_ROUND:-20}
+    secrets:
+      - development_database_url
+      - development_task_database_url
+      - development_text_config
+      - development_text_token
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Maximum model request 280s plus a bounded task tail; pools close only after the active attempt ends.
+    stop_grace_period: 330s
+secrets:
+  development_text_config:
+    file: ${CAMERY_DEVELOPMENT_TEXT_CONFIG_SECRET_FILE:?Set the trusted development text configuration file}
+  development_text_token:
+    file: ${CAMERY_DEVELOPMENT_TEXT_TOKEN_SECRET_FILE:?Set the development text API token secret file}

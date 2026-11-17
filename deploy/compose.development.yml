@@ -1,0 +1,17 @@
+# Add to compose.private.yml + compose.api.yml after explicit development/task role installation.
+# This overlay permits saving briefs and reading/reviewing existing runs without a configured text model.
+services:
+  api:
+    environment:
+      CAMERY_DEVELOPMENT_ENABLED: '1'
+      CAMERY_DEVELOPMENT_PROJECT_ID: ${CAMERY_DEVELOPMENT_PROJECT_ID:?Set the authorized development project}
+      CAMERY_DEVELOPMENT_DATABASE_URL_FILE: /run/secrets/development_database_url
+      CAMERY_DEVELOPMENT_TASK_DATABASE_URL_FILE: /run/secrets/development_task_database_url
+    secrets:
+      - development_database_url
+      - development_task_database_url
+secrets:
+  development_database_url:
+    file: ${CAMERY_DEVELOPMENT_DATABASE_SECRET_FILE:?Set the restricted development URL secret file}
+  development_task_database_url:
+    file: ${CAMERY_DEVELOPMENT_TASK_DATABASE_SECRET_FILE:?Set the restricted task URL secret file}

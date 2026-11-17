@@ -71,7 +71,7 @@ export async function buildServer(outputDirectory = path.join(packageRoot, 'dist
   outputDirectory = path.resolve(outputDirectory);
   const result = await build({
     absWorkingDir: packageRoot,
-    entryPoints: { main: path.join(packageRoot, 'src/main.ts'), worker: path.join(packageRoot, 'src/worker-main.ts'), 'bible-worker':path.join(packageRoot,'src/bible-worker-main.ts') }, outdir: outputDirectory,
+    entryPoints: { main: path.join(packageRoot, 'src/main.ts'), worker: path.join(packageRoot, 'src/worker-main.ts'), 'bible-worker':path.join(packageRoot,'src/bible-worker-main.ts'),'development-worker':path.join(packageRoot,'src/development-worker-main.ts') }, outdir: outputDirectory,
     outExtension: { '.js': '.mjs' },
     tsconfig: path.join(packageRoot, 'tsconfig.json'),
     bundle: true, platform: 'node', format: 'esm', target: 'node22.15',
