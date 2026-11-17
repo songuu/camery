@@ -13,6 +13,14 @@ export interface PersistedAdoptOptions extends Omit<AdoptOptions, 'authorize'> {
 }
 /** Host-only validation inside the owned transaction: acquire/read, never commit/release or open a second transaction. Safe ADOPTION_SOURCE_* refusals permit one historical-adoption lookup after rollback, never a fresh adoption retry. */
 export type VersionAdoptionGuard = (client: PoolClient) => Promise<void>;
+type VersionTransactionEnvelope = Readonly<{ project: Readonly<VersionProjectKey>; expectation?: Readonly<VersionWriteExpectation> }>;
+export type VersionTransactionContext = VersionTransactionEnvelope & (
+  | Readonly<{ operation: 'submit'; requestSignature: string }>
+  | Readonly<{ operation: 'adopt'; changeId: string; actor: Readonly<Principal>; scope: Readonly<AdoptionScope>; at: string; replayed: boolean }>
+  | Readonly<{ operation: 'reject'; changeId: string; actor: Readonly<Principal>; scope: Readonly<AdoptionScope>; at: string; reason: string }>
+);
+/** Trusted host receipt persistence on the same owned transaction, after formal writes and before COMMIT. Context is built from captured execution authority, never caller-supplied JSON. */
+export type VersionTransactionReceipt = (client: PoolClient, result: Readonly<PersistedChangeResult>, context: VersionTransactionContext) => Promise<void>;
 export class VersionPersistenceError extends Error {
   override readonly name = 'VersionPersistenceError';
   constructor(readonly code: string, readonly operation: string, readonly projectId: string, readonly databaseCode?: string) {

@@ -16,6 +16,14 @@
 
 `grantProjectIdentityReaderRole` 是显式安装者操作。独立 reader LOGIN 仅有三张绑定表 SELECT；`verifyProjectIdentityReaderRole` 在运行前验证权限闭包，拒绝写表、列级越权、其他业务表、所有权、角色继承、复制和转授权等能力。此 reader 不代替后续来源/版本采用的独立权限配置。
 
+## 候选意图与事务回执
+
+`PostgresProjectIntents` 追加保存候选和决定意图，以及准备/决定回执。候选意图固定普通作用域、真实映射作者、来源 manifest、局部身份、双版本基线和完整 ChangeSet。同一命令竞争复用首份身份；不同语义冲突。无差异开发结果保存 unchanged 及原基线含义，不创建空 ChangeSet。
+
+采用/拒绝意图先保存实际主体、动作、范围、理由与首次时点。`preparationReceiptWriter` / `decisionReceiptWriter` 只能借用版本服务提供的事务 client；不自建事务或提交。它们核对 VersionStore 的真实执行上下文，包括二元项目 key、原 CAS、请求签名/changeId、实际 actor/scope/at/reason。首次决定必须与实际历史记录一致，历史采用 ACK 保留原采用事实。
+
+决定回执首写后，后续不同结果不得在同一 intent 下提交新的正式决定；冲突会回滚本次版本和回执写入。每次请求仍须先重新鉴权，再读已有回执；存储 JSON、摘要和旧回执均不是新的授权。候选的原准备基线回执与决定回执具有不同语义，不能互换。
+
 ## 当前交付边界
 
-本批提供持久映射及最小只读身份，尚未启用新 HTTP、配置开关或自动注册流程。后续共享 CandidateApplication、原创开发 application intent 与来源局部对象映射继续消费此目录；不能另建一套普通项目/主体映射。迁移与运行分离，回滚应用时保留追加绑定和版本历史。
+本批提供持久映射、完整开发映射的跨库组件组合及共享 intent/receipt 基础，尚未启用新 HTTP、配置开关或自动注册流程。后续共享 CandidateApplication、独立采用 LOGIN 与认证工作台继续消费这些组件；不能另建一套普通项目/主体映射。迁移与运行分离，回滚应用时保留追加绑定和版本历史。

@@ -41,6 +41,10 @@ const result = await store.adopt(key, request.id, {
 
 示例中的 `key`、基线、request、分配器和权限函数是宿主依赖，不是可直接执行的完整应用。库不会创建或关闭调用方的 Pool。根入口 `@camery/versioning` 保持纯域，不引入 Node/数据库执行。
 
+需要与宿主回执原子提交时，使用`submitWithReceipt(key,request,options,receipt)`、`rejectWithReceipt(key,changeId,options,reason,receipt)`，或`adoptGuarded(key,changeId,options,guard,receipt)`。`VersionTransactionReceipt`接收拥有当前事务的`PoolClient`、实际`PersistedChangeResult`及存储构造的冻结`VersionTransactionContext`；事务采用READ COMMITTED，在原engine/历史/快照写入后执行回执，再COMMIT。所有context带实际捕获的`project={tenantId,projectId}`及原始可选expectation；无expectation时省略该字段，历史恢复也不替换成当前head。submit带真实请求的`requestSignature`；adopt/reject带实际执行的`changeId`，人工决定固定真实actor/scope/at，拒绝保留实际reason。采用replayed只依据项目行锁内engine执行前的候选状态，历史重放不会冒称本请求新增采用。宿主必须用完整context核对其先存意图，包括二元目标、CAS、请求/变更身份及人工决定；不能用result里恰好存在的另一候选或无法记录的旧拒绝scope代替执行证据。回调必须使用传入连接，不得另开事务、提交、释放或修改结果。它会收到真实领域拒绝结果，不能只按回调被调用就生成成功回执。
+
+回执回调失败、连接终止或CAS失败均不能部分提交；前两者没有自动重试。COMMIT响应丢失时，调用方用提前持久化的请求意图及同事务回执证明恢复，不能从相似拒绝记录猜测原scope。精确提交/已采用重试仍复用原权威，采用照常重新授权；只有来源guard内明确的`ADOPTION_SOURCE_*`拒绝允许既有的一次历史采用查找，回执错误即使使用相同错误码也不触发该路径。未传回执的旧方法不写宿主回执，版本域不安装或授予宿主回执表权限。
+
 | 方法 | 行为 |
 |---|---|
 | `initialize(key, adoptedSnapshot)` | 仅初始化匹配 projectId 的合法已采用基线；相同基线幂等，其他基线或 package 身份复用拒绝；不会重置已有 head |
@@ -70,7 +74,7 @@ const result = await store.adopt(key, request.id, {
 - 输入、key 和授权元数据在等待数据库前捕获；授权函数拿到冻结的实际租户/项目及主体/范围。候选拆并生成的 ID 在采用时复用，不在重试时重新抽取另一批身份。
 - 迁移显式执行，以事务级 advisory lock、版本和 checksum 管理；应用过的迁移被修改或出现未知版本时拒绝。SQL 迁移由仓库 LF 规则保护跨平台 checksum。
 
-数据库异常只暴露操作、项目和安全 SQLSTATE，不附带 Drizzle 的查询参数；领域错误保留原错误码。读取会验证正式快照结构与身份；历史表是受信数据库内容，当前不是数据库管理员篡改或介质损坏的完整取证恢复器。
+数据库异常只暴露操作、项目和安全 SQLSTATE，不附带 Drizzle 的查询参数；未知异常的cause/code仅检查自有data descriptor，getter不执行、proxy异常脱敏，合法SQLSTATE必须精确5位。领域错误保留原错误码。读取会验证正式快照结构与身份；历史表是受信数据库内容，当前不是数据库管理员篡改或介质损坏的完整取证恢复器。
 
 ## 受信宿主与剩余边界
 

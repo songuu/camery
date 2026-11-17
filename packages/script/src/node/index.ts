@@ -8,3 +8,6 @@ export * from './read-model.js';
 export * from './brief-catalog.js';
 export * from './redo.js';
 export * from './adoption-source.js';
+export * from './adoption-contracts.js';
+export * from './development-mapping.js';
+export * from './ir-identities.js';

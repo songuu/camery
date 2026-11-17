@@ -75,7 +75,9 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
       if (!options.newId) throw new VersioningError('ID_REQUIRED', '/generated_ids', 'Split references require an ID allocator');
       const id = reserve(options.newId(), '/generated_ids'); generated.push(id); return id;
     };
-    for (const [index, op] of request.ops.entries()) {
+    for (const [index, suppliedOp] of request.ops.entries()) {
+      // Draft mutations (version bumps, locks and reference rewrites) must never alter the immutable request used again during adoption.
+      const op = structuredClone(suppliedOp);
       if (opIds.has(op.op_id)) throw new VersioningError('DUPLICATE_OP', `/ops/${index}/op_id`, 'Operation IDs must be unique');
       opIds.add(op.op_id);
       const before = structuredClone(draft);

@@ -40,3 +40,10 @@ pnpm check
 公开AgentRuntime／预算workflow／DurableWorker的进程内组合保留：每阶段独立task，32704字节设定在默认ModelSession限额下通过，已审阅编辑进入下一阶段；重建worker复用缓存journal后模型调用和预算分配增量均为0。Runtime完整请求131072字节通过、131073被阻塞；Worker输入/输出1048576字节通过、多1字节拒绝。
 
 真实PG专项进一步验证并发幂等、首次审阅新鲜度、跨作用域/原始回执绑定、两阶段提交丢确认及新连接恢复、测试子进程提交后SIGKILL、unknown显式对账及已付旧brief结果保存；恢复通过正常dispatcher返回原任务且无新增模型调用。模型响应仍是协议夹具，不证明供应方真实推理或实际费用。运行角色仅四表SELECT/INSERT，并拒绝角色继承、转授权、额外对象能力及REPLICATION。
+## 正式开发对象映射
+
+`@camery/script/node` 提供 `PostgresDevelopmentIrIdentities.prepare({source,target})`：在同连接内重建已审核来源，再独立追加稳定对象身份，返回 `{identities,progress}`。构造器接收可信来源 store 与宿主 ULID 分配器；准备动作不是读取，也不会创建正式项目。World/人物/关系按真实 foundation owner 与局部 ID 区分，plan/分集槽位按项目稳定。已有映射残缺会拒绝，不能静默换 ID；旧五表数据角色不获得新表权限。
+
+`prepareDevelopmentDraft({progress,source,identities,reviewers,head})` 完整映射世界设定、人物开发、关系、主线和分集，保留原审核来源、对象 base 与预计写后依赖版本。只能消费可信存储读出的审核；摘要本身不授予批准。目标须显式升级到 v0.6。新设定不按姓名合并，缩集不删除人工场景或媒体；锁与引用冲突交给原版本引擎明确拒绝。
+
+`finalizeDevelopmentChangeSet({draft,changeSetId,author,operationIds})` 使用已固定身份生成候选 ChangeSet，不自行分配身份或采用。空 draft 表示相对该基线无变化，由共享采用应用保存 unchanged 意图，不造空 ChangeSet。宿主还须先解析共享项目/人类身份、持久化完整 intent，再通过同事务来源 guard 和正式采用服务处理。

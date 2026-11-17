@@ -387,6 +387,9 @@ importers:
       '@camery/durable':
         specifier: workspace:*
         version: link:../durable
+      '@camery/ir':
+        specifier: workspace:*
+        version: link:../ir
       '@camery/methods':
         specifier: workspace:*
         version: link:../methods

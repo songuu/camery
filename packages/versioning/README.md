@@ -19,6 +19,8 @@ pnpm --filter @camery/versioning typecheck
 
 这些参数必须由认证后的服务构造，**不能从请求 JSON 中读取“我是用户”的自报信息作为身份或授权**。本库没有实现会话认证、RBAC、租户查询过滤或网络端点，不能单独作为对外授权边界。候选的 request 是保留的原始声明，真实采用者另记在 AdoptionRecord。
 
+Node适配器的`submitWithReceipt`、`rejectWithReceipt`及`adoptGuarded`可选第五参数支持受信宿主回执：`receipt(client,result,context)`在同一连接的正式写入之后、COMMIT之前执行；回执失败一起回滚。冻结context固定真实捕获的二元项目key、原始双版本expectation（存在时），以及submit请求规范签名或adopt/reject实际changeId；人工决定同时固定actor/scope/at及拒绝reason。采用的replayed在实际项目行锁内、engine执行前判断，不能从早期status或最终成功状态猜测。回调应逐项核对先存意图，只追加有界实际结果，不得自行提交/释放连接或把领域拒绝改为成功。既有方法调用保持原语义；持久请求意图、真实会话及回执恢复由共享应用层负责。
+
 ## 并发、历史与不可变性
 
 - `base_revisions` 包含每个写对象，以及调用方实际读取的上下文依赖。显式与自动联动的已有对象写入都必须有基版本；读取依赖变动同样导致 conflicted。

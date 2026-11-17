@@ -93,7 +93,7 @@ it('enforces scoped revision and stage foreign keys, identity formats, object re
     await admin.query(originSql,origin);
     const index=await admin.query("SELECT indexdef FROM pg_indexes WHERE schemaname='camery_script' AND indexname='development_runs_catalog_idx'");expect(index.rows[0]?.indexdef).toContain('run_id COLLATE "C" DESC');
     const briefIndex=await admin.query("SELECT indexdef FROM pg_indexes WHERE schemaname='camery_script' AND indexname='development_runs_brief_idx'");expect(briefIndex.rows[0]?.indexdef).toContain('(tenant_id, project_id, brief_id, brief_revision)');
-    expect((await admin.query('SELECT version FROM camery_script.migrations ORDER BY version')).rows).toEqual([{version:1},{version:2},{version:3}]);
+    expect((await admin.query('SELECT version FROM camery_script.migrations ORDER BY version')).rows).toEqual([{version:1},{version:2},{version:3},{version:4}]);
   }finally{
     let failed=false;for(const cleanup of [...['run_origins','reviews','candidates','runs','briefs'].map(table=>()=>admin.query(`DELETE FROM camery_script.${table} WHERE tenant_id=$1`,[tenantId])),()=>admin.end()]){try{await cleanup();}catch{failed=true;}}
     // oxlint-disable-next-line eslint/no-unsafe-finally -- Refuse to hide leaked scoped fixture records.

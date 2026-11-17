@@ -7,7 +7,7 @@ import { DevelopmentError } from '../contracts.js';
 export async function migrateDevelopment(pool:Pool):Promise<void>{
   const client=await pool.connect().catch(()=>{throw new DevelopmentError('STORAGE_FAILED','migration connection');});let destroy=false;
   try{
-    const migrations=await Promise.all(['0001-development.sql','0002-brief-runs.sql','0003-development-origins.sql'].map(async(name,index)=>{const sql=await readFile(new URL('./migrations/'+name,import.meta.url),'utf8');return {version:index+1,sql,checksum:createHash('sha256').update(sql,'utf8').digest('hex')};}));
+    const migrations=await Promise.all(['0001-development.sql','0002-brief-runs.sql','0003-development-origins.sql','0004-development-ir-identities.sql'].map(async(name,index)=>{const sql=await readFile(new URL('./migrations/'+name,import.meta.url),'utf8');return {version:index+1,sql,checksum:createHash('sha256').update(sql,'utf8').digest('hex')};}));
     await client.query('BEGIN');await client.query("SELECT pg_advisory_xact_lock(hashtextextended('camery_script:migrations',0))");
     await client.query('CREATE SCHEMA IF NOT EXISTS camery_script');await client.query('CREATE TABLE IF NOT EXISTS camery_script.migrations(version integer PRIMARY KEY,checksum text NOT NULL)');
     const applied=await client.query<{version:number;checksum:string}>('SELECT version,checksum FROM camery_script.migrations ORDER BY version');

@@ -1,14 +1,14 @@
 import { StableId } from '@camery/ir';
 import { sql, type SQL } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { adoptChangeSet, createVersionState, rejectChangeSet, submitChangeSet } from '../engine';
 import { VersioningError } from '../errors';
 import { synchronousGrant } from '../grants';
 import { jsonSignature, nextVersion } from '../objects';
 import type { AdoptOptions, AdoptionRecord, ChangeResult, ObjectRevision, StoredChange, VersionState } from '../types';
 import { VersionPersistenceError } from './types';
-import type { PersistedAdoptOptions, PersistedChangeResult, PersistedSubmitOptions, StoredVersionState, VersionAdoptionGuard, VersionProjectKey, VersionWriteExpectation } from './types';
+import type { PersistedAdoptOptions, PersistedChangeResult, PersistedSubmitOptions, StoredVersionState, VersionAdoptionGuard, VersionProjectKey, VersionTransactionContext, VersionTransactionReceipt, VersionWriteExpectation } from './types';
 
 type Executor = Pick<NodePgDatabase, 'execute'>;
 type ProjectRow = { package_id: string; initial_revision: string; head_revision: string; write_version: string };
@@ -49,11 +49,35 @@ function captureExpectation(options: { expectation?: VersionWriteExpectation }, 
   } catch { throw new VersionPersistenceError('INVALID_EXPECTATION', 'capture write expectation', key.projectId); }
 }
 type ReplayCheck = (state: VersionState) => boolean;
+type OwnedReceipt = (client: PoolClient, result: Readonly<PersistedChangeResult>) => Promise<void>;
 function checkExpectation(before: StoredVersionState, expected: Readonly<VersionWriteExpectation> | undefined, replay: ReplayCheck | undefined, key: VersionProjectKey, operation: string): void {
   // Recover a known immutable request/irreversible adoption before applying a stale client CAS. The engine still authorizes adoption below.
   if (!expected || replay?.(before.state)) return;
   if (before.state.head.revision.number !== expected.expectedSnapshotRevision) throw new VersionPersistenceError('SNAPSHOT_STALE', operation, key.projectId);
   if (before.writeVersion !== expected.expectedWriteVersion) throw new VersionPersistenceError('WRITE_VERSION_CONFLICT', operation, key.projectId);
+}
+function captureReceipt(receipt: VersionTransactionReceipt, key: VersionProjectKey, operation: string): VersionTransactionReceipt {
+  if (typeof receipt !== 'function') throw new VersionPersistenceError('INVALID_RECEIPT', operation, key.projectId);
+  return receipt;
+}
+function transactionEnvelope(project: Readonly<VersionProjectKey>, expectation: Readonly<VersionWriteExpectation> | undefined) {
+  return Object.freeze({ project, ...(expectation ? { expectation } : {}) });
+}
+function knownVersionFailure(error: unknown): error is VersionPersistenceError | VersioningError {
+  try { return error instanceof VersionPersistenceError || error instanceof VersioningError; }
+  catch { return false; }
+}
+function databaseCode(error: unknown): string | undefined {
+  try {
+    if (!error || typeof error !== 'object') return undefined;
+    const cause = Object.getOwnPropertyDescriptor(error, 'cause');
+    if (cause && !('value' in cause)) return undefined;
+    const source: unknown = cause ? cause.value : error;
+    if (!source || typeof source !== 'object') return undefined;
+    const code = Object.getOwnPropertyDescriptor(source, 'code');
+    if (code && 'value' in code && typeof code.value === 'string' && code.value.length === 5 && /^[0-9A-Z]{5}$/.test(code.value)) return code.value;
+  } catch { /* An unknown proxy or driver exception must not expose its own getters or trap failure. */ }
+  return undefined;
 }
 
 /** Server-only adapter: callers can submit requests, never client-supplied VersionState or whole-state replacements. */
@@ -63,11 +87,9 @@ export class PostgresVersionStore {
   private async operation<T>(key: VersionProjectKey, operation: string, execute: () => Promise<T>): Promise<T> {
     try { return await execute(); }
     catch (error) {
-      if (error instanceof VersionPersistenceError || error instanceof VersioningError) throw error;
+      if (knownVersionFailure(error)) throw error;
       // Drizzle errors include SQL parameters; preserve a safe SQLSTATE rather than leaking content or credentials.
-      const cause = error instanceof Error && 'cause' in error ? error.cause : error;
-      const code = cause && typeof cause === 'object' && 'code' in cause && typeof cause.code === 'string' && /^[0-9A-Z]{5}$/.test(cause.code) ? cause.code : undefined;
-      throw new VersionPersistenceError('DATABASE_ERROR', operation, key.projectId, code);
+      throw new VersionPersistenceError('DATABASE_ERROR', operation, key.projectId, databaseCode(error));
     }
   }
   private async load(tx: Executor, key: VersionProjectKey, row: ProjectRow): Promise<StoredVersionState> {
@@ -120,6 +142,34 @@ export class PostgresVersionStore {
   private async change(key: VersionProjectKey, operation: string, evaluate: (state: VersionState) => ChangeResult, expected?: Readonly<VersionWriteExpectation>, replay?: ReplayCheck): Promise<PersistedChangeResult> {
     return this.operation(key, operation, () => this.db.transaction(tx => this.changeInTransaction(tx, key, operation, evaluate, expected, replay)));
   }
+  private async ownedTransaction(key: VersionProjectKey, operation: string, execute: (client: PoolClient, connected: () => void) => Promise<PersistedChangeResult>, receipt?: OwnedReceipt, onRollback?: () => void): Promise<PersistedChangeResult> {
+    return this.operation(key, operation, async () => {
+      const client = await this.pool.connect(); let destroy = false; let connectionFailed = false; let rolledBack = false;
+      // pg-pool removes its idle error handler at checkout. Own this handler until release returns or destroys the client.
+      const onClientError = () => { connectionFailed = true; destroy = true; };
+      const connected = () => { if (connectionFailed) throw new VersionPersistenceError('DATABASE_ERROR', operation + ' connection', key.projectId); };
+      client.on('error', onClientError);
+      try {
+        // Source guards read after their locks; inherited repeatable-read defaults must not retain an earlier status snapshot.
+        await client.query('BEGIN ISOLATION LEVEL READ COMMITTED'); connected();
+        const result = await execute(client, connected); connected();
+        if (receipt) await receipt(client, result);
+        connected(); await client.query('COMMIT'); connected(); return result;
+      } catch (error) {
+        try { await client.query('ROLLBACK'); rolledBack = true; } catch { destroy = true; }
+        connected(); throw error;
+      } finally {
+        try { client.release(destroy); }
+        catch {
+          // oxlint-disable-next-line eslint/no-unsafe-finally -- Release errors must remain explicit and redact driver connection details.
+          throw new VersionPersistenceError('DATABASE_ERROR', operation + ' release', key.projectId);
+        } finally {
+          client.off('error', onClientError);
+          if (rolledBack && !connectionFailed && !destroy) onRollback?.();
+        }
+      }
+    });
+  }
   private async changeInTransaction(tx: Executor, key: VersionProjectKey, operation: string, evaluate: (state: VersionState) => ChangeResult, expected?: Readonly<VersionWriteExpectation>, replay?: ReplayCheck): Promise<PersistedChangeResult> {
     const selected = await tx.execute<ProjectRow>(sql`SELECT * FROM camery_versioning.projects WHERE ${where(key)} FOR UPDATE`);
     const row = selected.rows[0];
@@ -147,26 +197,33 @@ export class PostgresVersionStore {
     const key = projectKey(input); const expected = captureExpectation(options, key); const signature = jsonSignature(request); const detached: unknown = JSON.parse(signature); const newId = options.newId;
     return this.change(key, 'submit', state => submitChangeSet(state, detached, newId ? { newId } : {}), expected, state => state.changes.some(change => jsonSignature(change.request) === signature));
   }
+  async submitWithReceipt(input: VersionProjectKey, request: unknown, options: PersistedSubmitOptions, receipt: VersionTransactionReceipt): Promise<PersistedChangeResult> {
+    const key = projectKey(input); const writeReceipt = captureReceipt(receipt, key, 'submit receipt'); const expected = captureExpectation(options, key);
+    const signature = jsonSignature(request); const detached: unknown = JSON.parse(signature); const newId = options.newId;
+    const context: VersionTransactionContext = Object.freeze({ ...transactionEnvelope(key, expected), operation: 'submit', requestSignature: signature });
+    return this.ownedTransaction(key, 'submit receipt', client => this.changeInTransaction(drizzle(client), key, 'submit receipt', state => submitChangeSet(state, detached, newId ? { newId } : {}), expected, state => state.changes.some(change => jsonSignature(change.request) === signature)), (client, result) => writeReceipt(client, result, context));
+  }
   async adopt(input: VersionProjectKey, changeId: string, options: PersistedAdoptOptions): Promise<PersistedChangeResult> {
     const key = projectKey(input); const expected = captureExpectation(options, key); const bound = authority(key, options);
     if (!StableId.safeParse(changeId).success) throw new VersionPersistenceError('INVALID_CHANGE_ID', 'adopt', key.projectId);
     return this.change(key, 'adopt', state => adoptChangeSet(state, changeId, bound), expected, state => state.changes.some(change => change.request.id === changeId && change.status === 'adopted'));
   }
   /** Source locks and formal writes share one connection; losing either side rolls back the whole adoption. */
-  async adoptGuarded(input: VersionProjectKey, changeId: string, options: PersistedAdoptOptions, guard: VersionAdoptionGuard): Promise<PersistedChangeResult> {
+  async adoptGuarded(input: VersionProjectKey, changeId: string, options: PersistedAdoptOptions, guard: VersionAdoptionGuard, receipt?: VersionTransactionReceipt): Promise<PersistedChangeResult> {
     const key = projectKey(input); const expected = captureExpectation(options, key); const bound = authority(key, options); const checkSource = guard;
+    const writeReceipt = receipt === undefined ? undefined : captureReceipt(receipt, key, 'guarded adopt receipt');
+    const envelope = transactionEnvelope(key, expected);
     if (!StableId.safeParse(changeId).success) throw new VersionPersistenceError('INVALID_CHANGE_ID', 'guarded adopt', key.projectId);
     if (typeof checkSource !== 'function') throw new VersionPersistenceError('INVALID_GUARD', 'guarded adopt', key.projectId);
     let sourceRefusal: VersionPersistenceError | undefined;
-    const attempt = (onlyAdopted?: VersionPersistenceError) => this.operation(key, 'guarded adopt', async () => {
-      const client = await this.pool.connect(); let destroy = false; let connectionFailed = false; let rolledBack = false; let refused: VersionPersistenceError | undefined;
-      // pg-pool removes its idle error handler at checkout. Own this handler until release hands the client back or destroys it.
-      const onClientError = () => { connectionFailed = true; destroy = true; };
-      const connected = () => { if (connectionFailed) throw new VersionPersistenceError('DATABASE_ERROR', 'guarded adopt connection', key.projectId); };
-      client.on('error', onClientError);
-      try {
-        // Source reads happen after their locks; an inherited repeatable-read default could retain the earlier status lookup's stale source snapshot.
-        await client.query('BEGIN ISOLATION LEVEL READ COMMITTED'); connected();
+    const attempt = (onlyAdopted?: VersionPersistenceError) => {
+      let refused: VersionPersistenceError | undefined;
+      let context: VersionTransactionContext | undefined;
+      const persistReceipt: OwnedReceipt | undefined = writeReceipt ? async (client, result) => {
+        if (!context) throw new VersionPersistenceError('RECEIPT_CONTEXT_MISSING', 'guarded adopt receipt', key.projectId);
+        await writeReceipt(client, result, context);
+      } : undefined;
+      return this.ownedTransaction(key, 'guarded adopt', async (client, connected) => {
         // An adopted decision is irreversible. An ACK retry needs current authorization, not a new source-freshness decision.
         // This read takes no row lock: source brief/run locks must precede the version project lock below.
         const existing = await client.query<{status:string}>('SELECT status FROM camery_versioning.changes WHERE tenant_id=$1 AND project_id=$2 AND change_id=$3', [key.tenantId,key.projectId,changeId]);
@@ -179,24 +236,13 @@ export class PostgresVersionStore {
           catch (error) { if (error instanceof VersionPersistenceError && /^ADOPTION_SOURCE_[A-Z_]+$/.test(error.code)) refused = error; throw error; }
         }
         connected();
-        const result = await this.changeInTransaction(drizzle(client), key, 'guarded adopt', state => adoptChangeSet(state, changeId, bound), expected, state => state.changes.some(change => change.request.id === changeId && change.status === 'adopted'));
-        connected(); await client.query('COMMIT'); connected(); return result;
-      } catch (error) {
-        try { await client.query('ROLLBACK'); rolledBack = true; } catch { destroy = true; }
-        connected();
-        throw error;
-      } finally {
-        try { client.release(destroy); }
-        catch {
-          // oxlint-disable-next-line eslint/no-unsafe-finally -- A release failure must be explicit without leaking the driver's connection details.
-          throw new VersionPersistenceError('DATABASE_ERROR', 'guarded adopt release', key.projectId);
-        }
-        finally {
-          client.off('error', onClientError);
-          if (!onlyAdopted && rolledBack && !connectionFailed && refused) sourceRefusal = refused;
-        }
-      }
-    });
+        return this.changeInTransaction(drizzle(client), key, 'guarded adopt', state => {
+          // The early status peek cannot prove a replay: another adoption may commit before this project row is locked.
+          context = Object.freeze({ ...envelope, operation: 'adopt', changeId, actor: bound.actor, scope: bound.scope, at: bound.at, replayed: state.changes.some(change => change.request.id === changeId && change.status === 'adopted') });
+          return adoptChangeSet(state, changeId, bound);
+        }, expected, state => state.changes.some(change => change.request.id === changeId && change.status === 'adopted'));
+      }, persistReceipt, () => { if (!onlyAdopted && refused) sourceRefusal = refused; });
+    };
     try { return await attempt(); }
     catch (error) {
       if (!sourceRefusal || error !== sourceRefusal) throw error;
@@ -208,5 +254,11 @@ export class PostgresVersionStore {
     const key = projectKey(input); const expected = captureExpectation(options, key); const bound = authority(key, options);
     if (!StableId.safeParse(changeId).success || typeof reason !== 'string') throw new VersionPersistenceError('INVALID_CHANGE_ID', 'reject', key.projectId);
     return this.change(key, 'reject', state => rejectChangeSet(state, changeId, bound, reason), expected);
+  }
+  async rejectWithReceipt(input: VersionProjectKey, changeId: string, options: PersistedAdoptOptions, reason: string, receipt: VersionTransactionReceipt): Promise<PersistedChangeResult> {
+    const key = projectKey(input); const writeReceipt = captureReceipt(receipt, key, 'reject receipt'); const expected = captureExpectation(options, key); const bound = authority(key, options);
+    if (!StableId.safeParse(changeId).success || typeof reason !== 'string') throw new VersionPersistenceError('INVALID_CHANGE_ID', 'reject receipt', key.projectId);
+    const context: VersionTransactionContext = Object.freeze({ ...transactionEnvelope(key, expected), operation: 'reject', changeId, actor: bound.actor, scope: bound.scope, at: bound.at, reason });
+    return this.ownedTransaction(key, 'reject receipt', client => this.changeInTransaction(drizzle(client), key, 'reject receipt', state => rejectChangeSet(state, changeId, bound, reason), expected), (client, result) => writeReceipt(client, result, context));
   }
 }

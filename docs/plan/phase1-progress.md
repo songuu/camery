@@ -158,3 +158,10 @@
 - 宿主真实会话先鉴权再解析绑定，采用回调独立检查candidate:review；真实认证/reader/版本CAS组合验证编辑者提候选、另一审核者采用、撤权后新请求拒绝ACK恢复。VersionStore支持可选双版本期望，在实际行锁内核对；精确同提交/已采用重试可恢复，采用重试仍重新授权，来源锁序与原子事务保持。
 - 最终整仓2814项（20工具+2794普通）、13包类型/覆盖率和方法/Agent基线通过；实际PG versioning254/server219项及门槛通过，分别包含普通测试。最终镜像既有API2项、章节worker1项、原创开发1项回归通过；失败观察代理/监听器断言的依据、SHA-256及完整证据见[实施记录](original-development-phase1.md)。新SQL采用显式checksum迁移与LF规则，旧迁移未改；代码/TS/DB/安全复审通过，远端以最终提交实际Actions为准。
 - 继续共享CandidateApplication、采用intent、来源局部身份/完整映射、独立采用LOGIN与认证API/UI，未启用新的采用入口，完整P-APP/G-PROJECT、T1.3及阶段1不提前判完成。真实文本质量仍待配置；编辑器、法务、设计伙伴后补，ComfyUI接线保持。
+
+### T1.3 / VCA-002 / LIN-006 完整映射与采用回执（2026-11-17）
+
+- 完整开发对象现在可经持久局部身份生成ChangeSet，真实PG组合验证候选→采用/拒绝；原设定owner、模型/审核来源与正式采用者分开保留。对象base和预计写后版本固定，同名不合并，缩集不自动删人工场景，坏映射不补发ID，空变化保存原基线noop。
+- 共享持久intent与原生版本事务回执绑定真实项目二元key、原CAS、实际请求/动作身份及actor/scope/time/reason；回执失败全回滚，丢ACK可凭原意图恢复。first失败回执阻止同intent后来静默成功；原采用历史ACK保留事实。已关闭请求预览变异、坏身份缺项、实际执行错绑、异常访问器/代理泄漏等复审问题，详见[完整记录](original-development-phase1.md)。
+- 最终整仓2997项（20工具+2977普通）、603文件策略、13包类型/覆盖率及方法/Agent基线通过；串行实际PG versioning305/script442/server285项均过（各含普通测试），当前server分支97.26%。最终镜像既有API2项、章节worker1项、原创开发1项通过。新增SQL显式安装、LF/checksum，旧SQL不改；四类审查闭合，远端以最终提交实际Actions为准。
+- 继续共享CandidateApplication、独立采用LOGIN、认证API/UI；当前仅组件与实际PG组合，未启用新入口，不宣称完整P-APP/G-PROJECT、T1.3或阶段1完成。协议与宿主审核夹具不是实际模型质量/真人评分；编辑器、法务、设计伙伴后补，ComfyUI连接保持。
