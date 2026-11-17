@@ -21,6 +21,8 @@
 - revision 5兼容：冻结v0.5 schema/validator，公开读取严格按版本分派，新建正式项目用v0.6。旧head和旧pending保持原语义；exclusive `upgrade_schema` ChangeOp只允许0.5→0.6、精确当前base_revision、project范围，复用采用/快照/审计。其他live pending存在时拒绝升级且原状态不变；先审核旧候选再升级。升级仅加空新集合、旧对象ID/version不改；升级后拒绝新增v0.5写入，历史和已采用ACK仍可读/恢复。v03迁移仍明确输出/校验v0.5；生成JSON Schema同时描述两版，不重写历史请求或靠隐式defaults伪造开发内容。
 - revision 5采用权威：普通tenant/project/user及来源局部身份先独立持久化映射ULID；每个application intent固定来源摘要、映射、IR基版本及完整ChangeSet摘要，重试不重新分配身份。桥接器拥有项目内稳定plan/episode槽位，source人物/world/关系按实际foundation owner+局部身份映射；全量新设定不按姓名覆盖旧人物，已有正式对象经对象base与锁重新检查。空planning baseline不造Scene/Shot/Media，也不提前填未来T1.4/1.5内容。
 - revision 5事务与权限：来源latest guard与正式采用必须在同一个PG连接/事务中执行。VersionStore新增node-only `adoptGuarded(key,changeId,options,guard(client))`，先来源brief→排序run advisory locks并完整重建审核，再version project行锁和原engine/快照/历史/采用COMMIT；普通adopt/read维持旧路径。两个连接的锁桥因来源连接断开会释放锁而拒绝采用。独立最小adoption LOGIN只读script、具备identity/intent必要追加和versioning必需DML；不提升已有append-only身份，不授予认证/预算/任务/迁移能力。已adopted重试先核对intent和版本权威、重新授权后恢复原记录；尚未采用者必须重新校最新来源。连接断开整体回滚，提交ACK丢失按同intent/changeId恢复；锁序不能反向。
+- revision 5.1（共享身份/CAS，2026-11-17）：依据VCA-002/LIN-006，普通tenant/project/principal到版本域的绑定由`server/src/projects`唯一维护，script只维护其来源局部对象身份。共享绑定采用独立`camery_projects`迁移：tenant、project、principal三张追加表；project映射以真实版本域二元key作FK，不创造空项目或悬空项目表。显式受信注册者提供规范ULID；同语义注册幂等，不同绑定冲突，禁止别名映射和重绑。principal按tenant+kind+普通key区分user/agent_run/system，不把Agent映射成人类。读取仅解析既存绑定，缺失返回PROJECT_BINDING_MISSING或PRINCIPAL_BINDING_MISSING，不分配身份、不初始化IR。安装者和独立只读LOGIN分离；先有实际版本项目再注册，运行角色不能注册/迁移或访问认证/预算/任务/正文。
+- revision 5.1并发契约：VersionStore提交/采用/拒绝可选接收`expectation={expectedSnapshotRevision,expectedWriteVersion}`，严格为正安全整数，异步前捕获。旧调用不变；带期望的首次写入在version project行锁内核对，失败不改任何表。精确同ChangeSet重试和已采用ACK先识别不可逆结果，再走原有引擎的当前授权/范围检查，不因旧CAS把成功误报为失败；异内容同changeId不获重试豁免。guarded采用仍先source锁再version锁，不能为了CAS反向锁序。拒绝的完整幂等回执留给后续持久intent，不把无记录scope的旧拒绝冒称可恢复。共享绑定与版本CAS各自独立测试；当前尚不暴露新的HTTP/正式采用UI，也不宣称完成P-APP/G-PROJECT。
 - Acceptance Criteria：
   - OD-1: WHEN 创意进入开发 THE SYSTEM SHALL 保存严格有界的不可变brief、用户分集约束及作用域/版本摘要，不执行正文指令或接受其自报授权。
   - OD-2: WHEN foundation候选生成 THE SYSTEM SHALL 保留世界观、人物、人物关系和主线，严格验证唯一局部身份、完整引用、主角与主线绑定及原始模型回执，不自动确认或伪造来源引文。
@@ -61,6 +63,8 @@ revision 5任务与顺序（均L4，依赖完成前不标并行）：
 | root：versioning engine/evaluate/objects升级与新对象范围 | 新IR | exclusive升级、pending冲突、精确base/project权限；新集合对象版本/锁/范围/过期依赖，新旧历史重放 |
 | root随后分配：script/node source guard、identity/intent与纯映射 | 新IR+guarded adopter | 实际owner身份、同intent/不同摘要冲突、旧记录不改、source并发/篡改、实际最小LOGIN；不改已安装迁移 |
 | root随后分配：server/web preview→adopt/reject及部署 | 上述能力与HTTP契约冻结 | 认证scope/actor/权限、只读GET、过期/锁/基版本提示、丢ACK、真实PG/浏览器/镜像/最终CI |
+
+revision 5.1执行边界（L4）：共享身份worker独占`server/src/projects/{contracts,identity-map,migrate,identity-role}.ts`、`projects/migrations/0001-identity-bindings.sql`及`server/test/project-identity*.ts`；版本CAS worker独占`versioning/src/node/{store,types}.ts`及新CAS测试/该包说明。两项前置已冻结，互不依赖、不交叉文件，均先红后绿且不提交；根负责`projects/authority.ts`及测试、server已有workspace依赖/锁、部署构建与串行PG、整仓及组合复审。宿主authority先用真实会话权限再解析映射，固定普通scope/映射user及版本域key；采用回调再次核对actor/key/scope和宿主权限，不把绑定当grant或允许Agent伪装人类。运行时不修改已有数据角色或旧迁移；回滚关闭未来共享采用入口，保留追加绑定与历史。此任务继续OD-7和共享VCA-002/LIN-006的基础能力，其他应用、intent、完整映射与质量条件保持原范围。
 
 回滚边界：新项目/显式升级后不能用只识别v0.5的旧镜像读取，先关闭新采用入口并保留新版历史，不能删除新集合或降版本伪装回退。完整OD-7真实文本质量仍需实际配置；新对象/桥接通过不能代替真人评分。实现前已检查placeholder、内部一致性、scope及歧义，本revision保留OD-1..7原有AC语义，未绑定外部Harness。
 
@@ -125,3 +129,15 @@ OD-6文件责任：主agent负责`script/http`及node投影、`server/developmen
 - 最终镜像`sha256:66020f6044a121bd5994783de4aa6daafc9947649a1c73ebffb3aa8363cd9abe`构建成功；相同镜像下既有API两档2项、章节worker1项、原创开发1项容器回归均通过。本批没有新HTTP/UI，容器证据仅证明既有流程兼容。已安装SQL迁移未修改；代码、TypeScript、数据库与安全复审闭合。
 - 最终日志SHA-256：`%TEMP%/camery-development-v06-check-final.log`=`83137fdeaa4d2f7cc7d011f6b89165cef4f90179e9699159260028e30c1b529a`；`camery-development-version-upgrade-pg-final.log`=`10d6dfdac02de69f9eed1a79dd8e0d44a680478ec6dca67722fd7c40392c9dda`；`camery-development-source-pg-final.log`=`3ebcc0562bef22219f11e4e2d0052b7221b42f9e57ee1288555b48ba18ea55af`；`camery-development-v06-server-pg.log`=`539bbd2f6dc8e009dbd7583bd406885c4457a1ca64f16d6e87a3f2faab856bd8`；原创开发容器=`e64715a2638a45ac8981b746c9a6f2437f87fb8ca4b052974d93b03798e878f4`。远端以最终提交实际Actions为准。
 - 下一项继续持久普通ID→ULID映射与application intent、完整纯映射、独立最小采用LOGIN及认证preview/adopt/reject工作台。当前只提供类型/版本与来源事务基础，不宣称完整OD-7、T1.3或阶段1完成；真实文本质量及人工评分仍无配置。编辑器验收、法务签核、设计伙伴按用户要求后补，既有ComfyUI接线保持。
+
+## revision 5.1 共享身份与写入并发基础证据（2026-11-17）
+
+- `server/src/projects`是VCA-002/LIN-006及原创开发共用的普通tenant/project/principal绑定位置，script不另建普通项目映射。三张追加表使用作用域主键、反向唯一约束及tenant复合FK；项目绑定引用实际versioning二元项目，不创建空正式项目。受信安装者显式注册固定ULID，相同绑定重试幂等、重绑/别名冲突；user/agent_run/system同名key分别解析。只读resolver缺少绑定明确拒绝，不自动生成身份或初始化IR。
+- 独立reader LOGIN仅三表SELECT，权限自检覆盖表/列、成员/PUBLIC、schema/owner、sequence、复制及转授权。真实PG验证8并发同语义注册、跨tenant同slug、新pool、实际version项目FK、SQL身份/范围约束、提交丢ACK恢复、实际backend终止的无部分绑定/销毁连接，以及10类ACL扩大负探针。新迁移SHA-256为`dc716b712599372df263abfd7a124a465287420332b2bac81ac0eb39dfef9b82`，`.gitattributes`明确新路径LF，旧已安装迁移不改。
+- 宿主`resolveProjectAuthority`先校真实会话权限，再固定映射的user、普通scope和版本key；采用回调独立要求candidate:review，candidate:write不授予采用权。真实认证→独立reader→版本CAS组合验证编辑者提交、另一审核者采用、Agent同名不冒认、精确已采用ACK，以及重新authenticate后撤销审核权拒绝恢复；原记录/写版本不变。这不代表数据库可在同一次已认证请求中自动感知后续撤权。
+- VersionStore可选严格双版本expectation在异步前捕获、project行锁内检查，过期失败不写表；精确同请求提交和真实已采用ACK先恢复记录，采用仍走原engine当前授权/范围/锁检查。来源guard仍同client且先来源锁、后版本行锁。拒绝CAS保持严格，未伪造缺原scope的拒绝回执。真实PG验证并发同writeVersion只有一个提交、实际行锁等待期间输入突变无效、提交丢ACK、新pool读取及source/backend/txid/锁序。
+- 最终`pnpm check`退出0：2814=20工具+2794普通；588文件策略零违规、typed lint、13包类型检查（12缓存/1实际）及13包覆盖率全部实际执行，6方法golden/10 Agent基线匹配。versioning普通217项覆盖98.09/95.83/99.17/99.78%，server195项98.87/96.48/100/99.59%。串行实际PG versioning254项覆盖98.37/96.39/99.40/99.83%，server219项98.57/97.06/100/100%；PG包含普通测试，不重复累加。
+- 保留失败→修正证据：CAS PG观察代理最初为普通对象，Drizzle未按Pool检出实际事务且commit小写未被观察；改为保留Pool原型的Proxy及规范commit后，原实际阻塞与丢ACK断言全过。身份终止测试最初误断言释放后监听器总数0；pg-pool恢复自己的idleListener，现跟踪并断言事务自有handler已移除，实际终止/销毁/回滚断言保持。该观察回调的事件参数类型随已安装pg声明修正，整仓最终通过。无生产门槛、超时或覆盖率阈值放宽。
+- 最终镜像`sha256:ef62d7a7b77f61a19c0b59cea0c30183c01c5eeb0fd3a7ed68e67deb4382a989`构建成功；同镜像既有API两档2项、章节worker1项和原创开发1项容器回归通过。未启用新的HTTP/运行配置/注册命令，不以旧流程兼容证明完整共享采用服务。代码/TypeScript/数据库/安全复审闭合。
+- 日志SHA-256：`%TEMP%/camery-shared-identity-check-final.log`=`a31f636b8c1cd6eaf3dc49652f7d4e60ed44bd649112044db035ce0cb48ffbcb`；`camery-shared-cas-version-pg-final.log`=`3693ed98990de9252b0aa00d400350c58946afa89064102223fc3e6b0b07dee0`；`camery-shared-identity-server-pg-final.log`=`7c5a48092e62fdb88baa8ac52dfa0b9ac45c68a526babe8614c2f488ab385790`；原创容器=`181709152bbd2e51b4123754de1b4a74cccba93eefa7a6ed402a1b293e9118aa`。远端以最终提交实际Actions为准。
+- 下一项继续共享CandidateApplication与持久采用intent、来源局部身份及完整纯映射、采用LOGIN、认证preview/submit/adopt/reject和工作台。当前不是完整P-APP/G-PROJECT或OD-7交付；T1.3及阶段1仍未完成。真实文本模型质量待实际配置，编辑器/法务/设计伙伴按用户要求后补，既有ComfyUI连接不变。

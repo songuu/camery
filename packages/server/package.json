@@ -17,6 +17,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@camery/ir": "workspace:*",
+    "@camery/versioning": "workspace:*",
     "@camery/access": "workspace:*",
     "@camery/bible": "workspace:*",
     "@camery/script": "workspace:*",

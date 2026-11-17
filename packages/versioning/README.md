@@ -29,6 +29,8 @@ pnpm --filter @camery/versioning typecheck
 
 纯域 API 返回内存中的领域值，不能将其当作数据库已经提交的证据。事务内读取最新状态、授权重算、CAS 及完整对象/历史/决定写入，现已由独立的 [Node/PostgreSQL 适配器](POSTGRES.md)实现；真实服务身份、权限和部署仍需后续验收。
 
+Node写入口可选传入`expectation={expectedSnapshotRevision,expectedWriteVersion}`，在同一项目行锁内拒绝旧快照或写序号，失败不改历史；精确提交重试和已采用ACK可先恢复已有结果，采用仍重新授权。同ID异内容不享有豁免；拒绝的完整幂等回执继续由后续持久应用意图负责。省略期望保持原库调用行为，详见上述适配器说明。
+
 ## 操作与锁
 
 IR 提供 `add / update / replace / remove / move / split / merge / lock / unlock / unlock_line`，v0.6 另有独立 `upgrade_schema`。`update` 是受校验的字段替换；`replace` 要提供完整对象并保留原身份/版本；版本由引擎统一递增。`move.before_id` 是同场/同版本中的稳定镜头 ID，null 表示末尾。

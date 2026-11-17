@@ -6,9 +6,9 @@ import { adoptChangeSet, createVersionState, rejectChangeSet, submitChangeSet } 
 import { VersioningError } from '../errors';
 import { synchronousGrant } from '../grants';
 import { jsonSignature, nextVersion } from '../objects';
-import type { AdoptOptions, AdoptionRecord, ChangeResult, ObjectRevision, StoredChange, SubmitOptions, VersionState } from '../types';
+import type { AdoptOptions, AdoptionRecord, ChangeResult, ObjectRevision, StoredChange, VersionState } from '../types';
 import { VersionPersistenceError } from './types';
-import type { PersistedAdoptOptions, PersistedChangeResult, StoredVersionState, VersionAdoptionGuard, VersionProjectKey } from './types';
+import type { PersistedAdoptOptions, PersistedChangeResult, PersistedSubmitOptions, StoredVersionState, VersionAdoptionGuard, VersionProjectKey, VersionWriteExpectation } from './types';
 
 type Executor = Pick<NodePgDatabase, 'execute'>;
 type ProjectRow = { package_id: string; initial_revision: string; head_revision: string; write_version: string };
@@ -28,6 +28,32 @@ function authority(key: VersionProjectKey, options: PersistedAdoptOptions): Adop
   const actor = Object.freeze(structuredClone(options.actor)); const scope = Object.freeze(structuredClone(options.scope));
   const at = options.at; const authorize = options.authorize;
   return { actor, scope, at, authorize: (principal, grantedScope) => typeof authorize === 'function' && synchronousGrant(authorize(principal, key, grantedScope)) };
+}
+function captureExpectation(options: { expectation?: VersionWriteExpectation }, key: VersionProjectKey): Readonly<VersionWriteExpectation> | undefined {
+  try {
+    const property = Object.getOwnPropertyDescriptor(options, 'expectation');
+    if (!property) {
+      if ('expectation' in options) throw new Error();
+      return undefined;
+    }
+    if (!('value' in property)) throw new Error();
+    const input: unknown = property.value;
+    if (input === undefined) return undefined;
+    if (!input || typeof input !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) throw new Error();
+    const fields = Object.getOwnPropertyDescriptors(input);
+    if (Reflect.ownKeys(fields).length !== 2) throw new Error();
+    const revision = fields['expectedSnapshotRevision']; const write = fields['expectedWriteVersion'];
+    if (!revision || !write || !('value' in revision) || !('value' in write) || !revision.enumerable || !write.enumerable
+      || !Number.isSafeInteger(revision.value) || revision.value < 1 || !Number.isSafeInteger(write.value) || write.value < 1) throw new Error();
+    return Object.freeze({ expectedSnapshotRevision: revision.value as number, expectedWriteVersion: write.value as number });
+  } catch { throw new VersionPersistenceError('INVALID_EXPECTATION', 'capture write expectation', key.projectId); }
+}
+type ReplayCheck = (state: VersionState) => boolean;
+function checkExpectation(before: StoredVersionState, expected: Readonly<VersionWriteExpectation> | undefined, replay: ReplayCheck | undefined, key: VersionProjectKey, operation: string): void {
+  // Recover a known immutable request/irreversible adoption before applying a stale client CAS. The engine still authorizes adoption below.
+  if (!expected || replay?.(before.state)) return;
+  if (before.state.head.revision.number !== expected.expectedSnapshotRevision) throw new VersionPersistenceError('SNAPSHOT_STALE', operation, key.projectId);
+  if (before.writeVersion !== expected.expectedWriteVersion) throw new VersionPersistenceError('WRITE_VERSION_CONFLICT', operation, key.projectId);
 }
 
 /** Server-only adapter: callers can submit requests, never client-supplied VersionState or whole-state replacements. */
@@ -91,14 +117,14 @@ export class PostgresVersionStore {
     for (const adoption of adoptions) await tx.execute(sql`INSERT INTO camery_versioning.adoptions(tenant_id,project_id,change_id,from_revision,to_revision,record)
       VALUES (${key.tenantId},${key.projectId},${adoption.change_set_id},${adoption.from_revision},${adoption.to_revision},${json(adoption)})`);
   }
-  private async change(key: VersionProjectKey, operation: string, evaluate: (state: VersionState) => ChangeResult): Promise<PersistedChangeResult> {
-    return this.operation(key, operation, () => this.db.transaction(tx => this.changeInTransaction(tx, key, operation, evaluate)));
+  private async change(key: VersionProjectKey, operation: string, evaluate: (state: VersionState) => ChangeResult, expected?: Readonly<VersionWriteExpectation>, replay?: ReplayCheck): Promise<PersistedChangeResult> {
+    return this.operation(key, operation, () => this.db.transaction(tx => this.changeInTransaction(tx, key, operation, evaluate, expected, replay)));
   }
-  private async changeInTransaction(tx: Executor, key: VersionProjectKey, operation: string, evaluate: (state: VersionState) => ChangeResult): Promise<PersistedChangeResult> {
+  private async changeInTransaction(tx: Executor, key: VersionProjectKey, operation: string, evaluate: (state: VersionState) => ChangeResult, expected?: Readonly<VersionWriteExpectation>, replay?: ReplayCheck): Promise<PersistedChangeResult> {
     const selected = await tx.execute<ProjectRow>(sql`SELECT * FROM camery_versioning.projects WHERE ${where(key)} FOR UPDATE`);
     const row = selected.rows[0];
     if (!row) throw new VersionPersistenceError('PROJECT_NOT_FOUND', operation, key.projectId);
-    const before = await this.load(tx, key, row); const result = evaluate(before.state);
+    const before = await this.load(tx, key, row); checkExpectation(before, expected, replay, key, operation); const result = evaluate(before.state);
     if (jsonSignature(result.state) === jsonSignature(before.state)) return { ...result, writeVersion: before.writeVersion };
     const writeVersion = nextVersion(before.writeVersion);
     const oldChanges = new Map(before.state.changes.map(c => [c.request.id, c]));
@@ -117,18 +143,18 @@ export class PostgresVersionStore {
     if (!updated.rows.length) throw new VersionPersistenceError('PERSISTENCE_CONFLICT', operation, key.projectId);
     return { ...result, writeVersion };
   }
-  async submit(input: VersionProjectKey, request: unknown, options: SubmitOptions = {}): Promise<PersistedChangeResult> {
-    const key = projectKey(input); const detached: unknown = JSON.parse(jsonSignature(request)); const newId = options.newId;
-    return this.change(key, 'submit', state => submitChangeSet(state, detached, newId ? { newId } : {}));
+  async submit(input: VersionProjectKey, request: unknown, options: PersistedSubmitOptions = {}): Promise<PersistedChangeResult> {
+    const key = projectKey(input); const expected = captureExpectation(options, key); const signature = jsonSignature(request); const detached: unknown = JSON.parse(signature); const newId = options.newId;
+    return this.change(key, 'submit', state => submitChangeSet(state, detached, newId ? { newId } : {}), expected, state => state.changes.some(change => jsonSignature(change.request) === signature));
   }
   async adopt(input: VersionProjectKey, changeId: string, options: PersistedAdoptOptions): Promise<PersistedChangeResult> {
-    const key = projectKey(input); const bound = authority(key, options);
+    const key = projectKey(input); const expected = captureExpectation(options, key); const bound = authority(key, options);
     if (!StableId.safeParse(changeId).success) throw new VersionPersistenceError('INVALID_CHANGE_ID', 'adopt', key.projectId);
-    return this.change(key, 'adopt', state => adoptChangeSet(state, changeId, bound));
+    return this.change(key, 'adopt', state => adoptChangeSet(state, changeId, bound), expected, state => state.changes.some(change => change.request.id === changeId && change.status === 'adopted'));
   }
   /** Source locks and formal writes share one connection; losing either side rolls back the whole adoption. */
   async adoptGuarded(input: VersionProjectKey, changeId: string, options: PersistedAdoptOptions, guard: VersionAdoptionGuard): Promise<PersistedChangeResult> {
-    const key = projectKey(input); const bound = authority(key, options); const checkSource = guard;
+    const key = projectKey(input); const expected = captureExpectation(options, key); const bound = authority(key, options); const checkSource = guard;
     if (!StableId.safeParse(changeId).success) throw new VersionPersistenceError('INVALID_CHANGE_ID', 'guarded adopt', key.projectId);
     if (typeof checkSource !== 'function') throw new VersionPersistenceError('INVALID_GUARD', 'guarded adopt', key.projectId);
     let sourceRefusal: VersionPersistenceError | undefined;
@@ -153,7 +179,7 @@ export class PostgresVersionStore {
           catch (error) { if (error instanceof VersionPersistenceError && /^ADOPTION_SOURCE_[A-Z_]+$/.test(error.code)) refused = error; throw error; }
         }
         connected();
-        const result = await this.changeInTransaction(drizzle(client), key, 'guarded adopt', state => adoptChangeSet(state, changeId, bound));
+        const result = await this.changeInTransaction(drizzle(client), key, 'guarded adopt', state => adoptChangeSet(state, changeId, bound), expected, state => state.changes.some(change => change.request.id === changeId && change.status === 'adopted'));
         connected(); await client.query('COMMIT'); connected(); return result;
       } catch (error) {
         try { await client.query('ROLLBACK'); rolledBack = true; } catch { destroy = true; }
@@ -179,8 +205,8 @@ export class PostgresVersionStore {
     }
   }
   async reject(input: VersionProjectKey, changeId: string, options: PersistedAdoptOptions, reason: string): Promise<PersistedChangeResult> {
-    const key = projectKey(input); const bound = authority(key, options);
+    const key = projectKey(input); const expected = captureExpectation(options, key); const bound = authority(key, options);
     if (!StableId.safeParse(changeId).success || typeof reason !== 'string') throw new VersionPersistenceError('INVALID_CHANGE_ID', 'reject', key.projectId);
-    return this.change(key, 'reject', state => rejectChangeSet(state, changeId, bound, reason));
+    return this.change(key, 'reject', state => rejectChangeSet(state, changeId, bound, reason), expected);
   }
 }

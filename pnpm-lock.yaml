@@ -442,6 +442,9 @@ importers:
       '@camery/ingest':
         specifier: workspace:*
         version: link:../ingest
+      '@camery/ir':
+        specifier: workspace:*
+        version: link:../ir
       '@camery/methods':
         specifier: workspace:*
         version: link:../methods
@@ -451,6 +454,9 @@ importers:
       '@camery/script':
         specifier: workspace:*
         version: link:../script
+      '@camery/versioning':
+        specifier: workspace:*
+        version: link:../versioning
       '@fastify/static':
         specifier: 10.1.11
         version: 10.1.11

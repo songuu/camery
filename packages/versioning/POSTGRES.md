@@ -52,6 +52,10 @@ const result = await store.adopt(key, request.id, {
 
 修改返回 `PersistedChangeResult`，含原领域结果和 `writeVersion`。Promise 仅在数据库 COMMIT 成功后返回；数据库失败或 CAS 不满足会抛错，不能用先算出的结果对外宣称成功。领域拒绝/冲突需同时检查 `status` 与 `issues`；未改变状态的拒绝和幂等调用不会增加写入序号。`read`/`initialize` 返回 `{ state, writeVersion }`。
 
+提交的`PersistedSubmitOptions`及采用/拒绝的`PersistedAdoptOptions`可携带`expectation={expectedSnapshotRevision,expectedWriteVersion}`。两个值必须是正安全整数，且只能包含这两个普通数据字段；访问器、未知字段和非有限数在数据库访问前以`INVALID_EXPECTATION`拒绝。适配器异步前捕获期望，在同一项目`FOR UPDATE`锁内核对，快照不符抛`SNAPSHOT_STALE`，写序号不符抛`WRITE_VERSION_CONFLICT`，失败不写任何版本表。省略expectation保持旧调用语义。
+
+同一规范ChangeSet已存储时，精确提交重试可先找回原请求结果；同ID异内容不能绕过CAS。实际已采用的ACK也可恢复，仍由原引擎重新检查当前人类授权与范围，不因旧期望重复采用。guarded采用维持来源锁先于版本行锁，CAS不会提前反向取锁。拒绝没有这种CAS豁免：旧拒绝记录未固定完整原始请求范围，完整幂等回执须由后续持久application intent实现，不能仅凭同changeId和理由推断。
+
 ## 事务与历史
 
 `adoptGuarded` 用于跨域来源仍须最新的正式采用。来源锁必须在版本行锁之前取得，例如原创开发采用中的 brief→排序 run；两个独立连接持锁不能代替同一事务，因为来源连接断开可能先释放锁。Node 适配器管理 checkout error listener、断连故障标记与连接销毁，guard/数据库错误会整体回滚。guard 只能由宿主构造，不能来自请求 JSON，也不应调用模型或在该连接上开始嵌套事务。

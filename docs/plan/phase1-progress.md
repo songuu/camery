@@ -151,3 +151,10 @@
 - 来源新鲜度与正式采用现在可在同一PG连接/事务串行检查，固定brief→真实owner run→version project锁序；真实PG验证断连全回滚、提交丢ACK和重新授权。script guard重建实际原始候选/回执/审阅，阻止过期、未审核、篡改或跨scope来源；仅分集重做保留真实foundation owner，不伪造来源行。
 - 最终整仓2750项（20工具+2730普通）、13包类型/覆盖率及golden/Agent基线通过；串行PG versioning216/script335/server178项通过，各自包含普通测试。最终镜像既有API2项、章节worker1项、原创开发1项回归通过；详细命令、覆盖率、SHA-256及失败后串行复验见[实施证据](original-development-phase1.md)。代码/TS/数据库/安全复审闭合，既有SQL迁移未修改。远端以最终提交实际CI为准。
 - 下一项是持久身份与application intent、完整纯映射、独立最小采用LOGIN、认证preview/adopt/reject及工作台；当前组件测试不代表整条正式采用流程完成。完整T1.3/阶段1和真实文本质量仍未完成，编辑器、法务、设计伙伴依用户安排后补，ComfyUI图像接线保持。
+
+### T1.3 / VCA-002 / LIN-006 共享身份与并发基础（2026-11-17）
+
+- `server/src/projects`统一持久绑定普通tenant/project/principal到版本域ULID，项目FK指向实际二元version项目；不在读取时创建空项目或临时ID。显式注册相同语义幂等，重绑/别名拒绝，Agent与人类同名身份分开。独立reader LOGIN仅三张表SELECT，实际权限闭包及负探针通过。
+- 宿主真实会话先鉴权再解析绑定，采用回调独立检查candidate:review；真实认证/reader/版本CAS组合验证编辑者提候选、另一审核者采用、撤权后新请求拒绝ACK恢复。VersionStore支持可选双版本期望，在实际行锁内核对；精确同提交/已采用重试可恢复，采用重试仍重新授权，来源锁序与原子事务保持。
+- 最终整仓2814项（20工具+2794普通）、13包类型/覆盖率和方法/Agent基线通过；实际PG versioning254/server219项及门槛通过，分别包含普通测试。最终镜像既有API2项、章节worker1项、原创开发1项回归通过；失败观察代理/监听器断言的依据、SHA-256及完整证据见[实施记录](original-development-phase1.md)。新SQL采用显式checksum迁移与LF规则，旧迁移未改；代码/TS/DB/安全复审通过，远端以最终提交实际Actions为准。
+- 继续共享CandidateApplication、采用intent、来源局部身份/完整映射、独立采用LOGIN与认证API/UI，未启用新的采用入口，完整P-APP/G-PROJECT、T1.3及阶段1不提前判完成。真实文本质量仍待配置；编辑器、法务、设计伙伴后补，ComfyUI接线保持。
