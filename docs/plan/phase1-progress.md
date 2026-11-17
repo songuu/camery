@@ -144,3 +144,10 @@
 - 最终整仓`pnpm check`2686项（20工具+2666普通）、13包类型/覆盖率、lint与方法/Agent基线全通过；script290项分支97.80%，web108项交互及client/state测试通过。真实PG script309/server178项均通过，包含并发/事务、实际LOGIN与unknown journal门禁。v2分集decision SQL提交后实际SIGKILL，新pool恢复零新增调用、原审计和3份allocation/300tokens保持；不扩大为未知在途重发证明。
 - 最终镜像原创开发容器1项、既有API2项/章节worker1项均通过。真实Chromium16项含3轮重做，桌面/320px截图已检查；内存浏览器预算、PG账本和容器HTTP分别作证，均不冒称真实文本质量。完整命令、SHA-256与迁移边界见[实施证据](original-development-phase1.md)。远端以最终提交实际CI为准。
 - 下一项继续完整开发IR/ChangeSet、正式采用及其跨对象版本影响，再推进阶段1其余剧本任务；真实文本供应方/质量和人工评分待配置。编辑器、法务和设计伙伴后补，现有ComfyUI图像连接未改。完整T1.3与阶段1保持未完成。
+
+### T1.3 正式开发类型与来源采用事务基础（2026-11-17）
+
+- 新增IR v0.6完整设定/人物开发/关系/开发主线/分集计划及原始审核来源，严格兼容v0.5读取和旧迁移输出；旧项目通过独占、project范围、精确base的升级ChangeOp显式升版。依赖历史pin不自动改写，未来/缺失引用拒绝，过期依赖显式报告。
+- 来源新鲜度与正式采用现在可在同一PG连接/事务串行检查，固定brief→真实owner run→version project锁序；真实PG验证断连全回滚、提交丢ACK和重新授权。script guard重建实际原始候选/回执/审阅，阻止过期、未审核、篡改或跨scope来源；仅分集重做保留真实foundation owner，不伪造来源行。
+- 最终整仓2750项（20工具+2730普通）、13包类型/覆盖率及golden/Agent基线通过；串行PG versioning216/script335/server178项通过，各自包含普通测试。最终镜像既有API2项、章节worker1项、原创开发1项回归通过；详细命令、覆盖率、SHA-256及失败后串行复验见[实施证据](original-development-phase1.md)。代码/TS/数据库/安全复审闭合，既有SQL迁移未修改。远端以最终提交实际CI为准。
+- 下一项是持久身份与application intent、完整纯映射、独立最小采用LOGIN、认证preview/adopt/reject及工作台；当前组件测试不代表整条正式采用流程完成。完整T1.3/阶段1和真实文本质量仍未完成，编辑器、法务、设计伙伴依用户安排后补，ComfyUI图像接线保持。

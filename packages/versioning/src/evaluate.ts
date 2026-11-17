@@ -1,4 +1,4 @@
-import { ChangeSet, EditableCollection, StableId, StoryboardPackage, validatePackage } from '@camery/ir';
+import { ChangeSet, EditableCollection, StableId, StoryboardPackage, validatePackage,upgradeV05Package,LEGACY_SCHEMA_VERSION,SCHEMA_VERSION } from '@camery/ir';
 import { moveClip, TimelineError } from '@camery/timeline';
 import { applyShotEdit, ShotEditError } from './shot-edits';
 import { VersioningError } from './errors';
@@ -14,7 +14,9 @@ function requireObject(pkg: StoryboardPackage, id: string, collection?: string):
 
 /** schema 边界内的动态集合操作；最后必须重新通过完整 IR 校验，不能把 record 写入直接当成已验证内容。 */
 function rows(pkg: StoryboardPackage, collection: EditableCollection): VersionedObject[] {
-  return pkg[collection] as unknown as VersionedObject[];
+  const value=(pkg as unknown as Record<string,unknown>)[collection];
+  if(!Array.isArray(value))throw new VersioningError('SCHEMA_VERSION','/ops','Collection does not exist in this schema version');
+  return value as VersionedObject[];
 }
 
 function checkLocks(before: StoryboardPackage, after: StoryboardPackage, released: string | undefined): void {
@@ -50,6 +52,10 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
   const fail = (status: 'rejected' | 'conflicted', issues: VersionIssue[]): StoredChange => ({ request, status, preview: null, generated_ids: generated, affected_ids: [], prepared_from_revision: state.head.revision.number, issues, warnings });
   try {
     if (request.status !== 'candidate') throw new VersioningError('CHANGE_STATE', '/status', 'Only candidate requests may be submitted');
+    const upgrading=request.ops.some(op=>op.op==='upgrade_schema');
+    if(upgrading&&request.ops.length!==1)throw new VersioningError('SCHEMA_UPGRADE_EXCLUSIVE','/ops','Schema upgrade must be its own ChangeSet');
+    if(upgrading&&request.base_revision!==state.head.revision.number)throw new VersioningError('SCHEMA_UPGRADE_BASE','/base_revision','Schema upgrade requires the exact current snapshot');
+    if(request.schema_version!==state.head.schema_version&&!(upgrading&&state.head.schema_version===LEGACY_SCHEMA_VERSION&&request.schema_version===SCHEMA_VERSION))throw new VersioningError('SCHEMA_VERSION','/schema_version','Request does not match the adopted schema version');
     if (request.base_revision > state.head.revision.number) throw new VersioningError('FUTURE_BASE', '/base_revision', 'Request was prepared against an unknown future snapshot');
     for (const ref of request.base_revisions) {
       if (base.has(ref.id)) throw new VersioningError('DUPLICATE_BASE', '/base_revisions', 'Object base revisions must be unique');
@@ -74,7 +80,11 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
       opIds.add(op.op_id);
       const before = structuredClone(draft);
       let released: string | undefined;
-      if (op.op === 'update' || op.op === 'replace' || op.op === 'remove') {
+      if(op.op==='upgrade_schema'){
+        humanRequest(request);
+        if(draft.schema_version!==op.from)throw new VersioningError('SCHEMA_VERSION',`/ops/${index}`,'Only a legacy head may be upgraded');
+        draft=upgradeV05Package(draft);
+      }else if (op.op === 'update' || op.op === 'replace' || op.op === 'remove') {
         const original = requireObject(draft, op.target, op.collection);
         touched.add(op.target);
         const list = rows(draft, op.collection);
@@ -167,6 +177,7 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
     }
     const report = validatePackage(parsed.data);
     if (!report.valid) return fail('rejected', report.errors);
+    warnings.push(...report.warnings.filter(issue=>issue.code==='STALE_DEVELOPMENT_DEPENDENCY'));
     const final = objects(parsed.data);
     const affected = [...new Set([...initial.keys(), ...final.keys()])].filter(id => {
       const before = initial.get(id);

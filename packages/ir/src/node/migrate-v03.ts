@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { add, compare, resolveTimeline, seconds, subtract, toSeconds } from '@camery/timeline';
 import type { Rational } from '@camery/timeline';
-import { StoryboardPackage } from '../schema';
-import type { DialogueLine, Shot } from '../schema';
-import { validatePackage } from '../validate';
+import { StoryboardPackage } from '../legacy/v05-schema';
+import type { DialogueLine, Shot } from '../legacy/v05-schema';
+import { validatePackage } from '../legacy/v05-validate';
 
 const oldId = z.string().regex(/^[A-Za-z][A-Za-z0-9_.-]{1,95}$/);
 const text = z.string().min(1);

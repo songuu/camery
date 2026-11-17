@@ -31,7 +31,11 @@ pnpm --filter @camery/versioning typecheck
 
 ## 操作与锁
 
-IR 提供 `add / update / replace / remove / move / split / merge / lock / unlock / unlock_line`。`update` 是受校验的字段替换；`replace` 要提供完整对象并保留原身份/版本；版本由引擎统一递增。`move.before_id` 是同场/同版本中的稳定镜头 ID，null 表示末尾。
+IR 提供 `add / update / replace / remove / move / split / merge / lock / unlock / unlock_line`，v0.6 另有独立 `upgrade_schema`。`update` 是受校验的字段替换；`replace` 要提供完整对象并保留原身份/版本；版本由引擎统一递增。`move.before_id` 是同场/同版本中的稳定镜头 ID，null 表示末尾。
+
+`upgrade_schema` 只允许 v0.5→v0.6，要求独占 ChangeSet、精确当前快照基版本及项目采用范围；其他 live candidate 存在时不新增升级候选，升级待审时也不接纳其他新候选。升级只加空新集合，复用原有快照/审计事务；旧对象版本、旧请求和已采用决定不重写。旧项目仍能先审核 v0.5 候选；升级后新 v0.5 写请求被拒绝，既有已采用请求仍可重新授权恢复。
+
+新开发集合沿用对象基版本、字段锁与范围权威。World、CharacterRelationship、DevelopmentPlan 属于项目；EpisodePlan 属于它引用的正式 Episode。上游对象变化引起的开发依赖过期会进入预览 warnings，原依赖版本不会悄悄替换。
 
 `lock.fields=[]` 锁整个内容对象，非空时使用存在的字段路径，例如 `camera.movement`。父子路径均参与保护，不能靠替换上层对象绕过。锁不能锁住锁元数据，也不能指向不存在的对象。只有显式人类请求能创建/释放锁；新台词不能通过 `add locked:true` 绕过锁操作。
 

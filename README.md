@@ -41,7 +41,7 @@ CI 对 pull request 和 push 执行相同的 `pnpm check`，再运行真实 Post
 
 私有化开发基础设施与已知限制见 [deploy/README.md](deploy/README.md)。当前文档和工程骨架不等同于应用已可运行；各阶段任务必须分别通过验收。
 
-当前已落地的 [IR v0.5 契约与 CLI](packages/ir/README.md)、[阶段 0 进展与剩余项](docs/plan/phase0-progress.md) 分别记录使用方法、验证证据和实现边界。
+当前已落地的 [IR v0.5/v0.6 契约与 CLI](packages/ir/README.md)、[阶段 0 进展与剩余项](docs/plan/phase0-progress.md) 分别记录使用方法、验证证据和实现边界。
 
 [阶段1进展](docs/plan/phase1-progress.md)已接入[小说与剧本导入核心](packages/ingest/README.md)、认证来源HTTP和[React来源工作台](packages/web/README.md)：精确来源定位、分批幂等、PostgreSQL读取游标，以及Fountain/CSV/TSV/DOCX候选。StoryBible及后续生成链路仍按计划逐项实施。
 

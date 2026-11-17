@@ -39,6 +39,10 @@ export function submitChangeSet(state: VersionState, input: unknown, options: Su
   const existing = state.changes.find(c => c.request.id === parsed.data.id);
   if (existing) return jsonSignature(existing.request) === signature ? result(state, existing)
     : failure(state, 'CHANGE_ID_CONFLICT', '/id', 'A different request already uses this ChangeSet ID');
+  const upgrading=parsed.data.ops.some(op=>op.op==='upgrade_schema');
+  if(upgrading&&parsed.data.ops.length!==1)return failure(state,'SCHEMA_UPGRADE_EXCLUSIVE','/ops','Schema upgrade must be its own ChangeSet');
+  if((upgrading&&state.changes.some(change=>change.status==='candidate'))||state.changes.some(change=>change.status==='candidate'&&change.request.ops.some(op=>op.op==='upgrade_schema')))
+    return failure(state,'SCHEMA_UPGRADE_PENDING_CHANGES','/changes','Resolve live candidates before preparing another change across a schema upgrade');
   const change = evaluate(state, parsed.data, options);
   const next = structuredClone(state);
   next.changes.push(structuredClone(change));
@@ -63,6 +67,7 @@ function location(row: LocatedObject, pkg: StoryboardPackage): { scene: string |
   let scene: string | undefined;
   let episode: string | undefined;
   if (row.collection === 'episodes') episode = value.id;
+  if (row.collection === 'episode_plans') episode = value.episode_id as string;
   else if (row.collection === 'scenes') { scene = value.id; episode = value.episode_id as string; }
   else if (row.collection === 'shots' || row.collection === 'beats') scene = value.scene_id as string;
   else if (row.collection === 'lines') scene = pkg.beats.find(b => b.id === value.beat_id)?.scene_id;
@@ -136,6 +141,9 @@ export function adoptChangeSet(state: VersionState, id: string, options: AdoptOp
   if (denied) return denied;
   const stored = state.changes.find(c => c.request.id === id);
   if (!stored) return failure(state, 'MISSING_CHANGE', '/change_set_id', 'ChangeSet does not exist');
+  const upgrading=stored.request.ops.some(op=>op.op==='upgrade_schema');
+  if(upgrading&&(options.scope.kind!=='project'||options.scope.id!==state.head.project.id))return failure(state,'SCHEMA_UPGRADE_PROJECT_ONLY','/scope','Schema upgrade requires project adoption scope');
+  if(upgrading&&stored.status==='candidate'&&state.changes.some(change=>change.request.id!==id&&change.status==='candidate'))return failure(state,'SCHEMA_UPGRADE_PENDING_CHANGES','/changes','Resolve all other live candidates before schema adoption');
   if (stored.request.ops.some(op => op.op === 'lock' || op.op === 'unlock' || op.op === 'unlock_line') && stored.request.author.id !== options.actor.id)
     return failure(state, 'LOCK_AUTHORITY', '/actor', 'The trusted adopting identity must match the human lock request author');
   if (stored.status === 'adopted') return result(state, stored);
@@ -177,6 +185,7 @@ export function rejectChangeSet(state: VersionState, id: string, options: AdoptO
   if (denied) return denied;
   const stored = state.changes.find(c => c.request.id === id);
   if (!stored) return failure(state, 'MISSING_CHANGE', '/change_set_id', 'ChangeSet does not exist');
+  if(stored.request.ops.some(op=>op.op==='upgrade_schema')&&(options.scope.kind!=='project'||options.scope.id!==state.head.project.id))return failure(state,'SCHEMA_UPGRADE_PROJECT_ONLY','/scope','Schema upgrade requires project decision scope');
   if (stored.status !== 'candidate') return failure(state, 'CHANGE_STATE', '/status', 'Only a live candidate can be rejected');
   if (!reason.trim()) return failure(state, 'REJECTION_REASON', '/reason', 'Human rejection must record a reason');
   if (stored.preview) {

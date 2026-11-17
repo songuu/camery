@@ -31,6 +31,8 @@ export const ReadBriefSchema=BriefKeySchema.extend({revision:Integer.min(1).opti
 export interface StoredDevelopmentBrief {readonly brief:DevelopmentBrief;readonly actorId:string;readonly createdAt:string}
 export const RunKeySchema=z.strictObject({tenantId:Id,projectId:Id,runId:Id});
 export type DevelopmentRunKey=z.infer<typeof RunKeySchema>;
+export const DevelopmentAdoptionSourceSchema=RunKeySchema.extend({runDigest:Hash,briefDigest:Hash,foundationReviewDigest:Hash,episodesReviewDigest:Hash});
+export type DevelopmentAdoptionSource=z.infer<typeof DevelopmentAdoptionSourceSchema>;
 export const MethodPinsSchema=z.strictObject({foundation:Pin,episodes:Pin});
 export const StartRunSchema=RunKeySchema.extend({briefId:Id,expectedRevision:Integer.min(1),expectedBriefDigest:Hash,methods:MethodPinsSchema,execution:ExecutionSchema});
 export type StartDevelopmentRun=z.infer<typeof StartRunSchema>;

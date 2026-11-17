@@ -393,6 +393,9 @@ importers:
       '@camery/model-modes':
         specifier: workspace:*
         version: link:../model-modes
+      '@camery/versioning':
+        specifier: workspace:*
+        version: link:../versioning
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -424,9 +427,6 @@ importers:
 
   packages/server:
     dependencies:
-      '@camery/script':
-        specifier: workspace:*
-        version: link:../script
       '@camery/access':
         specifier: workspace:*
         version: link:../access
@@ -448,6 +448,9 @@ importers:
       '@camery/model-modes':
         specifier: workspace:*
         version: link:../model-modes
+      '@camery/script':
+        specifier: workspace:*
+        version: link:../script
       '@fastify/static':
         specifier: 10.1.11
         version: 10.1.11
@@ -546,15 +549,15 @@ importers:
 
   packages/web:
     dependencies:
-      '@camery/script':
-        specifier: workspace:*
-        version: link:../script
       '@camery/bible':
         specifier: workspace:*
         version: link:../bible
       '@camery/ingest':
         specifier: workspace:*
         version: link:../ingest
+      '@camery/script':
+        specifier: workspace:*
+        version: link:../script
       '@tanstack/react-query':
         specifier: 5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)

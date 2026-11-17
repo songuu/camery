@@ -436,7 +436,7 @@ export function changeSet(ops: ChangeOp[], overrides: Partial<ChangeSet> = {}): 
     base_revisions: [],
     ops,
     ...overrides,
-  });
+  }) as ChangeSet;
 }
 
 export const codes = (issues: readonly Issue[]): string[] => issues.map((issue) => issue.code);

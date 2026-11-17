@@ -6,7 +6,7 @@ import { validateFoundationCandidate,validateEpisodeCandidate } from '../develop
 import { captureDevelopmentReviewHost,reviewFoundation,reviewEpisodes,rejectDevelopment } from '../review.js';
 import { canonicalTime } from '../reviewed.js';
 import { canonical,copy,freeze,hash,parse } from '../data.js';
-import { BriefKeySchema,PutBriefSchema,ReadBriefSchema,RunKeySchema,StartRunSchema,StartForkSchema,DevelopmentOriginSchema,developmentMethodPins,developmentRunDigest,developmentStageCallId,developmentCandidateOwner,executionForDevelopment,executionForEpisodes,validateDevelopmentRun } from './contracts.js';
+import { BriefKeySchema,PutBriefSchema,ReadBriefSchema,RunKeySchema,StartRunSchema,StartForkSchema,DevelopmentOriginSchema,DevelopmentAdoptionSourceSchema,developmentMethodPins,developmentRunDigest,developmentStageCallId,developmentCandidateOwner,executionForDevelopment,executionForEpisodes,validateDevelopmentRun } from './contracts.js';
 import type { DevelopmentBriefKey,DevelopmentRunKey,DevelopmentRun,DevelopmentStore,DevelopmentProgress,StoredDevelopmentBrief,StartDevelopmentRun,StartDevelopmentFork,DevelopmentOrigin } from './contracts.js';
 
 type BriefRow={tenant_id:string;project_id:string;brief_id:string;revision:string|number;actor_id:string;digest:string;request_digest:string;record:unknown;created_at:Date|string};
@@ -49,14 +49,17 @@ function recordFor(run:DevelopmentRun,stage:DevelopmentStage,input:unknown,upstr
 /** Append-only service repository. Authentication, task leases and installation are separate authorities. */
 export class PostgresDevelopmentStore implements DevelopmentStore{
   constructor(private readonly pool:Pool){}
+  private async lock(client:PoolClient,run:DevelopmentRunKey|readonly DevelopmentRunKey[]|null,brief:DevelopmentBriefKey|null):Promise<void>{
+    // All callers, including an external adoption transaction, share the same brief-before-sorted-runs lock order.
+    if(brief)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_script:brief',...briefKeys(brief)])]);
+    const runs=run===null?[]:Array.isArray(run)?run:[run as DevelopmentRunKey];const locks=[...new Set(runs.map(key=>JSON.stringify(['camery_script:run',...runKeys(key)])))].sort();
+    for(const lock of locks)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[lock]);
+  }
   private async transaction<T>(run:DevelopmentRunKey|readonly DevelopmentRunKey[]|null,brief:DevelopmentBriefKey|null,action:(client:PoolClient)=>Promise<T>):Promise<T>{
     const client=await this.pool.connect().catch(()=>{throw new DevelopmentError('STORAGE_FAILED','database connection');});let destroy=false;
     try{
       await client.query('BEGIN');
-      // Every transaction that needs both locks takes the brief first; run-only saves never acquire it later.
-      if(brief)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_script:brief',...briefKeys(brief)])]);
-      const runs=run===null?[]:Array.isArray(run)?run:[run as DevelopmentRunKey];const locks=[...new Set(runs.map(key=>JSON.stringify(['camery_script:run',...runKeys(key)])))].sort();
-      for(const lock of locks)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[lock]);
+      await this.lock(client,run,brief);
       const result=await action(client);await client.query('COMMIT');return result;
     }catch(error){
       try{await client.query('ROLLBACK');}catch{destroy=true;throw new DevelopmentError('STORAGE_FAILED','database rollback');}
@@ -192,6 +195,22 @@ export class PostgresDevelopmentStore implements DevelopmentStore{
     }catch{throw new DevelopmentError('STORAGE_FAILED','stored development progress');}
   }
   async read(input:DevelopmentRunKey):Promise<DevelopmentProgress>{const key=scope(input);return this.transaction(key,null,client=>this.progress(client,key));}
+  /** Host-only seam: the caller owns the open READ COMMITTED transaction, its connection lifecycle and final formal commit. */
+  async readForAdoption(client:PoolClient,input:unknown):Promise<DevelopmentProgress>{
+    const command=freeze(parse(DevelopmentAdoptionSourceSchema,copy(input),'adoption source'));
+    const key=scope({tenantId:command.tenantId,projectId:command.projectId,runId:command.runId});
+    try{
+      const rows=await client.query<{brief_id:string}>('SELECT brief_id FROM camery_script.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));
+      if(rows.rows.length===0)throw new DevelopmentError('NOT_FOUND','adoption source run');if(rows.rows.length!==1)throw new DevelopmentError('STORAGE_FAILED','adoption source identity');
+      const brief=freeze(parse(BriefKeySchema,{tenantId:key.tenantId,projectId:key.projectId,briefId:rows.rows[0]!.brief_id},'adoption brief scope'));
+      await this.lock(client,null,brief);const run=await this.requiredRun(client,key);const owner=developmentCandidateOwner(run,'foundation');await this.lock(client,[key,owner.key],null);
+      const progress=await this.progress(client,key);const latest=await this.brief(client,brief);
+      if(progress.run.digest!==command.runDigest||progress.run.brief.digest!==command.briefDigest||latest?.brief.digest!==command.briefDigest)throw new DevelopmentError('CONFLICT','adoption source changed');
+      if(progress.foundation.review?.status!=='reviewed'||progress.episodes.review?.status!=='reviewed')throw new DevelopmentError('INCOMPLETE','adoption source reviews');
+      if(progress.foundation.review.digest!==command.foundationReviewDigest||progress.episodes.review.digest!==command.episodesReviewDigest)throw new DevelopmentError('CONFLICT','adoption source review binding');
+      return progress;
+    }catch(error){if(error instanceof DevelopmentError)throw error;throw new DevelopmentError('STORAGE_FAILED','adoption source read');}
+  }
   private async sourceKey(key:DevelopmentRunKey):Promise<DevelopmentBriefKey>{
     try{const result=await this.pool.query<{brief_id:string}>('SELECT brief_id FROM camery_script.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));if(!result.rows[0])throw new DevelopmentError('NOT_FOUND','development run');return freeze(parse(BriefKeySchema,{tenantId:key.tenantId,projectId:key.projectId,briefId:result.rows[0].brief_id},'run brief scope'));}
     catch(error){if(error instanceof DevelopmentError&&error.code==='NOT_FOUND')throw error;throw new DevelopmentError('STORAGE_FAILED','run brief lookup');}

@@ -1,6 +1,6 @@
-# @camery/ir · 阶段 0 首批契约
+# @camery/ir · 版本化内容契约
 
-当前规范为 `0.5.0-draft`。Zod 定义在 [src/schema.ts](src/schema.ts)，生成 [StoryboardPackage](contracts/storyboard-package.schema.json) 与 [ChangeSet](contracts/changeset.schema.json) 两份交换契约。测试包含生成物一致性检查。
+当前新建契约为 `0.6.0-draft`，同时严格读取原 `0.5.0-draft`。Zod 定义在 [src/schema.ts](src/schema.ts)，生成 [StoryboardPackage](contracts/storyboard-package.schema.json) 与 [ChangeSet](contracts/changeset.schema.json) 两份双版本交换契约。测试包含生成物一致性检查；旧 schema 独立保存在 `src/legacy/v05-schema.ts`。
 
 ```sh
 pnpm --filter @camery/ir test
@@ -14,6 +14,10 @@ pnpm --filter @camery/ir validate path/to/package.json --asset-root path/to/asse
 CLI 的输出为 JSON：通过退出 0，校验失败退出 1，参数错误退出 2。仅 `--help` 不读项目数据。`--delivery` 额外要求声明 adopted 修订、ready 目标、非空集/目标内容、消费引用 actual/ready、已采用取用的目标时长覆盖、各版本必需节拍覆盖及声明权利；不执行交付、生成或网络请求。规划允许空骨架和未消费的计划候选；计划素材、估计时间及不完整来源会产生声明限制警告。
 
 ## 已实现的语义
+
+- v0.6 增加完整 World、Character 开发字段、CharacterRelationship、DevelopmentPlan、EpisodePlan，保留故事设定、欲望/阻力/弧光、主线、未决问题及分集目标/冲突/转折/收尾。审核来源固定普通租户/项目键、run/digest、brief修订、候选/审核摘要与原作者/时点；这些是来源声明，不能自行授予采用权限。
+- 规则/问题使用所属 World/Plan 的局部 key；对象使用 ULID 和明确 RevisionRef。未来版本、悬空对象、同计划重复集号/正式Episode、相同上游版本下的来源混用均拒绝。历史依赖保留原 pin 并产生 `STALE_DEVELOPMENT_DEPENDENCY`；`developmentDependencyIssues` 可定位受影响计划和分集，后续生成消费者必须先拒绝这类过期上下文。此提示不证明导入前历史已在本机完整核实。
+- `upgradeV05Package` 只是纯结构转换，增加空集合、保留旧对象及版本，不写数据库。已有正式 head 必须通过版本域独立 `upgrade_schema` ChangeSet 显式采用；有其他待审候选时先处理候选。v0.3 迁移仍明确输出并校验 v0.5，不暗改旧样例或已保存请求。
 
 - 严格对象结构、ULID、相对时长、声音类型四分；旧协议不会被静默接纳。
 - 镜头与生成素材段解耦；ShotTake 绑定段/素材版本、素材来源、in/out、头尾余量、取用位置、变速及音频策略。规划允许无实际素材，已有采用取用则必须覆盖镜头。
