@@ -69,7 +69,8 @@ it('installs two complete C-ordered catalog indexes and uses them for project an
   expect(indexes.rows).toEqual(names.map((name,index)=>({name,valid:true,ready:true,method:'btree',columns:['tenant_id','project_id','ir_tenant_id','ir_project_id',...(index?['run_id']:[]),'change_id'],collation:'C',descending:true,complete:true})));
   const f=await fixture(),second=await f.intents.putCandidate(f.bodyFor('catalog-index-row')),last=[f.candidate.changeId,second.changeId].sort().at(-1)!,client=await pool.connect();
   try{
-    await client.query('BEGIN');await client.query('SET LOCAL enable_seqscan=off');
+    // Probe the ordered access paths, not the cost choice for this two-row fixture.
+    await client.query('BEGIN');await client.query('SET LOCAL enable_seqscan=off');await client.query('SET LOCAL enable_sort=off');
     for(const [index,run] of [false,true].entries()){
       const plan=await client.query<{'QUERY PLAN':string}>(`EXPLAIN (COSTS OFF) SELECT change_id FROM camery_projects.outline_candidate_intents WHERE tenant_id=$1 AND project_id=$2 AND ir_tenant_id=$3 AND ir_project_id=$4${run?' AND run_id=$6':''} AND change_id COLLATE "C" < $5::text COLLATE "C" ORDER BY change_id COLLATE "C" DESC LIMIT 5`,[f.scope.tenantId,f.scope.projectId,f.target.tenantId,f.target.projectId,last,...(run?[f.source.runId]:[])]);
       const text=plan.rows.map(row=>row['QUERY PLAN']).join('\n');expect(text).toContain('using '+names[index]);expect(text).not.toMatch(/\bSort\b/);

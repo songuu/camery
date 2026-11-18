@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 13 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 14 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -374,3 +374,34 @@ Gate：失败反例→窄测/类型/lint→code/TS/security/DB复审→串行真
 - 应用普通用例最终72项：补充opaque依赖异常、错误读绑定、错候选地址、NoChange缺原回执、封套预算和遗漏writer的实际引擎反例。遗漏writer时原生状态确实改变，应用必须安全失败而不误报成功；采用可按原生历史重放恢复回执，拒绝仍受原CAS约束，不伪造回滚或放宽版本检查。
 - 最终`pnpm check`终态0：4,611项=20工具+4,591普通，814文件策略零问题；13包类型检查成功（12缓存/1执行）、13包覆盖率全部实际执行。server普通811项覆盖97.85/95.02/99.61/99.72%，IR普通521项；方法6项和Agent10项黄金基线匹配。日志`artifacts/delivery/outline-adoption-workspace-check-complete.log` SHA-256=`e58e6ed229de59a23f677ccd2b6b91d8a78862fc288905217f3e3cb8b752c139`。前几轮普通覆盖率不足记录保留，最终通过不依赖修改95%门槛。
 - 最终封套修复后`pnpm test:server:local --coverage`终态0：915项=811普通+104 PG，69文件，覆盖97.79/95.53/99.81/99.86%。日志`artifacts/delivery/outline-adoption-server-pg-final.log` SHA-256=`c0b008dd7cf2b4014cbe9189e344e1c83aeb418a7b790eec74af2191044b46e4`。与整仓普通用例不重复相加；完整镜像和私有组合流程仍以随后精确提交CI终态为准。此批未部署生产配置、未启用formalAdoption，完整OL-5/OL-6与阶段1继续。
+
+## Revision 14 · 正式大纲完整分节读取与配置型宿主
+
+前批`e5c80c9781f10e91bb18edd2bec2926690d35fd8`完整CI https://github.com/songuu/camery/actions/runs/44261552493 completed/success（08:11:46Z）。继续AC-OL-4/5；本批完成新六类正式规划对象的完整分节读取和独立adopter宿主，之后接五件套页面及OL-6组合，旧Workbench单行与公共预算不扩大。
+
+| owner / 任务 | 风险 / 完成条件 |
+| --- | --- |
+| [P] IR outline-formal浏览器契约/分节定义与测试 | L2；overview+22种typed数组section完全覆盖新六类对象全部字段，拒自由JSON path，无Node依赖；大行逐页可按原schema重组 |
+| [P] reader/application/store协议测试与support | L2测试；实际完整mapper/原生采用夹具，鉴权先于所有读；同snapshot完整重组、翻页中新head推进/旧快照、游标隔离/损坏/字节边界，读零分配/零写/零模型 |
+| [P] host配置/runtime单测与真实PG/构建后宿主组合 | L2测试；只新文件，先红测；默认关闭/半配置拒绝、secret有界且await前捕获、实际LOGIN、完整容量读取、新pool与新head、真实built main启停；PG/coverage由根串行 |
+| 根：formal read store/projection/application/HTTP、host config/runtime/main | L4；原生snapshot单statement绑定scope/package/revision与current counters；精确schema/图验证，历史只读；宿主只验证独立reader/adopter LOGIN，不安装/GRANT/建项目/模型/worker |
+
+只读边界：新`@camery/ir/outline-formal`协议覆盖adaptation_plans、outline_beats、outline_episode_plans、asset_plans、outline_plot_units、outline_adaptation_decisions；关联实人物/实集仍用现有typed正式对象读口。列表按collection/id固定顺序返回ref/plan_ref，不发送整行；对象overview保留全部非分节字段；分节将来源references、配方signature_scenes/failure_modes/ablations、六组成员、季引擎characters/plot_units、审阅emotion_curve/issues/ablations/waivers、beats/prop_states等22组数组完整分页，数组项直接复用正式Zod类型。空数组仍有count=0描述，不丢键或字段；不使用文本截断/省略或自由JSON/任意路径。
+
+另提供独立bulk rows分页：小对象完整typed record按最多50条与同一字节预算批量读取，单个大对象整行仍超限时返回带overview/全部section描述的sectioned标记，再完整读取其数组。metadata目录保持轻量；rows游标与目录kind隔离。完整容量HTTP验收遍历全部1,085个新规划对象并逐字段比对，不用六个代表对象替代全量，也不要求每个小对象单独重载整个snapshot。
+
+`revision`可显式选择已采用的不可变snapshot，首次省略即选择当前head；游标携带所选revision，后续页面读同snapshot，即使有新head也保持原数据。响应同时标selected snapshotRevision与当前headRevision/writeVersion，授权每页重新验证。游标绑定subject、ordinary/formal项目、collection/plan或object/section及实际object版本；改变selector或显式revision与cursor不一致拒绝。不存在snapshot/对象报NOT_FOUND，旧v05/v06在专用新六类口显式SCHEMA_UPGRADE_REQUIRED，损坏或不一致的原生数据安全失败。data预留封套256字节，完整HTTP响应≤983040；所有数组页保留完整项及准确next offset。
+
+宿主：追加`CAMERY_OUTLINE_ADOPTION_ENABLED`与独立`CAMERY_OUTLINE_ADOPTION_DATABASE_URL_FILE`，拒直接凭据和关闭时残留配置。启用需既有Projects和Outline配置、同tenant/实际数据库authority且独立LOGIN；复用Projects reader凭据，新adopter按前批严格profile验证。URL身份/路由不允许query覆盖（已核对本仓pg-connection-string解析器query可覆盖host/user），只支持明确TLS/连接选项；runtime再次验证，不信任只经过外部config的假设。启动前捕获配置，故障关闭全部已拥有pool，退出幂等；main显式接adoption+formal read模块，不改已安装schema、角色、正式项目或调用模型。旧Outline页面formalAdoption能力在UI组合gate前保持false。
+
+Gate：失败反例→窄测/types/lint→code/TS/security/DB复审→串行真实PG/coverage与built main→整仓→本批显式commit/push及精确CI。生产角色与来源不自动改动；用户五份脏文档及不相关文件保留。真实文本质量、编辑器、法务、设计伙伴依原安排后补，完整T1.4/阶段1继续。
+
+## OL-5 完整正式读取与宿主验证证据（2026-11-18）
+
+- 浏览器 `@camery/ir/outline-formal` 新增50项严格协议测试；22种分节保留实际元素判别类型，overview只移除明确分节数组，所有新六类对象可按原schema完整重组。实际浏览器ESM构建无Node依赖。配置/secret增长/运行时34项普通测试验证默认关闭、URL路由覆盖拒绝、await前捕获和故障释放；安装说明见 `deploy/outline-adoption.md`。
+- Code复审发现并通过失败反例闭合整包误用每图16MiB预算：合法legacy prop.description为16,777,217字节时，新读取器仍可读取其合法大纲。独立快照捕获64MiB，每图16MiB约束继续由完整图验证实施；损坏driver rows不被当成项目缺失，未知异常不泄露内部凭据。
+- 真实完整容量首次触及45秒期限。去除已捕获快照的重复复制，bulk大首行只做一次sectioned退化判定，保留全部1085行、2048来源引用、22节及原期限；`validateOutlineGraph.scope` 用每次调用的ID→版本集合替代重复线性查找，重复引用、精确版本及错误顺序保持。IR全部571项通过，真实PG定向4项终态0、合计32.98秒；不以纯内存基准替代真实PG验收。
+- 既有目录索引两行夹具出现actor index→Sort的合法成本选择。验证有序访问路径的测试事务追加 `SET LOCAL enable_sort=off`，保留原完整索引元数据、精确project/run索引名及无Sort断言；定向复验通过。生产SQL、两个索引、迁移字节和checksum均不变；该测试证明路径可用，不承诺默认成本规划必选该索引。
+- 正式读取/存储/HTTP新增119项普通测试（59应用及分页、28存储、32HTTP），包括授权先于所有读、撤权/跨scope、合法空集合、超大单行/批量收缩后无丢失续读、完整封套983040字节、伪造版本/末尾offset及损坏依赖安全失败。没有改动95%覆盖率门槛；首次普通分支94.48%的失败记录保留，新增15项风险反例后通过。Code/TS/security/DB复审无未闭合P0–P2。
+- 最终 `pnpm check` 终态0：4,814项=20工具+4,794普通，835文件策略零问题；13包类型成功（12缓存/1执行）、13包覆盖率全部实际执行，方法6项和Agent10项黄金基线匹配。Server普通964项，覆盖97.85/95.15/99.48/99.68%；IR571项。日志 `artifacts/delivery/outline-formal-workspace-check-final.log` SHA-256=`17a89b3b54d638c9677590429ce319201f302cb6193aac2587723f36a5db7382`。
+- 最终 `pnpm test:server:local --coverage` 终态0：1,072项=964普通+108PG，76文件，覆盖97.8/95.64/99.66/99.81%。新实际PG四项包含全部1085行逐字段重建、2048来源引用和22节完整HTTP、读前后零写/零模型/零分配、新pool恢复历史cursor、相同project跨formal tenant及旧/损坏快照、真实built main默认关闭/启用/错误角色与退出。日志 `artifacts/delivery/outline-formal-server-pg-final.log` SHA-256=`43b99eb17366343107e06d211973c2ea1b35df47eab1aed6e4e3474f996293ea`。PG普通项与整仓不重复相加；全部镜像/私有组合及精确提交CI在推送后核对，不把启动当终态成功。完整五件套页面/OL-6及阶段1继续，formalAdoption保持false，用户安排后补项不变。

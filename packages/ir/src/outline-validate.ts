@@ -26,7 +26,12 @@ export function validateOutlineGraph(p:StoryboardPackageV07):{errors:Issue[];war
   function check<T extends Ref>(ref:Ref,rows:readonly T[],path:string):T|undefined{const row=rows.find(row=>row.id===ref.id);if(!row)error('MISSING_REFERENCE',path,'Referenced outline object is absent from its typed collection');return row?.version===ref.version?row:undefined;}
   function list<T extends Ref>(refs:readonly Ref[],rows:readonly T[],path:string){unique(refs.map(ref=>ref.id),path);return refs.map((ref,index)=>check(ref,rows,`${path}/${index}`));}
   function same(left:unknown,right:unknown,path:string){if(JSON.stringify(left)!==JSON.stringify(right))error('OUTLINE_COVERAGE',path,'Ordered values must match the complete frozen plan');}
-  function scope(refs:readonly Ref[],allowed:readonly Ref[],path:string){unique(refs.map(ref=>ref.id),path);for(const ref of refs)if(!allowed.some(row=>row.id===ref.id&&row.version===ref.version))error('OUTLINE_SCOPE',path,'Reference leaves the pinned plan or episode membership');}
+  function scope(refs:readonly Ref[],allowed:readonly Ref[],path:string){
+    unique(refs.map(ref=>ref.id),path);
+    // Signature scenes can each pin every beat; index membership so complete graph validation stays linear in those references.
+    const versions=new Map<string,Set<number>>();for(const ref of allowed){let pinned=versions.get(ref.id);if(!pinned){pinned=new Set<number>();versions.set(ref.id,pinned);}pinned.add(ref.version);}
+    for(const ref of refs)if(!versions.get(ref.id)?.has(ref.version))error('OUTLINE_SCOPE',path,'Reference leaves the pinned plan or episode membership');
+  }
   function origin(origin:OutlineOrigin,plan:AdaptationPlan,path:string){unique(origin.source_ref_ids,path);if(origin.kind==='invented'?origin.source_ref_ids.length!==0:origin.source_ref_ids.length===0)error('OUTLINE_ORIGIN',path,'Adapted material needs citations; invention must be explicit and uncited');for(const ref of origin.source_ref_ids)if(!plan.source.references.some(row=>row.id===ref))error('OUTLINE_SOURCE',path,'Citation is absent from the frozen source reference index');}
   for(const [index,plan] of p.adaptation_plans.entries()){
     const path=`/adaptation_plans/${index}`,brief=plan.brief;

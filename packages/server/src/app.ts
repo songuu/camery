@@ -27,6 +27,8 @@ import type { AccessPolicy, AuthRequest } from './policy.js';
 import {ProjectModule} from './projects/http.js';
 import {OutlineAdoptionModule} from './projects/outline-adoption-http.js';
 import type {OutlineAdoptionOptions} from './projects/outline-adoption-options.js';
+import {OutlineFormalReadModule} from './projects/outline-formal-http.js';
+import type {OutlineFormalReadOptions} from './projects/outline-formal-options.js';
 import type {ProjectApplicationOptions} from './projects/options.js';
 import {ProjectIdentityError} from './projects/contracts.js';
 import {ProjectApplicationError} from './projects/intent-contracts.js';
@@ -36,7 +38,7 @@ export { RequireAccess } from './policy.js';
 const SERVICE = Symbol('camery.access.service');
 // Public access stays private to this module so new business routes must declare a policy.
 const Public = (): MethodDecorator => SetMetadata(POLICY, 'public');
-export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly bibles?:BibleApiOptions; readonly development?:DevelopmentApiOptions; readonly outlines?:OutlineApiOptions; readonly projects?:ProjectApplicationOptions; readonly outlineAdoption?:OutlineAdoptionOptions; readonly frontendDirectory?: string }
+export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly bibles?:BibleApiOptions; readonly development?:DevelopmentApiOptions; readonly outlines?:OutlineApiOptions; readonly projects?:ProjectApplicationOptions; readonly outlineAdoption?:OutlineAdoptionOptions; readonly outlineFormal?:OutlineFormalReadOptions; readonly frontendDirectory?: string }
 
 class AccessGuard implements CanActivate {
   private readonly reflector = new Reflector();
@@ -128,7 +130,8 @@ export class AccessModule {
 export async function createApplication(options: AccessOptions): Promise<NestFastifyApplication> {
   if(options.projects&&options.projects.tenantId!==options.tenantId)throw new Error('Project tenant mismatch');
   if(options.outlineAdoption&&options.outlineAdoption.tenantId!==options.tenantId)throw new Error('Outline adoption tenant mismatch');
-  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : []),...(options.bibles?[BibleModule.register(options.bibles)]:[]),...(options.development?[DevelopmentModule.register(options.development)]:[]),...(options.outlines?[OutlineModule.register(options.outlines)]:[]),...(options.projects?[ProjectModule.register(options.projects)]:[]),...(options.outlineAdoption?[OutlineAdoptionModule.register(options.outlineAdoption)]:[])] }) class ApplicationModule {}
+  if(options.outlineFormal&&options.outlineFormal.tenantId!==options.tenantId)throw new Error('Formal outline tenant mismatch');
+  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : []),...(options.bibles?[BibleModule.register(options.bibles)]:[]),...(options.development?[DevelopmentModule.register(options.development)]:[]),...(options.outlines?[OutlineModule.register(options.outlines)]:[]),...(options.projects?[ProjectModule.register(options.projects)]:[]),...(options.outlineAdoption?[OutlineAdoptionModule.register(options.outlineAdoption)]:[]),...(options.outlineFormal?[OutlineFormalReadModule.register(options.outlineFormal)]:[])] }) class ApplicationModule {}
   const app = await NestFactory.create<NestFastifyApplication>(ApplicationModule,
     new FastifyAdapter({ logger: false, trustProxy: false, bodyLimit: 16384, routerOptions: { maxParamLength: 512 }, genReqId: () => randomUUID() }),
     { logger: false, abortOnError: false });
