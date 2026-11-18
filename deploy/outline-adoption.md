@@ -17,7 +17,26 @@ CAMERY_OUTLINE_ADOPTION_DATABASE_URL_FILE=/run/secrets/outline-project-adopter-u
 
 tenant 沿用 `CAMERY_TENANT_ID`，reader 沿用 Projects reader。新 secret 是受保护的普通 UTF-8 文件，实际最多读取 8192 字节，允许一个结尾 LF/CRLF。URL 必须指向同一数据库，用户名与 reader、原 Projects adopter、Outline 来源 LOGIN 均不同。URL query 不允许覆盖 host/user/database 等连接身份；仅接受明确的 TLS、application_name、connect_timeout 选项。直接 `CAMERY_OUTLINE_ADOPTION_DATABASE_URL` 会被拒绝。
 
-省略开关或设 `0` 时也必须移除 secret 配置。启用只验证已有角色，不迁移、GRANT 或调用模型。两个自有连接池各最多 4 个连接，连接等待 5 秒、查询与 statement timeout 15 秒；启动失败及退出关闭全部自有池。现有 Compose 需显式挂载只读 secret 并传入变量后才会启用。
+省略开关或设 `0` 时也必须移除 secret 配置。启用只验证已有角色，不迁移、GRANT 或调用模型。两个自有连接池各最多 4 个连接，连接等待 5 秒、查询与 statement timeout 15 秒；启动失败及退出关闭全部自有池。
+
+### Compose 镜像启用
+
+在已有 API 与 Outline 部署上显式叠加 `compose.outline-adoption.yml`。先完成上述迁移、身份注册、独立 LOGIN 核验及镜像构建；创建文件本身不会启用入口。除已有 tenant、Outline 项目、认证/source/task secret 配置外，提供三个宿主文件路径：
+
+```dotenv
+CAMERY_PROJECTS_READER_DATABASE_SECRET_FILE=/secure/camery/projects-reader-url
+CAMERY_PROJECTS_ADOPTION_DATABASE_SECRET_FILE=/secure/camery/projects-adopter-url
+CAMERY_OUTLINE_ADOPTION_DATABASE_SECRET_FILE=/secure/camery/outline-adopter-url
+```
+
+三个文件分别保存 Projects reader、原 Projects adopter、新 Outline adopter 的 URL。reader 由两个正式读取宿主复用；新 adopter 必须与 reader、原 adopter 和 Outline 来源 LOGIN 不同，且所有 URL 指向同一数据库。沿用[容器 secret 权限说明](./README.md)，确保镜像中的 `node` 用户能够读取只读挂载；不要把 URL 或密码放入上述变量值。
+
+```powershell
+docker compose --project-name camery-phase0 --env-file deploy/.env.phase0 -f deploy/compose.private.yml -f deploy/compose.api.yml -f deploy/compose.outline.yml -f deploy/compose.outline-adoption.yml config --quiet
+docker compose --project-name camery-phase0 --env-file deploy/.env.phase0 -f deploy/compose.private.yml -f deploy/compose.api.yml -f deploy/compose.outline.yml -f deploy/compose.outline-adoption.yml up -d --no-build api
+```
+
+叠加文件仅给 API 挂载三个 secret 并开启 Projects 与正式大纲采用；不把这些凭据传给 `outline-worker`，也不安装角色或初始化项目。这里只启动 API，已审阅来源的准备、采用和读取不需要启动生成 worker 或配置文本供应方。未选择该叠加文件时，原 Compose 保持默认关闭。
 
 ## 页面操作与恢复
 

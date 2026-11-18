@@ -1,2 +1,2 @@
 import {defineConfig} from 'vitest/config';
-export default defineConfig({test:{include:['test/private-outline.compose.ts'],testTimeout:180000}});
+export default defineConfig({test:{include:['test/private-outline.compose.ts','test/private-outline-adoption.compose.ts'],fileParallelism:false,testTimeout:180000}});

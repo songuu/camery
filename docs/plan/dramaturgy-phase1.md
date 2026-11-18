@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 14 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 16 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -25,9 +25,9 @@ Revision 14 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md
 | OL-1 契约、引用验证、规则和题材资产 | `packages/script/src/outline/*`、对应单测、明确子路径导出；无外部依赖 | L2 | AC-OL-1/2；领域增量已验证，见下方证据 |
 | OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；来源/固定方法/人审及持久宿主/API组合已验证，真人质量仍后补 |
 | OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；存储/预算/恢复、常驻宿主与认证服务组合已验证，正式采用继续 |
-| OL-4 鉴权 API 和编辑审阅页面 | script transport/read models、server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；先浏览器契约/列表/状态投影，再认证服务/常驻宿主/页面/实际验收，实施中 |
-| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/升级、完整纯映射、持久身份、同事务源guard及专用intent/receipt已验证；采用应用、角色及分节读取继续 |
-| OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；待做 |
+| OL-4 鉴权 API 和编辑审阅页面 | script transport/read models、server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；认证服务/常驻宿主/完整五件套页面及真实登录浏览器已验证，合成文本质量不作真人结论 |
+| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3 | L4 | AC-OL-5；v07结构/图/两步升级、完整映射、稳定身份、同事务源guard、专用角色/intent/receipt/API及页面/完整分节读取已验证 |
+| OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；PG/登录浏览器/前批精确CI已有证据，本批正式采用镜像组合与矩阵已本地通过，待本批精确CI终态 |
 
 ## 契约变化及验证
 
@@ -447,3 +447,36 @@ Gate：TDD/窄测→types/lint/浏览器构建→code/TS/security审查→真实
 - 串行`pnpm test:server:local --coverage`终态0：1114项=1004普通+110真实PG，78文件，覆盖97.76/95.64/99.66/99.82%。日志`artifacts/delivery/outline-ui-server-pg.log` SHA-256=`8b8bdfd2b081e45232b9f459a918edbe09263b52a42ae2e00a7dc5f7e422a349`。普通项与整仓不重复相加，原完整容量及95%门槛保持。
 - 实际Chrome+真实LOGIN/PG/runtime浏览器两项通过，耗时25.75秒，无页面异常。主流程验证v05→06→07两次明确决定、prepare/adopt实际COMMIT后丢ACK与原ID恢复、撤权保留待确认、NoChange零额外原生写、过期来源禁止采用而可理由拒绝、精确Character历史、新head不污染旧snapshot、显式指定旧修订零写、XSS文本转义、不同viewer只读、320px无横向溢出及凭据不进浏览器存储。独立提醒流程分别完整读取并逐项比对准备和决策回执各1152条真实native提醒、各24页，读前后身份/意图/原生版本及模型计数保持；非手写提醒或mock HTTP。测试正文采用合成创作来源，不替代真人质量。日志`artifacts/delivery/outline-adoption-browser.log` SHA-256=`8a912d16cc547711923a748b206c7e5082c5611c01cf2041e00a66602cc8daad`；报告及桌面/移动截图在同名目录，已视觉检查。
 - 浏览器门禁通过显式`pnpm --filter @camery/server test:browser:outline-adoption`运行，需本机已有Playwright driver、Chrome和隔离测试PG；默认整仓/远端CI不隐式下载浏览器。新增夹具和脚本保留可重复验收，远端镜像及私有组合仍以随后精确提交CI实际终态为准。完整阶段1与OL-6继续，后补项安排保持。
+
+## Revision 16 · OL-6 正式采用镜像组合与交付核对
+
+前批`e16d09854a8457198e93e13388086fec04e0ed88`已与origin/main一致，精确CI https://github.com/songuu/camery/actions/runs/44295995396 completed/success（12:02:20Z），27步骤全部成功。现有private-outline镜像流程只验证生成、人审和已付日志恢复，正式采用组合仍缺独立容器证据；本批复用同一镜像及现有显式本地/CI命令补齐，不把宿主进程测试冒充镜像验证。
+
+| owner / 任务 | 风险 / 完成条件 |
+| --- | --- |
+| [P] Compose正式采用叠加与运维说明 | L2；只新compose及既有说明 | 仅显式组合后API启用Projects+OutlineAdoption，独立三个只读secret；不给worker新权限，不安装/GRANT，不改默认部署 |
+| [P] 独立private-outline-adoption.compose.ts | L2测试；只新文件 | 实际镜像/独立LOGIN/已审阅来源/HTTP准备采用、原ID重启恢复、历史快照/游标、撤权/跨scope及正常退出；根串行运行Docker/PG |
+| 根：门禁接线、矩阵及最终验证 | L3；依赖以上 | 现有private-outline命令包含两组串行测试，180秒单测和30分钟CI总预算保持；全量检查、镜像实际组合、复审、授权commit/push及精确CI终态 |
+
+回滚只撤显式部署叠加并重启API，保留所有来源、意图、身份和正式历史。验收夹具仅操作自有随机scope、角色、容器与临时secret；生产项目/角色不自动迁移。完整阶段1还包含四本账、剧本及其他T1任务，当前仅闭合T1.4工程组合。真实文本质量、编辑器、法务、设计伙伴按既有安排后补。
+
+### OL-6 工程验收矩阵
+
+| 验收范围 | 当前可检查的权威证据 | 边界 / 本批待闭合 |
+| --- | --- | --- |
+| AC-OL-1 完整五件套、连续集与全部引用/容量 | `script/test/outline.test.ts`实际严格领域校验；`server/test/outline-adoption.integration.test.ts`1249操作正式采用；`outline-formal-read.integration.test.ts`全部1085行/2048引用/22节逐字段重组 | 以上已在e16d098精确CI通过；不得用代表对象或截断响应代替完整容量 |
+| AC-OL-2 固定三类题材、钩子/卡点、定位规则、情绪曲线与抽离人审 | `script/test/outline.test.ts`规则/曲线/抽离覆盖；`outline-generation.test.ts`固定原题材和生效阈值；`web/test/outline-workbench.test.tsx`与`outline-editor.test.tsx`普通创作字段 | e16d098整仓通过；规则命中及合成结果不证明作品质量或人工3.5/5 |
+| AC-OL-3 真实来源/简报/方法/调用收据及受信任人工确认 | `script/test/outline-generation.test.ts`原请求和收据绑定；来源/人审PG用例；`server/test/outline-browser.acceptance.ts`实际登录编辑/人审 | 前批真实浏览器证据及e16d098精确CI；文本供应方与真人评价后补 |
+| AC-OL-4 原日志恢复、未知结果/预算、并发及租户隔离 | `script/test/outline-workflow.integration.test.ts`实际SIGKILL/unknown/新pool；`server/test/private-outline.compose.ts`已付journal在built无text worker恢复；`outline-adoption.integration.test.ts`八并发/撤权/回执恢复 | e16d098精确CI已通过；本批保留旧镜像gate并与新采用gate串行，不放宽超时和预算 |
+| AC-OL-5 页面显式升级/采用、丢ACK/冲突/旧快照 | `server/test/outline-adoption-browser.acceptance.ts`真实PG+Chrome两步升级/原ID恢复、1152提醒全分页、旧修订；`outline-formal-read.integration.test.ts`完整HTTP/历史cursor | 页面与宿主已有实际证据；本批补`private-outline-adoption.compose.ts`实际镜像准备/采用、重启复用、旧cursor及撤权 |
+| 构建与可部署组合 | `pnpm check`、既有Dockerfile及`.github/workflows/ci.yml`全部门禁；新`compose.outline-adoption.yml`显式API-only secrets | 本批实际镜像gate、code/TS/security复审、最终精确提交CI终态仍须实际完成 |
+
+本矩阵关联已执行测试的范围，不因存在测试文件或历史成功就判定本批通过；本批实际命令、日志摘要及精确CI结果记录于后续证据。其余T1.1–T1.15任务按主v2.1计划继续，不能从T1.4局部工程验收推出完整阶段1完成。
+
+### OL-6 本地组合验证证据
+
+- 新叠加文件只向API提供Projects reader、原adopter、新Outline adopter三个独立只读secret，复用已有Outline source/task配置；不启用文本供应方，不把新权限交给worker。实际Compose `config --quiet`及启动通过。code/TypeScript/security复审无未闭合P0–P2；本批不改应用业务、SQL迁移、角色grant实现或公共协议。
+- 实际重建镜像`camery-api:phase0`，image ID=`sha256:22c9aa713d4d8f2379936fd0e35173b83e29623edec00f61eaed3a6b555a3321`；构建终态0，日志`artifacts/delivery/outline-ol6-image-build.log` SHA-256=`09bfb8eead2f2950c7db8719d4c163648c463719219dc06f3cb48aade0a5e3ac`。此标识仅属于本机构建，不当作后续CI镜像digest。
+- `pnpm test:private-outline:local`终态0，两个文件/两项真实镜像测试，75.07秒，明确`fileParallelism:false`串行。旧SIGKILL/已付journal无text恢复保留。新测试使用六个真实受限LOGIN，分别完成严格角色验证；缺正式叠加时capability为false且写/读路由404，完整组合canStart仍false、formalAdoption为true；实际HTTP prepare/adopt及原生head/完整adoption逐项一致。容器重启后相同application/request重放返回原回执、完整state及各表计数不变；另一来源实际采用后，原rows/section cursor读回旧snapshot全部行及完整剩余beat数组，selected/current revision分开，读取零分配/零写/零模型。跨主体cursor400、跨项目403、viewer采用403、撤销会话401、reviewer降权后原历史ACK403均通过。
+- 镜像实际检查nonroot、只读根、非privileged与cap_drop ALL、无text secret；日志不含创作标题、会话token、角色密码、本机或容器URL。正常SIGTERM退出0，自有容器/tenant/正式target/角色/临时secret逐项释放，清理异常会显式失败；随后按随机容器名前缀查询无残留。日志`artifacts/delivery/outline-ol6-compose.log` SHA-256=`cfffd93fab8799c3c38b54cfd7d65f5a9df8c2dac932d7e82371b1ed23b89cc4`。来源文本是合成创作材料，不代替真人质量或外部签核。
+- `pnpm check`终态0，5007项=20工具+4987普通，13包覆盖率全部实际执行、零coverage缓存；类型13包成功（12缓存/1执行），858文件策略零问题，方法6项/Agent10项基线匹配，95%门槛保持。日志`artifacts/delivery/outline-ol6-workspace-check.log` SHA-256=`7c272bd53c208f1eb2c034fdb23527b73c9a39e8650944f117f004d861d91702`。没有应用业务变更因此不重复本地1114项server PG覆盖；远端既有全套PG/镜像门禁保持，最终以本批精确提交实际终态为准。

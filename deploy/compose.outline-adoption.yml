@@ -1,0 +1,21 @@
+# Add to compose.private.yml + compose.api.yml + compose.outline.yml after explicit project and outline adoption provisioning.
+# Only the API receives these credentials; source/task configuration remains in compose.outline.yml.
+services:
+  api:
+    environment:
+      CAMERY_PROJECTS_ENABLED: '1'
+      CAMERY_PROJECTS_READER_DATABASE_URL_FILE: /run/secrets/projects_reader_database_url
+      CAMERY_PROJECTS_ADOPTION_DATABASE_URL_FILE: /run/secrets/projects_adoption_database_url
+      CAMERY_OUTLINE_ADOPTION_ENABLED: '1'
+      CAMERY_OUTLINE_ADOPTION_DATABASE_URL_FILE: /run/secrets/outline_adoption_database_url
+    secrets:
+      - projects_reader_database_url
+      - projects_adoption_database_url
+      - outline_adoption_database_url
+secrets:
+  projects_reader_database_url:
+    file: ${CAMERY_PROJECTS_READER_DATABASE_SECRET_FILE:?Set the restricted Projects reader URL secret file}
+  projects_adoption_database_url:
+    file: ${CAMERY_PROJECTS_ADOPTION_DATABASE_SECRET_FILE:?Set the restricted Projects adopter URL secret file}
+  outline_adoption_database_url:
+    file: ${CAMERY_OUTLINE_ADOPTION_DATABASE_SECRET_FILE:?Set the restricted Outline adopter URL secret file}
