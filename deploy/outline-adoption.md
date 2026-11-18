@@ -1,6 +1,6 @@
 # 正式大纲采用与完整读取
 
-本宿主把已审阅的大纲接入正式版本域，并提供六类规划对象的完整只读接口。默认关闭。启用不依赖文本模型或生成 worker；现有 Outline 页面仍等待页面组合验收，`formalAdoption` 保持关闭。
+本宿主把已审阅的大纲接入正式版本域，并提供六类规划对象的完整只读接口。默认关闭。启用不依赖文本模型或生成 worker；Projects、Outline 来源、正式采用及完整读取模块同时装配后，Outline 页面才显示正式采用入口。单独声明 capability 不能绕过此组合检查。
 
 ## 安装与配置
 
@@ -18,6 +18,16 @@ CAMERY_OUTLINE_ADOPTION_DATABASE_URL_FILE=/run/secrets/outline-project-adopter-u
 tenant 沿用 `CAMERY_TENANT_ID`，reader 沿用 Projects reader。新 secret 是受保护的普通 UTF-8 文件，实际最多读取 8192 字节，允许一个结尾 LF/CRLF。URL 必须指向同一数据库，用户名与 reader、原 Projects adopter、Outline 来源 LOGIN 均不同。URL query 不允许覆盖 host/user/database 等连接身份；仅接受明确的 TLS、application_name、connect_timeout 选项。直接 `CAMERY_OUTLINE_ADOPTION_DATABASE_URL` 会被拒绝。
 
 省略开关或设 `0` 时也必须移除 secret 配置。启用只验证已有角色，不迁移、GRANT 或调用模型。两个自有连接池各最多 4 个连接，连接等待 5 秒、查询与 statement timeout 15 秒；启动失败及退出关闭全部自有池。现有 Compose 需显式挂载只读 secret 并传入变量后才会启用。
+
+## 页面操作与恢复
+
+先选择已保存人审且来源仍有效的大纲。旧项目需要先准备并明确采用结构升级；从 0.5 到 0.7 会经过两轮独立升级决定。页面通过只读 `GET /api/v1/projects/:projectId/workbench/schema-upgrades/:candidateId` 核对真实升级操作，普通手工变更不会被当成升级。
+
+“准备正式大纲候选”只产生候选；具有审阅权限及正式身份的成员核对来源与回执后，才能点击“明确采用”。没有变化时明确显示无需变更；来源过期会阻止采用，仍可填写理由拒绝。回执问题与提醒分别按需分页，不因超过 500 条而截断。
+
+浏览器仅在明确操作前保存一份至多 16 KiB 的本标签页恢复记录，按 tenant/user/project 隔离，包含原请求 ID、摘要、CAS 和必要拒绝理由；不保存凭据、大纲正文或模型材料。未知结果重试复用原命令。已有待确认操作遇到撤权或会话过期仍保留身份，不能把本次重试被拒绝误当成此前没有提交。确认回执后清除；存储不可用只阻止新写入，已有内容仍可读取。
+
+“查看正式大纲”读取当前正式快照；也可指定已核对范围内的修订号，或打开回执对应修订。页面区分选中修订与当前项目头，旧快照不会混入后来内容。人物读取精确固定版本，分集从历史中选择该快照当时的记录，删除墓碑不回退旧的存活记录。规划资产继续只表示规划。
 
 ## 只读接口
 

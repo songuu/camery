@@ -423,3 +423,27 @@ Gate：失败反例→窄测/types/lint→code/TS/security/DB复审→串行真�
 - 实际PG原完整容量测试保持不变，本地定向用时14619ms（fixture3451、adopt8257、可信import12778、bulk13320、sections14485ms），完整1085行/2048引用/22节仍逐字段比对。追加两项实际受限LOGIN缓存测试：提交/采用后旧payload配当前head/write、同revision合法正文修改触发重新验证、非法正文安全失败且不污染旧引用、热缓存头packageId错误拒绝；数据库原生约束保持。
 - 最终 `pnpm check` 终态0：4,834项=20工具+4,814普通，836文件策略零问题；13包类型成功（12缓存/1执行）、13包覆盖率实际执行；server984普通，覆盖97.82/95.15/99.48/99.68%，方法6项/Agent10项黄金基线匹配。日志 `artifacts/delivery/outline-formal-cache-workspace-check.log` SHA-256=`1497ef3811bfc1efd5864b966241bb1b5805adebf116de34868e85e40b3f44f4`。
 - 最终 `pnpm test:server:local --coverage` 终态0：1,094项=984普通+110PG，76文件，覆盖97.78/95.64/99.66/99.82%。日志 `artifacts/delivery/outline-formal-cache-server-pg.log` SHA-256=`99121ac8de651d7c0ac1ff701e4123a9dd15a18a72f24e3ae79cd5c611045994`。前述普通项不重复相加；远端先前失败不改判，新性能修复以随后精确提交CI实际终态为准，完整阶段1及五件套页面/OL-6继续。
+
+## Revision 15 · 页面正式采用与完整正式内容
+
+前批 `30f36f725a2eb7b5cd2f7383b01656b3d5b82563` CI https://github.com/songuu/camery/actions/runs/44281638812 completed/success（10:25:43Z），27步骤全部成功；远端容量全部sections完成29462ms，保留原45秒门槛。继续AC-OL-5，完成页面的明确升级、准备、采用/拒绝、回执全分页及正式六类内容完整浏览，不把单独后端门禁当成完整阶段1。
+
+| owner / 任务 | 风险 / 完成条件 |
+| --- | --- |
+| [P] Web API typed client与单测 | L2；只api.ts及新api-outline-adoption.test.ts，十个新接口严格命令/响应/作用域绑定、完整983040字节封套，复用凭据内存/取消/安全错误，不引入Node依赖 |
+| [P] FormalOutlinePane及view/style/单测 | L2；只新正式大纲浏览文件，六类列表/overview/22数组节逐页完整显示，固定所选snapshot；空/旧/错/晚回包及切换隔离；实际人物/集引用按精确版本读既有history，无JSON dump |
+| [P] 明确操作的恢复journal与纯状态单测 | L2；只新OutlineAdoptionState.ts及测试；按真实tenant/user/project分区、16KiB有界本标签页记录，仅小命令/ID/CAS/摘要及必要拒绝理由，不存凭据或大纲正文；先持久操作身份再发请求，同原内容重试、成功才清除，未知结果不自动换ID |
+| 根：OutlineAdoptionPane/OutlinePane/Workbench/App与服务capability接线 | L4；采用能力仅实际host+模块齐备才开启；已有源人审与正式采用分开，旧schema先显式升级候选并明确采用，真实server CAS/actor/scope边界保持；操作隔离、分页回执和刷新/断线恢复 |
+
+页面沿用纸色/橄榄绿/陶土色与中文创作顺序，候选目录可恢复全部大纲运行的正式候选；权限、来源过期/不可用、NoChange、CAS冲突、已采用/拒绝和未确认结果分别呈现。正式读取按需加载，显示原选中修订与当前head，完整内容可展开更多，不截断文本或仅展示代表字段；规划资产继续不宣称可用媒体。小恢复记录由明确写操作产生、按主体/项目隔离，只有同原命令重试才能确认未知ACK；查询、刷新及列表不执行写入或调用模型。
+
+Gate：TDD/窄测→types/lint/浏览器构建→code/TS/security审查→真实登录浏览器和PG组合（PG/coverage根串行）→整仓95%门槛→显式commit/push及精确CI。用户五份脏文档与无关文件保留；编辑器、法务、设计伙伴及真实文本质量按原安排后补，OL-6和完整阶段1仍须继续审计。
+
+## OL-5 页面采用与完整内容验证证据（2026-11-18）
+
+- 页面接入十个大纲采用/正式读取接口，并补第十一个升级核对接口。普通manual候选不能证明是结构升级；新增只读schema-upgrades接口按不可变intent核对唯一upgrade操作及合法单步版本，拒绝原生内容不匹配，支持其他审阅成员明确采用。新增8项IR、8项HTTP、4项应用反例；capability组合8项先RED后GREEN，仅完整可信宿主装配开启能力。
+- Web API新增49项、恢复状态50项、完整正式内容46项测试。页面支持两轮独立结构升级、候选准备/明确采用/理由拒绝、全部大纲候选目录、回执完整分页、当前/指定/回执修订及精确关联人物历史。未确认操作复用原ID/命令/CAS；复审发现已有待确认请求遭4xx误清除的P2，修复后由实际提交丢ACK、F5、撤权重试及恢复授权验收闭合。code/TypeScript/security复审无未闭合P0–P2。
+- `pnpm check`终态0：5007项=20工具+4987普通，13包覆盖率全部实际执行；server1004普通，覆盖97.81/95.16/99.48/99.68%，web321项覆盖98.23/96.71/98.97/99.52%，IR579项。方法6项/Agent10项黄金基线匹配。日志`artifacts/delivery/outline-ui-workspace-check.log` SHA-256=`c3c6acb911d24271c31a6a5d7931c5f85d12724d5808227773975b5cbb250a75`。最终history选择及浏览器夹具更新后类型13包成功（11缓存/2执行）、856文件策略及lint零问题；浏览器构建终态0，保留既有主包大于500kB提醒。
+- 串行`pnpm test:server:local --coverage`终态0：1114项=1004普通+110真实PG，78文件，覆盖97.76/95.64/99.66/99.82%。日志`artifacts/delivery/outline-ui-server-pg.log` SHA-256=`8b8bdfd2b081e45232b9f459a918edbe09263b52a42ae2e00a7dc5f7e422a349`。普通项与整仓不重复相加，原完整容量及95%门槛保持。
+- 实际Chrome+真实LOGIN/PG/runtime浏览器两项通过，耗时25.75秒，无页面异常。主流程验证v05→06→07两次明确决定、prepare/adopt实际COMMIT后丢ACK与原ID恢复、撤权保留待确认、NoChange零额外原生写、过期来源禁止采用而可理由拒绝、精确Character历史、新head不污染旧snapshot、显式指定旧修订零写、XSS文本转义、不同viewer只读、320px无横向溢出及凭据不进浏览器存储。独立提醒流程分别完整读取并逐项比对准备和决策回执各1152条真实native提醒、各24页，读前后身份/意图/原生版本及模型计数保持；非手写提醒或mock HTTP。测试正文采用合成创作来源，不替代真人质量。日志`artifacts/delivery/outline-adoption-browser.log` SHA-256=`8a912d16cc547711923a748b206c7e5082c5611c01cf2041e00a66602cc8daad`；报告及桌面/移动截图在同名目录，已视觉检查。
+- 浏览器门禁通过显式`pnpm --filter @camery/server test:browser:outline-adoption`运行，需本机已有Playwright driver、Chrome和隔离测试PG；默认整仓/远端CI不隐式下载浏览器。新增夹具和脚本保留可重复验收，远端镜像及私有组合仍以随后精确提交CI实际终态为准。完整阶段1与OL-6继续，后补项安排保持。

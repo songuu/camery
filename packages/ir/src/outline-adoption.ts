@@ -1,6 +1,6 @@
 import {z} from 'zod';
-import {StableId} from './schema';
-import {WorkbenchActionReceiptSchema,WorkbenchExpectationSchema,WorkbenchIssueSchema,WorkbenchRejectSchema} from './workbench';
+import {StableId,LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION,SCHEMA_VERSION} from './schema';
+import {WorkbenchActionReceiptSchema,WorkbenchExpectationSchema,WorkbenchIssueSchema,WorkbenchRejectSchema,WorkbenchCandidateDetailSchema} from './workbench';
 
 const ordinaryId=z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
 const stableId=StableId.refine(value=>value.length===26);
@@ -52,3 +52,9 @@ export const OutlineCandidateHeaderSchema=z.strictObject({candidateId:stableId,a
 export type OutlineCandidateHeader=z.infer<typeof OutlineCandidateHeaderSchema>;
 export const OutlineCandidatePageSchema=z.strictObject({contractVersion:z.literal(1),items:z.array(OutlineCandidateHeaderSchema).max(50),nextCursor:cursor.nullable()});
 export type OutlineCandidatePage=z.infer<typeof OutlineCandidatePageSchema>;
+
+/** An ordinary manual candidate is not proof of a schema upgrade; the host verifies its immutable operation. */
+export const OutlineUpgradeCandidateSchema=z.strictObject({contractVersion:z.literal(1),from:z.enum([LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION]),to:z.enum([DEVELOPMENT_SCHEMA_VERSION,SCHEMA_VERSION]),candidate:WorkbenchCandidateDetailSchema}).superRefine((value,context)=>{
+  if(value.to!==(value.from===LEGACY_SCHEMA_VERSION?DEVELOPMENT_SCHEMA_VERSION:SCHEMA_VERSION)||!value.candidate.managed||value.candidate.source.kind!=='manual'||value.candidate.scope.kind!=='project')context.addIssue({code:'custom',message:'Expected a managed project schema upgrade'});
+});
+export type OutlineUpgradeCandidate=z.infer<typeof OutlineUpgradeCandidateSchema>;

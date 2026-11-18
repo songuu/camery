@@ -32,7 +32,7 @@ class OutlineController {
   constructor(@Inject(OPTIONS) private readonly options:OutlineApiOptions){}
   @Get('capabilities') @RequireAccess('project:read')
   capabilities(@Param('projectId') projectId:string){
-    const preset=this.options.presetFor(projectId);return OutlineCapabilitiesSchema.parse({canStart:!!preset,modelLabel:preset?.label??null,defaultEpisodeCount:10,formalAdoption:false,
+    const preset=this.options.presetFor(projectId);return OutlineCapabilitiesSchema.parse({canStart:!!preset,modelLabel:preset?.label??null,defaultEpisodeCount:10,formalAdoption:this.options.formalAdoption===true,
       budget:preset?{currency:preset.execution.currency,tokens:preset.execution.reservation.tokens,costMicros:preset.execution.reservation.costMicros}:null});
   }
   @Get() @RequireAccess('project:read')

@@ -5,6 +5,7 @@ import {accessId} from '@camery/access';
 import {StableId} from '@camery/ir';
 import {DevelopmentCandidatePrepareSchema,WorkbenchAdoptSchema,WorkbenchCandidateDetailSchema,WorkbenchCandidateListQuerySchema,WorkbenchCandidatePageSchema,WorkbenchPreviewSchema,WorkbenchPreviewResultSchema,WorkbenchRejectSchema,WorkbenchStateSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchActionReceiptSchema,WorkbenchSnapshotSchema,WorkbenchReadQuerySchema,WorkbenchHistoryQuerySchema,WorkbenchObjectHistorySchema,WorkbenchCollectionSchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
 import {snapshotJson,JsonBoundaryError} from '@camery/methods/json';
+import {OutlineUpgradeCandidateSchema} from '@camery/ir/outline-adoption';
 import {RequireAccess} from '../policy.js';
 import type {AuthRequest} from '../policy.js';
 import {ProjectApplication} from './application.js';
@@ -29,15 +30,19 @@ function idempotency(request:AuthRequest,applicationId?:string):string{
   if(count!==1||typeof key!=='string'||!accessId.safeParse(key).success||applicationId!==undefined&&key!==applicationId)throw new ProjectApplicationError('INVALID_INPUT','idempotency key');
   return key;
 }
-async function envelope<S extends z.ZodType>(schema:S,result:Promise<unknown>,request:AuthRequest):Promise<{data:z.infer<S>;requestId:string}>{
+async function envelope<S extends z.ZodType>(schema:S,result:Promise<unknown>,request:AuthRequest,completeBudget?:number):Promise<{data:z.infer<S>;requestId:string}>{
   const data=await result;
-  try{return {data:schema.parse(snapshotJson(data,1048576,65536)),requestId:request.id};}
+  try{const response={data:schema.parse(snapshotJson(data,completeBudget??1048576,65536)),requestId:request.id};if(completeBudget!==undefined)snapshotJson(response,completeBudget,65536);return response;}
   catch{throw new ProjectApplicationError('STORAGE_FAILED','HTTP response projection');}
 }
 const candidateIdSchema=StableId.refine(value=>value.length===26);
 @Controller('api/v1/projects/:projectId')
 class ProjectController{
   constructor(@Inject(APPLICATION) private readonly application:ProjectApplication){}
+  @Get('workbench/schema-upgrades/:candidateId') @RequireAccess('project:read')
+  upgradeCandidate(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Param('candidateId') candidateId:string,@Query() input:unknown){
+    query(z.strictObject({}),input);return envelope(OutlineUpgradeCandidateSchema,this.application.upgradeCandidate({subject:request.principal,projectId,candidateId:parse(candidateIdSchema,candidateId)}),request,983040);
+  }
   @Get('workbench') @RequireAccess('project:read')
   snapshot(@Req() request:AuthRequest,@Param('projectId') projectId:string,@Query() input:unknown){
     return envelope(WorkbenchSnapshotSchema,this.application.readSnapshot({subject:request.principal,projectId,command:query(WorkbenchReadQuerySchema,input)}),request);

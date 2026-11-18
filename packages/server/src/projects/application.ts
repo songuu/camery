@@ -3,6 +3,7 @@ import {AccessError,authorize,parseIdentity,permissionsFor} from '@camery/access
 import type {Permission,SessionIdentity} from '@camery/access';
 import {Asset,ChangeSet,StableId,OUTLINE_COLLECTIONS} from '@camery/ir';
 import {WorkbenchStateSchema,WorkbenchPreviewSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,DevelopmentCandidatePrepareSchema,WorkbenchCandidateListQuerySchema,WorkbenchReadQuerySchema,WorkbenchHistoryQuerySchema,WorkbenchObjectHistorySchema,WorkbenchCollectionSchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
+import {OutlineUpgradeCandidateSchema} from '@camery/ir/outline-adoption';
 import {freeze} from '@camery/methods';
 import {snapshotJson,JsonBoundaryError} from '@camery/methods/json';
 import {submitChangeSet} from '@camery/versioning';
@@ -100,12 +101,20 @@ export class ProjectApplication{
     const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});
     return this.options.intents.listCandidateHeaders({scope:{tenantId:subject.tenantId,projectId},target:binding.versionKey,subjectId:subject.userId,...query});
   }
-  async candidate(input:Context&{candidateId:string}){
+  async candidate(input:Context&{candidateId:string}){return (await this.candidateData(input)).detail;}
+  async upgradeCandidate(input:Context&{candidateId:string}){
+    const {intent,detail}=await this.candidateData(input,true),op=intent!.request!.ops[0]!;
+    if(op.op!=='upgrade_schema')throw new ProjectApplicationError('STORAGE_FAILED','upgrade operation');
+    return OutlineUpgradeCandidateSchema.parse({contractVersion:1,from:op.from,to:op.to,candidate:detail});
+  }
+  private async candidateData(input:Context&{candidateId:string},upgradeOnly=false){
     const subject=this.subject(input,'project:read');const candidateId=capture(stable,input.candidateId);const projectId=input.projectId;
     const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId});const scope={tenantId:subject.tenantId,projectId};
     const intent=await this.options.intents.candidateForChange({scope,changeId:candidateId});
     if(intent&&!sameTarget(intent.target,binding.versionKey))throw new ProjectApplicationError('STORAGE_FAILED','candidate target');
+    if(upgradeOnly&&(!intent||intent.source.kind!=='manual'||intent.request?.ops.length!==1||intent.request.ops[0]?.op!=='upgrade_schema'))throw new ProjectApplicationError('NOT_FOUND','schema upgrade candidate');
     const stored=await this.read(binding.versionKey);const preparation=intent?await this.options.intents.readPreparationReceipt({scope,applicationId:intent.applicationId}):null;
+    if(upgradeOnly){const native=stored.state.changes.find(change=>change.request.id===candidateId);if(native&&projectIntentDigest(native.request)!==projectIntentDigest(intent!.request))throw new ProjectApplicationError('STORAGE_FAILED','upgrade native request');}
     let canReview=permissionsFor(subject,this.options.tenantId,projectId).includes('candidate:review');
     if(canReview){try{await this.options.identities.resolvePrincipal({tenantId:subject.tenantId,kind:'user',key:subject.userId});}catch(error){if(error instanceof ProjectIdentityError&&error.code==='PRINCIPAL_BINDING_MISSING')canReview=false;else throw error;}}
     let sourceState:'current'|'stale'|'unavailable'='current';
@@ -117,7 +126,7 @@ export class ProjectApplication{
         sourceState=current&&progress.run.digest===source.runDigest&&progress.run.brief.digest===source.briefDigest&&progress.foundation.review?.status==='reviewed'&&progress.foundation.review.digest===source.foundationReviewDigest&&progress.episodes.review?.status==='reviewed'&&progress.episodes.review.digest===source.episodesReviewDigest?'current':'stale';
       }catch{sourceState='unavailable';}
     }
-    return projectCandidateDetail({projectKey:projectId,state:stored.state,writeVersion:stored.writeVersion,candidateId,intent,preparation,canReview,sourceState});
+    return {intent,detail:projectCandidateDetail({projectKey:projectId,state:stored.state,writeVersion:stored.writeVersion,candidateId,intent,preparation,canReview,sourceState})};
   }
   private manualPolicy(request:ChangeSet,stored:StoredVersionState):void{
     // A manual command cannot manufacture or rewrite a reviewed development source receipt.

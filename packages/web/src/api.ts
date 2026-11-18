@@ -6,8 +6,12 @@ import { BibleCapabilitiesSchema, BibleRunListSchema, BibleStatusSchema, BibleRu
 import type { BibleStart, BibleConfirm } from '@camery/bible/http';
 import {DevelopmentCapabilitiesSchema,DevelopmentBriefListSchema,DevelopmentBriefViewSchema,DevelopmentBriefWriteSchema,DevelopmentRunListSchema,DevelopmentStatusSchema,DevelopmentRunViewSchema,DevelopmentStartSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema,DevelopmentRedoSchema,DevelopmentRedoOptionsSchema,boundedDevelopmentSchema} from '@camery/script/http';
 import type {DevelopmentBriefWrite,DevelopmentStart,DevelopmentFoundationConfirm,DevelopmentEpisodesConfirm,DevelopmentRedo} from '@camery/script/http';
-import {OutlineCapabilitiesSchema,OutlineBriefListQuerySchema,OutlineBriefListSchema,OutlineReadBriefQuerySchema,OutlineBriefViewSchema,OutlineBriefWriteSchema,OutlineSourceListQuerySchema,OutlineSourceListSchema,OutlineListQuerySchema,OutlineRunListSchema,OutlineStatusSchema,OutlineRunViewSchema,OutlineStartSchema,OutlineConfirmSchema,OutlineRejectSchema} from '@camery/script/outline/http';
+import {OutlineCapabilitiesSchema,OutlineBriefListQuerySchema,OutlineBriefListSchema,OutlineReadBriefQuerySchema,OutlineBriefViewSchema,OutlineBriefWriteSchema,OutlineSourceListQuerySchema,OutlineSourceListSchema,OutlineListQuerySchema,OutlineRunListSchema,OutlineStatusSchema,OutlineRunViewSchema,OutlineStartSchema,OutlineConfirmSchema,OutlineRejectSchema,boundedOutlineSchema} from '@camery/script/outline/http';
 import type {OutlineBriefWrite,OutlineStart,OutlineConfirm} from '@camery/script/outline/http';
+import {OutlinePrepareCommandSchema,OutlineAdoptCommandSchema,OutlineRejectCommandSchema,OutlineCandidateSchema,OutlineCandidateListQuerySchema,OutlineCandidatePageSchema,OutlineReceiptSchema,OutlineReceiptQuerySchema,OutlineReceiptPageSchema,OutlineUpgradeCandidateSchema} from '@camery/ir/outline-adoption';
+import type {OutlinePrepareCommand,OutlineAdoptCommand,OutlineRejectCommand,OutlineCandidateListQuery,OutlineReceiptQuery} from '@camery/ir/outline-adoption';
+import {OutlineFormalCollectionSchema,OutlineFormalRefSchema,OutlineFormalListQuerySchema,OutlineFormalObjectQuerySchema,OutlineFormalSectionQuerySchema,OutlineFormalListSchema,OutlineFormalRowsSchema,OutlineFormalObjectSchema,OutlineFormalSectionPageSchema,OUTLINE_FORMAL_SECTIONS} from '@camery/ir/outline-formal';
+import type {OutlineFormalCollection,OutlineFormalRef,OutlineFormalListQuery,OutlineFormalObjectQuery,OutlineFormalSectionQuery} from '@camery/ir/outline-formal';
 import {WorkbenchStateSchema,WorkbenchCandidatePageSchema,WorkbenchCandidateDetailSchema,WorkbenchActionReceiptSchema,WorkbenchCandidateListQuerySchema,DevelopmentCandidatePrepareSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,workbenchEnvelope} from '@camery/ir/workbench';
 import type {DevelopmentCandidatePrepare,WorkbenchUpgradeInput,WorkbenchAdoptInput,WorkbenchRejectInput} from '@camery/ir/workbench';
 import {WorkbenchSnapshotSchema,WorkbenchReadQuerySchema,WorkbenchCollectionSchema,WorkbenchObjectRefSchema,WorkbenchObjectHistorySchema,WorkbenchHistoryQuerySchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
@@ -20,6 +24,8 @@ const Progress = z.strictObject({ offset: z.number().int().nonnegative(), versio
 export class ApiError extends Error { constructor(readonly code: string) { super(`Request failed (${code})`); this.name = 'ApiError'; } }
 function id(value: string): string { if (!Id.safeParse(value).success) throw new ApiError('INVALID_REQUEST'); return encodeURIComponent(value); }
 function workbenchQuery(input:Record<string,string|number|undefined>){const entries=Object.entries(input).filter((entry):entry is [string,string|number]=>entry[1]!==undefined);return entries.length?`?${entries.map(([key,value])=>`${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`:'';}
+function outlineInput<T>(schema:z.ZodType<T>,input:unknown):T{const parsed=boundedOutlineSchema(schema,16384).safeParse(input);if(!parsed.success)throw new ApiError('INVALID_REQUEST');return parsed.data;}
+function formalSelection(query:OutlineFormalListQuery,revision:number,items:readonly {ref:OutlineFormalRef;plan:{id:string;version:number}}[]){return (query.revision===undefined||revision===query.revision)&&(query.limit===undefined||items.length<=query.limit)&&items.every(item=>(query.collection===undefined||item.ref.collection===query.collection)&&(query.planId===undefined||item.plan.id===query.planId));}
 function sameOutlineEntries<T>(left:readonly T[],right:readonly T[],key:(value:T)=>string){
   const ordered=(items:readonly T[])=>items.toSorted((a,b)=>key(a).localeCompare(key(b)));
   return JSON.stringify(ordered(left))===JSON.stringify(ordered(right));
@@ -135,6 +141,53 @@ export class ApiClient {
     return this.request(`/projects/${id(projectId)}/outlines/${id(runId)}/reject`,OutlineRunViewSchema.refine(value=>value.runId===runId&&value.review?.status==='rejected'&&value.review.reason===parsed.data.reason),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
   }
   private workbenchRequest<T>(path:string,schema:z.ZodType<T>,init:RequestInit={}){return this.request(path,schema,init,true);}
+  private outlineRequest<T>(path:string,schema:z.ZodType<T>,init:RequestInit={}){return this.workbenchRequest(path,boundedOutlineSchema(workbenchEnvelope(schema),983040),init).then(value=>value.data);}
+  workbenchUpgradeCandidate(projectId:string,candidateId:string,signal?:AbortSignal){
+    outlineInput(OutlineFormalRefSchema.shape.id,candidateId);
+    return this.outlineRequest(`/projects/${id(projectId)}/workbench/schema-upgrades/${id(candidateId)}`,OutlineUpgradeCandidateSchema.refine(value=>value.candidate.projectKey===projectId&&value.candidate.candidateId===candidateId),{signal:signal??null});
+  }
+  outlinePrepareCandidate(projectId:string,runId:string,command:OutlinePrepareCommand,signal?:AbortSignal){
+    const parsed=outlineInput(OutlinePrepareCommandSchema,command);
+    return this.outlineRequest(`/projects/${id(projectId)}/outline/${id(runId)}/candidates`,OutlineCandidateSchema.refine(value=>value.projectKey===projectId&&value.runId===runId&&value.applicationId===parsed.applicationId),{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':parsed.applicationId},body:JSON.stringify(parsed),signal:signal??null});
+  }
+  outlineCandidates(projectId:string,query:OutlineCandidateListQuery={},signal?:AbortSignal){
+    const selection=outlineInput(OutlineCandidateListQuerySchema,query);
+    return this.outlineRequest(`/projects/${id(projectId)}/outline-adoption/candidates${workbenchQuery(selection)}`,OutlineCandidatePageSchema.refine(value=>(selection.limit===undefined||value.items.length<=selection.limit)&&value.items.every(item=>selection.runId===undefined||item.runId===selection.runId)),{signal:signal??null});
+  }
+  outlineCandidate(projectId:string,candidateId:string,signal?:AbortSignal){
+    outlineInput(OutlineFormalRefSchema.shape.id,candidateId);
+    return this.outlineRequest(`/projects/${id(projectId)}/outline-adoption/candidates/${id(candidateId)}`,OutlineCandidateSchema.refine(value=>value.projectKey===projectId&&value.candidateId===candidateId),{signal:signal??null});
+  }
+  outlineAdoptCandidate(projectId:string,candidateId:string,requestId:string,command:OutlineAdoptCommand,signal?:AbortSignal){return this.outlineDecision(projectId,candidateId,requestId,'adopt',outlineInput(OutlineAdoptCommandSchema,command),signal);}
+  outlineRejectCandidate(projectId:string,candidateId:string,requestId:string,command:OutlineRejectCommand,signal?:AbortSignal){return this.outlineDecision(projectId,candidateId,requestId,'reject',outlineInput(OutlineRejectCommandSchema,command),signal);}
+  private outlineDecision(projectId:string,candidateId:string,requestId:string,action:'adopt'|'reject',command:OutlineAdoptCommand|OutlineRejectCommand,signal?:AbortSignal){
+    outlineInput(OutlineFormalRefSchema.shape.id,candidateId);outlineInput(Id,requestId);
+    // Failed operations can retain an earlier native adoption/rejection audit; that evidence is not a new successful decision.
+    const response=OutlineReceiptSchema.refine(value=>value.projectKey===projectId&&value.candidateId===candidateId&&value.kind==='decision'&&value.requestId===requestId&&(value.issueCount>0||(action==='adopt'?value.rejection===null:value.adoption===null&&(!value.rejection||'reason' in command&&value.rejection.reason===command.reason))));
+    return this.outlineRequest(`/projects/${id(projectId)}/outline-adoption/candidates/${id(candidateId)}/${action}`,response,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':requestId},body:JSON.stringify(command),signal:signal??null});
+  }
+  outlineReceiptMessages(projectId:string,candidateId:string,query:OutlineReceiptQuery,signal?:AbortSignal){
+    outlineInput(OutlineFormalRefSchema.shape.id,candidateId);const selection=outlineInput(OutlineReceiptQuerySchema,query);
+    const response=OutlineReceiptPageSchema.refine(value=>value.projectKey===projectId&&value.candidateId===candidateId&&value.kind===selection.kind&&value.requestId===selection.requestId&&value.section===selection.section&&(selection.limit===undefined||value.items.length<=selection.limit));
+    return this.outlineRequest(`/projects/${id(projectId)}/outline-adoption/candidates/${id(candidateId)}/receipts${workbenchQuery(selection)}`,response,{signal:signal??null});
+  }
+  formalOutlineList(projectId:string,query:OutlineFormalListQuery={},signal?:AbortSignal){
+    const selection=outlineInput(OutlineFormalListQuerySchema,query);
+    return this.outlineRequest(`/projects/${id(projectId)}/formal-outline${workbenchQuery(selection)}`,OutlineFormalListSchema.refine(value=>value.projectKey===projectId&&formalSelection(selection,value.snapshotRevision,value.items)),{signal:signal??null});
+  }
+  formalOutlineRows(projectId:string,query:OutlineFormalListQuery={},signal?:AbortSignal){
+    const selection=outlineInput(OutlineFormalListQuerySchema,query);
+    return this.outlineRequest(`/projects/${id(projectId)}/formal-outline/rows${workbenchQuery(selection)}`,OutlineFormalRowsSchema.refine(value=>value.projectKey===projectId&&formalSelection(selection,value.snapshotRevision,value.rows)),{signal:signal??null});
+  }
+  formalOutlineObject(projectId:string,collection:OutlineFormalCollection,objectId:string,query:OutlineFormalObjectQuery={},signal?:AbortSignal){
+    outlineInput(OutlineFormalCollectionSchema,collection);outlineInput(OutlineFormalRefSchema.shape.id,objectId);const selection=outlineInput(OutlineFormalObjectQuerySchema,query);
+    return this.outlineRequest(`/projects/${id(projectId)}/formal-outline/${id(collection)}/${id(objectId)}${workbenchQuery(selection)}`,OutlineFormalObjectSchema.refine(value=>value.projectKey===projectId&&value.ref.collection===collection&&value.ref.id===objectId&&(selection.revision===undefined||value.snapshotRevision===selection.revision)),{signal:signal??null});
+  }
+  formalOutlineSection(projectId:string,collection:OutlineFormalCollection,objectId:string,query:OutlineFormalSectionQuery,signal?:AbortSignal){
+    outlineInput(OutlineFormalCollectionSchema,collection);outlineInput(OutlineFormalRefSchema.shape.id,objectId);const selection=outlineInput(OutlineFormalSectionQuerySchema,query);if(OUTLINE_FORMAL_SECTIONS[selection.section].collection!==collection)throw new ApiError('INVALID_REQUEST');
+    const response=OutlineFormalSectionPageSchema.refine(value=>value.projectKey===projectId&&value.ref.collection===collection&&value.ref.id===objectId&&value.section===selection.section&&(selection.revision===undefined||value.snapshotRevision===selection.revision)&&(selection.limit===undefined||value.items.length<=selection.limit));
+    return this.outlineRequest(`/projects/${id(projectId)}/formal-outline/${id(collection)}/${id(objectId)}/sections${workbenchQuery(selection)}`,response,{signal:signal??null});
+  }
   readWorkbenchSnapshot(projectId:string,query:WorkbenchReadQuery={},signal?:AbortSignal){
     const parsed=WorkbenchReadQuerySchema.safeParse(query);if(!parsed.success)throw new ApiError('INVALID_REQUEST');const selection=parsed.data;
     const response=WorkbenchSnapshotSchema.refine(value=>value.projectKey===projectId&&(selection.expectedRevision===undefined||value.snapshotRevision===selection.expectedRevision)&&value.renditionId===(selection.renditionId??null)&&

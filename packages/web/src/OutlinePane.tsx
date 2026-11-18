@@ -1,15 +1,19 @@
-import {useEffect,useRef,useState} from 'react';
+import {lazy,Suspense,useEffect,useRef,useState} from 'react';
 import {useInfiniteQuery,useQuery,useQueryClient} from '@tanstack/react-query';
 import type {OutlineBriefView,OutlineBriefWrite,OutlineSourceSelection,OutlineStart,OutlineConfirm} from '@camery/script/outline/http';
 import {ApiClient,ApiError} from './api.js';
+import type {Identity} from './api.js';
 import {OutlineWorkbench,type OutlineBriefFields} from './OutlineWorkbench.js';
-interface Props{client:ApiClient;generation:number;projectId:string;permissions:readonly string[];onFailure:(error:unknown)=>void}
+import {FormalProjectBoundary} from './FormalProjectBoundary.js';
+const OutlineAdoptionPane=lazy(async()=>({default:(await import('./OutlineAdoptionPane.js')).OutlineAdoptionPane}));
+interface Props{client:ApiClient;generation:number;projectId:string;permissions:readonly string[];onFailure:(error:unknown)=>void;identity?:Identity}
 /** The parent keys identity/project lifetimes; operation fences additionally isolate record switches and late ACKs. */
-export function OutlinePane({client,generation,projectId,permissions,onFailure}:Props){
+export function OutlinePane({client,generation,projectId,permissions,onFailure,identity}:Props){
   const cache=useQueryClient(),prefix=['outline',generation,projectId] as const;
   const [runId,setRunId]=useState<string|null>(null),[savedBrief,setSavedBrief]=useState<OutlineBriefView|null>(null),[composeVersion,setComposeVersion]=useState(0);
   const [kind,setKind]=useState<'development'|'bible'>('development'),[selection,setSelection]=useState<OutlineSourceSelection|null>(null);
   const [busy,setBusy]=useState<string|null>(null),[error,setError]=useState<string|null>(null),[message,setMessage]=useState<string|null>(null);
+  const [adoptionOpen,setAdoptionOpen]=useState(true);
   const mounted=useRef(true),operation=useRef(0),draftId=useRef<string|null>(null),pendingSave=useRef<OutlineBriefWrite|null>(null),pendingStart=useRef<OutlineStart|null>(null);
   const pendingReviews=useRef(new Map<string,OutlineConfirm|string>());
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;operation.current++;};},[]);
@@ -57,5 +61,6 @@ export function OutlinePane({client,generation,projectId,permissions,onFailure}:
   }
   return <OutlineWorkbench capabilities={capabilities.data??null} briefs={briefs.data?{items:briefs.data.pages.flatMap(p=>p.items),nextCursor:briefs.data.pages.at(-1)?.nextCursor??null}:null} runs={runs.data?{items:runs.data.pages.flatMap(p=>p.items),nextCursor:runs.data.pages.at(-1)?.nextCursor??null}:null} sources={sources.data?{items:sources.data.pages.flatMap(p=>p.items),nextCursor:sources.data.pages.at(-1)?.nextCursor??null}:null}
     kind={kind} selection={selection} savedBrief={savedBrief} composeVersion={composeVersion} detail={detail.data??null} status={status.data??null} canEdit={permissions.includes('task:run')} canReview={permissions.includes('candidate:review')} busy={busy??(detail.isFetching&&runId?'正在恢复大纲记录':null)} error={error} message={message} pendingStart={pendingStart.current?.runId??null}
+    formal={capabilities.data?.formalAdoption&&identity?(adoptionOpen?<FormalProjectBoundary onClose={()=>setAdoptionOpen(false)}><Suspense fallback={<p role="status">正在打开正式采用…</p>}><OutlineAdoptionPane client={client} generation={generation} projectId={projectId} identity={identity} run={detail.data?.runId===runId?detail.data:null} permissions={permissions} onFailure={onFailure} onOpenRun={openRun}/></Suspense></FormalProjectBoundary>:<button type="button" onClick={()=>setAdoptionOpen(true)}>重新打开正式采用</button>):null}
     onKind={value=>{setKind(value);setSelection(null);}} onSource={setSelection} onSave={fields=>{void save(fields);}} onStart={()=>{void start();}} onNew={newBrief} onOpenBrief={id=>{void openBrief(id);}} onOpenRun={openRun} onMoreBriefs={()=>{void briefs.fetchNextPage();}} onMoreRuns={()=>{void runs.fetchNextPage();}} onMoreSources={()=>{void sources.fetchNextPage();}} onRefresh={()=>{void refresh();}} onConfirm={decision=>{void review(decision);}} onReject={reason=>{void review(reason);}}/>;
 }
