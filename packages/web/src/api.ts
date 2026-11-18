@@ -6,6 +6,8 @@ import { BibleCapabilitiesSchema, BibleRunListSchema, BibleStatusSchema, BibleRu
 import type { BibleStart, BibleConfirm } from '@camery/bible/http';
 import {DevelopmentCapabilitiesSchema,DevelopmentBriefListSchema,DevelopmentBriefViewSchema,DevelopmentBriefWriteSchema,DevelopmentRunListSchema,DevelopmentStatusSchema,DevelopmentRunViewSchema,DevelopmentStartSchema,DevelopmentFoundationConfirmSchema,DevelopmentEpisodesConfirmSchema,DevelopmentRejectSchema,DevelopmentRedoSchema,DevelopmentRedoOptionsSchema,boundedDevelopmentSchema} from '@camery/script/http';
 import type {DevelopmentBriefWrite,DevelopmentStart,DevelopmentFoundationConfirm,DevelopmentEpisodesConfirm,DevelopmentRedo} from '@camery/script/http';
+import {OutlineCapabilitiesSchema,OutlineBriefListQuerySchema,OutlineBriefListSchema,OutlineReadBriefQuerySchema,OutlineBriefViewSchema,OutlineBriefWriteSchema,OutlineSourceListQuerySchema,OutlineSourceListSchema,OutlineListQuerySchema,OutlineRunListSchema,OutlineStatusSchema,OutlineRunViewSchema,OutlineStartSchema,OutlineConfirmSchema,OutlineRejectSchema} from '@camery/script/outline/http';
+import type {OutlineBriefWrite,OutlineStart,OutlineConfirm} from '@camery/script/outline/http';
 import {WorkbenchStateSchema,WorkbenchCandidatePageSchema,WorkbenchCandidateDetailSchema,WorkbenchActionReceiptSchema,WorkbenchCandidateListQuerySchema,DevelopmentCandidatePrepareSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,workbenchEnvelope} from '@camery/ir/workbench';
 import type {DevelopmentCandidatePrepare,WorkbenchUpgradeInput,WorkbenchAdoptInput,WorkbenchRejectInput} from '@camery/ir/workbench';
 import {WorkbenchSnapshotSchema,WorkbenchReadQuerySchema,WorkbenchCollectionSchema,WorkbenchObjectRefSchema,WorkbenchObjectHistorySchema,WorkbenchHistoryQuerySchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
@@ -18,6 +20,10 @@ const Progress = z.strictObject({ offset: z.number().int().nonnegative(), versio
 export class ApiError extends Error { constructor(readonly code: string) { super(`Request failed (${code})`); this.name = 'ApiError'; } }
 function id(value: string): string { if (!Id.safeParse(value).success) throw new ApiError('INVALID_REQUEST'); return encodeURIComponent(value); }
 function workbenchQuery(input:Record<string,string|number|undefined>){const entries=Object.entries(input).filter((entry):entry is [string,string|number]=>entry[1]!==undefined);return entries.length?`?${entries.map(([key,value])=>`${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`:'';}
+function sameOutlineEntries<T>(left:readonly T[],right:readonly T[],key:(value:T)=>string){
+  const ordered=(items:readonly T[])=>items.toSorted((a,b)=>key(a).localeCompare(key(b)));
+  return JSON.stringify(ordered(left))===JSON.stringify(ordered(right));
+}
 export class ApiClient {
   readonly #credential: string; readonly #transport: typeof fetch;
   constructor(token: string, transport: typeof fetch = fetch) {
@@ -90,6 +96,44 @@ export class ApiClient {
     return this.request(`/projects/${id(projectId)}/bibles/${id(runId)}/reject`,boundedBibleSchema(BibleRunViewSchema),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
   }
   developmentCapabilities(projectId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/development/capabilities`,DevelopmentCapabilitiesSchema,signal?{signal}:{});}
+  outlineCapabilities(projectId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/outlines/capabilities`,OutlineCapabilitiesSchema,signal?{signal}:{});}
+  outlineBriefList(projectId:string,cursor?:string,signal?:AbortSignal){
+    const query=OutlineBriefListQuerySchema.safeParse(cursor===undefined?{}:{cursor});if(!query.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/outlines/briefs${workbenchQuery(query.data)}`,OutlineBriefListSchema,signal?{signal}:{});
+  }
+  outlineBrief(projectId:string,briefId:string,revision?:number,signal?:AbortSignal){
+    if(revision!==undefined&&(!Number.isSafeInteger(revision)||revision<1))throw new ApiError('INVALID_REQUEST');
+    const query=OutlineReadBriefQuerySchema.safeParse(revision===undefined?{}:{revision:String(revision)});if(!query.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/outlines/briefs/${id(briefId)}${workbenchQuery(query.data)}`,OutlineBriefViewSchema.refine(value=>value.brief.briefId===briefId&&(revision===undefined||value.brief.revision===revision)),signal?{signal}:{});
+  }
+  outlineSaveBrief(projectId:string,command:OutlineBriefWrite){
+    const parsed=OutlineBriefWriteSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/outlines/briefs`,OutlineBriefViewSchema.refine(value=>value.brief.briefId===parsed.data.briefId&&value.brief.revision===parsed.data.expectedRevision+1),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  outlineSources(projectId:string,kind:'development'|'bible',cursor?:string,signal?:AbortSignal){
+    const query=OutlineSourceListQuerySchema.safeParse(cursor===undefined?{kind}:{kind,cursor});if(!query.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/outlines/sources${workbenchQuery(query.data)}`,OutlineSourceListSchema.refine(value=>value.items.every(item=>item.source.kind===query.data.kind)),signal?{signal}:{});
+  }
+  outlineList(projectId:string,cursor?:string,signal?:AbortSignal){
+    const query=OutlineListQuerySchema.safeParse(cursor===undefined?{}:{cursor});if(!query.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/outlines${workbenchQuery(query.data)}`,OutlineRunListSchema,signal?{signal}:{});
+  }
+  outlineStatus(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/outlines/${id(runId)}/status`,OutlineStatusSchema.refine(value=>value.runId===runId),signal?{signal}:{});}
+  outlineRead(projectId:string,runId:string,signal?:AbortSignal){return this.request(`/projects/${id(projectId)}/outlines/${id(runId)}`,OutlineRunViewSchema.refine(value=>value.runId===runId),signal?{signal}:{});}
+  outlineStart(projectId:string,command:OutlineStart){
+    const parsed=OutlineStartSchema.safeParse(command);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/outlines`,OutlineStatusSchema.refine(value=>value.runId===parsed.data.runId&&value.briefId===parsed.data.briefId&&value.briefRevision===parsed.data.expectedRevision),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  outlineConfirm(projectId:string,runId:string,decision:OutlineConfirm){
+    const parsed=OutlineConfirmSchema.safeParse(decision);if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    // An HTTP success must contain this human decision; a pending or unrelated audit cannot acknowledge it.
+    const response=OutlineRunViewSchema.refine(value=>value.runId===runId&&value.candidate?.digest===parsed.data.candidateDigest&&value.review?.status==='reviewed'&&value.review.candidateDigest===parsed.data.candidateDigest&&JSON.stringify(value.review.output)===JSON.stringify(parsed.data.output)&&sameOutlineEntries(value.review.ablations,parsed.data.ablations,item=>item.genre)&&sameOutlineEntries(value.review.waivers,parsed.data.waivers,item=>item.issueId));
+    return this.request(`/projects/${id(projectId)}/outlines/${id(runId)}/confirm`,response,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
+  outlineReject(projectId:string,runId:string,reason:string){
+    const parsed=OutlineRejectSchema.safeParse({reason});if(!parsed.success)throw new ApiError('INVALID_REQUEST');
+    return this.request(`/projects/${id(projectId)}/outlines/${id(runId)}/reject`,OutlineRunViewSchema.refine(value=>value.runId===runId&&value.review?.status==='rejected'&&value.review.reason===parsed.data.reason),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+  }
   private workbenchRequest<T>(path:string,schema:z.ZodType<T>,init:RequestInit={}){return this.request(path,schema,init,true);}
   readWorkbenchSnapshot(projectId:string,query:WorkbenchReadQuery={},signal?:AbortSignal){
     const parsed=WorkbenchReadQuerySchema.safeParse(query);if(!parsed.success)throw new ApiError('INVALID_REQUEST');const selection=parsed.data;

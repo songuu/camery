@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 7 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 8 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -191,3 +191,20 @@ AC不变。追加 `/api/v1/projects/:projectId/outlines`，复用全局默认拒
 - 同镜像旧容器串行回归均终态0：API2项（`outline-api-existing-api-compose.log` SHA-256=`67a815b2f1afbc24d4ee7786b08cede95e469afd47bde8007a756401c8da3ac9`）；章节worker1项（`outline-api-existing-worker-compose.log` SHA-256=`e769c2722c5897e558ecb918a5701adeae01799b3cf8c15f783ba1e04f33e854`）；原创开发1项（`outline-api-existing-development-compose.log` SHA-256=`f3dcfde18d5afaab67725ff4c9487b222de17f3abdc4928ab81400cf2a61dc9c`），日志均位于 `artifacts/delivery/`。固定私有化入口只允许已声明target和参数，CI追加新大纲步骤。
 - 最终 `pnpm check` 终态0：3969项=20工具+3949普通，13包类型检查成功（6缓存/7执行），13包覆盖率全部实际执行；方法6项和Agent10项基线匹配。日志 `artifacts/delivery/outline-api-workspace-check.log` SHA-256=`7ff5be8ce95bb1847fdd27a0f9689deb8802120cfd5bebd307e382a63f94ee03`。上述PG总数包含普通测试，不与整仓重复相加。远端以推送后精确提交CI实际终态为准。
 - 此批交付API、配置型常驻宿主与部署/恢复组合，页面和OL-5正式IR采用继续；完整OL-4、T1.4及阶段1仍未完成。真实文本供应方/账单/质量、编辑器、法务和设计伙伴继续后补，不以合成HTTP或数据库断言替代，ComfyUI接线未改。
+
+## Revision 8 · 五件套编辑审阅页面
+
+继续 AC-OL-3/4/5，验收契约保持。根负责 OutlinePane/Workbench、样式、导航及浏览器组合（L3）；三个互不重叠的 L2 子任务分别为浏览器 API/client 测试、纯审阅校验状态/测试、普通表单编辑器/静态视图测试。子任务不运行 PG/coverage、不提交，根审查组合后串行执行全覆盖与实际浏览器。来源选择只接实际已审阅 Development/Bible 目录；简报保存与开始生成分开，丢 ACK 固定原 command/runId；GET/刷新/恢复不触发生成。审阅草稿按 run/candidate/review 隔离，后台状态更新不覆盖当前编辑，切换项目/会话后迟到结果无效。
+
+五件套及配方/PlotUnit/季引擎均提供普通字段和语义引用选择、完整容量下分页、逐问题理由与独立抽离判断；原候选与人改审阅可切换。固定源材料供核对，明确过期来源、unknown、权限与无配置状态。页面采用现有纸色/橄榄绿/陶土色和中文创作顺序，桌面及320px验证；正式采用保持未开放，随后继续OL-5，不把页面或合成模型回放判定为完整阶段1/真人质量。
+
+## OL-4 页面验证证据（2026-11-18）
+
+- 新增42项普通测试：API9、纯审阅状态22、完整编辑器7、工作台SSR4。API严格请求/响应归属和有界JSON、超过256KiB输出/超过2MiB详情、原ID重试；校验状态复用领域图引用/规则，辅助题材逐一判断、精确豁免集合和原候选不变。编辑器全部8节和增删/换序/分页、safe JSON pointer引用摘要、访问器/原型防护均有断言。
+- 页面先红测缺失模块，再实现。代码复审发现3项P2并闭合：理由先填不得自动设为participates；历史审阅必须展示report/ablations/waivers；确定409先查原run成功或明确404才能解除pending。浏览器首次失败定位抽离select标签包含option文本，增加明确accessible label；第二次失败来自夹具getBrief传入多余runId导致目录400，修正只传真实scope/briefId。未放宽断言、超时、容量或覆盖门槛。
+- 最终真实浏览器命令 `pnpm --filter @camery/server test:browser:outline` 终态0，1个组合case内8组明确结果。使用已安装Playwright/Chromium（agent-browser命令不可用），真实Nest/同源认证/领域验证，内存SQL协议和明确合成模型，model session与budget.allocate各1次、人审1条。源码及命令已落库；显式环境路径见web README，不自动安装依赖。
+- 浏览器覆盖保存/开始丢ACK的原命令、原runId；过期来源409后核验原run404再创建新run；只填抽离理由仍不能确认；原候选/草稿对照、刷新/标签/记录切换草稿隔离；真实资产分页/增删与定位规则豁免；恶意模型HTML仅文本；完整大于256KiB人改输出和confirm提交后丢ACK恢复；重载后已保存判断/豁免依据、无text/viewer只读、320px无横向溢出；断开后迟到GET不回填。该夹具不冒称真实PG并发、provider推理/账单或真人质量。
+- 最终浏览器日志 `artifacts/delivery/outline-browser-acceptance.log` SHA-256=`31dcd2831e973c33244fcab9405cae9083910901037ff2ef7435bd5b2738f3db`；8组报告 `artifacts/delivery/outline-browser/report.json` SHA-256=`a4134f365109dd330ead43d507e51db8098c9f0e5bfb612e432d250827e7ad21`。桌面1440×1000截图 `desktop.png` SHA-256=`09c1bde73aec97fa4314f30dcd8c61ecd3dc7389bbd182fae41f21740d7e4e9e`、320×900截图 `mobile.png` SHA-256=`e0449a99adfe4798891b9cd0c1d0b6460aeaea8948212854ad0488f9c8b2ee7c`，位于同目录，均实际查看。来源长哈希改为语义摘要，只改可见标签，完整真实引用仍保留。
+- 前端构建终态0，大纲单独懒加载；日志 `artifacts/delivery/outline-browser-build.log` SHA-256=`08c23cf2ac9f6852d7d6049912fa9fe447df87569db75819665e268d81e4b3f2`。Vite仍提示主chunk约500.56kB，无调大告警阈值，不据此宣称性能已完成优化。
+- 最终 `pnpm check` 终态0：4011项=20工具+3991普通，746文件策略零问题，13包类型检查成功（11缓存/2执行），13包覆盖率全部实际执行；方法6项/Agent10项基线匹配。Web175项覆盖98.24/95.93/98.58/99.69%，新outline-review-state四维100%；server505项98.31/95.70/99.47/99.73%。日志 `artifacts/delivery/outline-browser-workspace-check.log` SHA-256=`ddf21d5999b0ef152903641c03b335d5cd09b34f274d931f6e4f91543e08e6ae`。TSX既有策略由SSR/浏览器作证，未改变纯TS95%门槛或新增覆盖排除。
+- code/TS/security只读复审无未闭合P0–P2。此批不改变数据库/权限/宿主生产代码；真实PG/镜像恢复由前批独立证据及最终精确提交CI再次核验。OL-5正式IR版本/映射/采用和OL-6后续组合继续，完整OL-4/T1.4/阶段1不提前判完成。编辑器、法务、设计伙伴及真实文本质量依用户安排后补，ComfyUI保持。精确提交远端CI以实际终态为准。

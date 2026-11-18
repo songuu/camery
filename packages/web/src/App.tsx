@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SourcePage, SourceSummary } from '@camery/ingest/contracts';
@@ -8,10 +8,11 @@ import { appendPreparedNovel, prepareSourceFile, UploadError } from './uploads.j
 import { ImportWorkbench } from './ImportWorkbench.js';
 import { BiblePane } from './BiblePane.js';
 import { DevelopmentPane } from './DevelopmentPane.js';
+const OutlinePane=lazy(()=>import('./OutlinePane.js').then(module=>({default:module.OutlinePane})));
 import type { UploadFormat } from './view-types.js';
 
 const session = createSessionStore();
-type WorkbenchTab='sources'|'bible'|'development';
+type WorkbenchTab='sources'|'bible'|'development'|'outline';
 function messageFor(error: unknown): string {
   const code = error instanceof ApiError || error instanceof UploadError ? error.code : 'UNKNOWN';
   return ({ INVALID_CREDENTIAL: '访问凭证格式不正确。', UNAUTHENTICATED: '连接已失效，请重新连接工作区。', FORBIDDEN: '当前账号没有此操作的项目权限。',
@@ -133,6 +134,7 @@ export function App() {
     <button type="button" aria-pressed={tab==='sources'} onClick={()=>setTab('sources')}>来源与阅读</button>
     <button type="button" aria-pressed={tab==='bible'} onClick={()=>setTab('bible')}>知识提取与审阅</button>
     <button type="button" aria-pressed={tab==='development'} onClick={()=>setTab('development')}>原创开发</button>
+    <button type="button" aria-pressed={tab==='outline'} onClick={()=>setTab('outline')}>剧作大纲</button>
     {tab!=='sources'&&<button type="button" onClick={()=>{void disconnect();}}>断开工作区</button>}
   </nav>}<div style={{display:tab==='sources'||!state.client?'block':'none'}}><ImportWorkbench key={`${state.generation}:${projectId}`} connected={!!state.client} projectId={projectId}
     projects={(state.identity?.grants??[]).map(grant=>({id:grant.projectId,canImport:grant.projectId===projectId && canImport}))}
@@ -143,5 +145,6 @@ export function App() {
     onPrevious={previous} onCheckpoint={()=>{void save(page);}} onMore={()=>{void sources.fetchNextPage();}}/></div>
     {state.client&&projectId&&hasVisited('bible')&&<div style={{display:tab==='bible'?'block':'none'}}><BiblePane key={`${state.generation}:${projectId}`} client={state.client} generation={state.generation} projectId={projectId}
       permissions={permission.data?.permissions??[]} startSource={page} onFailure={failure}/></div>}
-    {state.client&&projectId&&hasVisited('development')&&<div style={{display:tab==='development'?'block':'none'}}><DevelopmentPane key={`${state.generation}:${projectId}`} client={state.client} generation={state.generation} projectId={projectId} permissions={permission.data?.permissions??[]} onFailure={failure}/></div>}</>;
+    {state.client&&projectId&&hasVisited('development')&&<div style={{display:tab==='development'?'block':'none'}}><DevelopmentPane key={`${state.generation}:${projectId}`} client={state.client} generation={state.generation} projectId={projectId} permissions={permission.data?.permissions??[]} onFailure={failure}/></div>}
+    {state.client&&projectId&&hasVisited('outline')&&<div style={{display:tab==='outline'?'block':'none'}}><Suspense fallback={<p role="status">正在打开剧作大纲…</p>}><OutlinePane key={`${state.generation}:${projectId}`} client={state.client} generation={state.generation} projectId={projectId} permissions={permission.data?.permissions??[]} onFailure={failure}/></Suspense></div>}</>;
 }

@@ -13,6 +13,7 @@
     "start:development-worker": "node dist/development-worker.mjs",
     "start:outline-worker": "node dist/outline-worker.mjs",
     "test": "vitest run",
+    "test:browser:outline": "vitest run --config vitest.outline-browser.config.ts",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "test:integration": "vitest run --config vitest.integration.config.ts"
