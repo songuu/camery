@@ -7,6 +7,7 @@ import type {DevelopmentProgress} from './contracts.js';
 import type {PostgresDevelopmentStore} from './store.js';
 import {DevelopmentIdentityPreparationSchema,DevelopmentFormalIdentitiesSchema,FormalStableId} from './adoption-contracts.js';
 import type {DevelopmentFormalIdentities} from './adoption-contracts.js';
+import {readIdentityEpisodeExtents} from './identity-extents.js';
 
 type Kind='development_plan'|'world'|'character'|'relationship'|'episode'|'episode_plan';
 type Row={tenant_id:string;project_id:string;kind:Kind;owner_key:string;owner_run_id:string|null;local_key:string;ir_tenant_id:string;ir_project_id:string;stable_id:string};
@@ -66,6 +67,8 @@ export class PostgresDevelopmentIrIdentities{
         if(hasEpisode!==hasPlan||hasEpisode&&episodeGap)throw new DevelopmentError('STORAGE_FAILED','incomplete IR episode identities');if(hasEpisode)lastEpisode=number;else episodeGap=true;
       }
       if(sourceRows.length&&lastEpisode<run.brief.episodeCount)throw new DevelopmentError('STORAGE_FAILED','missing committed IR episode tail');
+      const committed=await readIdentityEpisodeExtents(client,{tenantId:run.tenantId,projectId:run.projectId},command.target);connected();
+      if(lastEpisode<Math.max(committed.development,committed.outline))throw new DevelopmentError('STORAGE_FAILED','missing project IR episode tail');
       const ensure=async(kind:Kind,local:string)=>{const key=rowKey(kind,local);let row=bindings.get(key);if(!row){row=await insert(kind,local);put(row);}return row.stable_id;};
       const planId=bindings.get(rowKey('development_plan','plan'))?.stable_id;if(!planId)throw new DevelopmentError('STORAGE_FAILED','missing IR plan anchor');
       const worldId=await ensure('world','world');const characters=[];for(const row of foundation.output.characters)characters.push({localId:row.id,id:await ensure('character',row.id)});const relationships=[];for(const row of foundation.output.relationships)relationships.push({localId:row.id,id:await ensure('relationship',row.id)});

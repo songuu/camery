@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 10 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 11.1 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -26,7 +26,7 @@ Revision 10 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md
 | OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；来源/固定方法/人审及持久宿主/API组合已验证，真人质量仍后补 |
 | OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；存储/预算/恢复、常驻宿主与认证服务组合已验证，正式采用继续 |
 | OL-4 鉴权 API 和编辑审阅页面 | script transport/read models、server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；先浏览器契约/列表/状态投影，再认证服务/常驻宿主/页面/实际验收，实施中 |
-| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/升级、完整纯映射及同事务源guard已验证；持久身份/intent/专用采用/分节读取继续 |
+| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/升级、完整纯映射、持久身份及同事务源guard已验证；intent/专用采用与其角色/分节读取继续 |
 | OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；待做 |
 
 ## 契约变化及验证
@@ -269,3 +269,41 @@ Gate：失败测试→窄测→类型/lint→代码/TS/安全/DB复核→串行P
 - `pnpm test:versioning:local --coverage` 终态0：312项=258普通+54PG，覆盖98.08/95.94/99.47/99.84%；日志`artifacts/delivery/outline-mapping-versioning-pg.log` SHA-256=`30d36d48eddaf470be5b8a856962da9557fe7feb70d405fc4eacdd8976abddea`。`pnpm test:script:local --coverage` 终态0：1,196项=1,126普通+70PG，61文件，覆盖98.38/96.76/99.28/99.82%；日志`artifacts/delivery/outline-mapping-script-pg.log` SHA-256=`3eafccea6f4e24fad86b24cbbf3adff8fe67a7eaccded70819aead8a4a1560a5`。保持各95%门槛及串行PG/coverage。code/TS/security/DB只读复审无未闭合P0–P2。
 - 当前只交付内部完整映射与实际来源事务组合，固定ID来自受信任测试宿主；持久稳定身份注册表、完整intent及低权限Outline adopter、专用认证API/页面采用、分节完整阅读及OL-6仍待实现。无SQL迁移、生产角色或现有用户schema变更，formalAdoption继续false；用户安排后补的编辑器、法务、设计伙伴及真实文本质量保持未知，不由合成协议证明替代。
 - 最终`pnpm check`终态0：4,191项=20工具+4,171普通，772文件策略零问题、13包类型检查（3缓存/10执行）、13包覆盖率全部实际执行，方法6项及Agent10项基线匹配。script普通1,126项覆盖98.10/96.52/98.92/99.34%，versioning258项覆盖98.12/95.95/99.18/99.79%。日志`artifacts/delivery/outline-mapping-workspace-check.log` SHA-256=`cfa280b5fbc9b6891941266287027ae8d55bc226131bc9830210ee8f7f5720a5`。原UI/媒体及部署未改，精确提交的新镜像/四组私有流程仍以推送后的实际CI终态为准；前批`6ce53710c38cc4e09e5da658d8e9254f6132f868`的CI https://github.com/songuu/camery/actions/runs/44228698678 已实际成功。
+
+## Revision 11 · 持久身份与共享分集槽位
+
+继续AC-OL-3/4/5。上一批`f8a2ce4b15f6752c757365432b2ec6b3cf10c820`已推送，精确CI https://github.com/songuu/camery/actions/runs/44234539688 completed/success（2026-11-18T04:11:48Z）。本批推进正式采用所需的完整持久身份，尚不开放API或代替采用intent。
+
+| 任务 / owner文件 | 风险 / 前置 | Before → After / 完成证据 |
+| --- | --- | --- |
+| 根：identity-migrate.ts、identity-migrations/0001-outline-ir-identities.sql与迁移边界测试 | L4；旧Development四迁移及Outline第一迁移先显式安装 | 独立identity_migrations账本核验全部旧摘要，显式扩展共享元信息kind与独立Outline run FK；旧迁移/账本及旧SELECT字段保持；实际SQL约束及回滚、幂等、坏摘要验证 |
+| 根：outline/node/ir-identities.ts、Node导出 | L4；新迁移与已审阅同事务来源 | 受信任宿主固定target，source locks→共享项目identity锁→原子完整集合；同一项目实集ID共用，新局部身份按run/kind/local固定；8并发/新pool/丢ACK/后端终止/完整容量验证 |
+| [P] identity普通协议测试及memory support（独立新文件） | L2；冻结API/SQL字段 | PostgresOutlineIrIdentities(pool,source.readForAdoption,newId).prepare({source,target})返回{identities,progress}；完整集合/损坏/跨target/分集连续对/错误脱敏/await前捕获 |
+| [P] identity实际PG测试（独立新文件） | L2测试编写；根串行执行 | 已存在Development与Bible-first两个顺序、双向全局UNIQUE、Outline独立owner FK、完整容量、不修复已提交损坏、来源过期零分配、新pool及旧LOGIN继续拒绝 |
+
+方案选择：独立新表只能保证各自表内唯一，新方查旧表不能防旧方反向碰撞；新增通用lease会要求改写旧分配路径和权限。采用同一共享身份元信息表的全局`stable_id UNIQUE`，新增`outline_owner_run_id`指向真实Outline run，旧`owner_run_id`仍只指Development。新增project kinds为adaptation_plan/outline_episode_plan，source kinds为outline_character/outline_beat/outline_asset/outline_plot_unit/outline_decision。新installer显式要求旧schema已就绪，不让旧Development迁移依赖Outline。经只读实际PG核对，需替换原kind/owner/slot三项约束：ir_identities_kind_check、ir_identities_check1、ir_identities_check2；原ir_identities_check是稳定ID/项目ID保护，保留不动。
+
+完整性顺序：先校验旧development_plan项目anchor及连续完整episode/episode_plan对，再校验新adaptation_plan anchor与连续outline_episode_plan槽、当前run的完整局部身份集合。既有run任一组/应有尾部缺失直接STORAGE_FAILED，不能先ensure补齐掩盖损坏。新run可扩展尾部；旧Development后续扩展共享实集但没有大纲计划的尾部是合法状态。每次返回全部已分配大纲集计划槽，实集永不重新分配；局部命名空间不凭人物姓名或来源文本猜映射。新旧分配器共用原advisory key，SQL UNIQUE保护不同项目/owner间碰撞。
+
+权限与恢复：共享表存纯身份元信息，旧adopter原有该表INSERT因此仍可写扩展kind，但旧API分配器仅能构造原kind；不因此授予其Outline来源/候选/审阅正文权限。旧append-only数据LOGIN仍无权读写身份；未来Outline adopter独立声明精确权限。所有运行构造器不安装迁移或授予权限。安装仅由显式测试/运维调用；回滚应用保留追加身份和新列，不删除或重写旧ID。迁移事务失败回滚DDL与账本，ACK丢失后重新读回原完整集合，不重分配。保留旧check、旧来源字节和用户数据；全量PG/coverage串行，code/TS/security/DB复核→整仓→显式本批commit/push→精确CI终态。完整阶段1与其余intent/API/分节读取工作继续。
+
+### Revision 11.1 · 完整准备见证与跨分配器历史范围
+
+实现复核补充两项必要约束。其一，当前run全部source身份消失时，空集合无法与“尚未prepare的新run”区分；新增`camery_outline.identity_preparations`，绑定run/review/target/不可变集数及完整身份摘要，与共享ID同事务提交。摘要包含原项目anchor、适配anchor、完整本run命名空间及当时简报要求的前三类集槽，不将后续合法长尾并入旧摘要。缺proof但有本run身份、或有proof但缺身份均拒绝；不另生成无业务用途的ULID。
+
+其二，仅检查本次run的见证仍会允许新run补发已提交旧尾部。新增`node/identity-extents.ts`供新旧两个allocator共用，在原共享锁内以64行C顺序keyset分页读取历史范围：旧Development从world/character/relationship任一残留身份DISTINCT owner追溯原简报；Outline逐准备见证关联实际不可变简报及run/review元列，完整重算简报摘要并核对cached count。新旧两方在ensure前确认共享槽覆盖双方历史要求，新方另核大纲计划槽；合法Development独有长尾仍允许。仅用于身份完整性，不重取历史来源锁，不生成模型调用或审批。整组新大纲身份丢失由proof识别，旧开发历史范围以现存源身份为证，不能把空集合推断为已提交审计。
+
+新增根L4文件责任：共同范围reader、旧allocator扩展前gate、`server/projects/adoption-role.ts`及真实LOGIN/旧数据库兼容测试。显式角色installer在身份扩展存在时追加：proof表SELECT、Outline schema USAGE、runs的7项header列、briefs的6项列（含原简报record供摘要重算）、reviews的5项header列。精确列allowlist拒额外列/整表/写权限及grant option；不授runs.record来源正文、候选或reviews.record人审正文。运行时只校验这些已由运维授予的权限，不自行GRANT。扩展未安装时保留旧角色能力；以pg_catalog存在性探测避免无Outline USAGE时名称解析报错。迁移installer改布尔存在性而非regclass显示名，支持自定义search_path；范围SQL用double precision传递已由safe-integer域验证的bigint修订号，保留超过int4的合法值。
+
+新增gate反例覆盖：旧尾完整成组丢失后新run、跨旧分配器、旧world缺失但仍有角色、旧proof集数合法改低、旧数据库有Outline基础schema但角色无其USAGE，以及部分列越权/缺权/GRANT OPTION。Outline历史范围由proof owner与五类source identity owner的并集起查，残存owner缺proof必须报错，不允许换新run掩盖；无任何残存记录时不推断曾经提交的身份。真实迁移在独立随机测试库中先执行DDL后注入故障证明事务回滚，再真实COMMIT后丢ACK并用新pool恢复；旧九列身份及两个原账本保持不变。测试库与LOGIN仅创建及清理本测试拥有的固定前缀随机对象；不在用户现有生产项目上安装或回退schema。旧迁移SQL/摘要未改，API formalAdoption仍false，持久intent/完整采用应用与分节阅读继续。
+
+## OL-5 持久身份验证证据（2026-11-18）
+
+- 新增89项script普通用例（身份协议58、迁移13、历史范围18），server权限普通新增6项；28项身份PG、1项独立库迁移PG、7项实际LOGIN PG。普通夹具明确为SQL协议，真实来源/回滚/并发/权限均由实际PG另证，不互相替代。完整人改输出约500KB，64人物/500节拍/100集/256资产/100单元/128取舍通过真实PG保存、1,350条共享身份及1条见证分配、1,249操作正式采用与新pool完整回读，模型计数不增加；原45秒PG期限及512KiB输出界限保持。
+- 实际8并发与新pool复用完整冻结身份；先Development后Outline、先Bible-first Outline后更长Development均保留原实集ID及旧九列行，合法扩尾/缩季不重新分配。COMMIT后注入ACK丢失恢复原集合；实际终止本测试backend全事务回滚并销毁连接。部分源身份、整组源身份、proof缺失/篡改、历史尾整组丢失后换run/换allocator、world行丢失但仍有角色、旧proof丢失但owner仍在均验证拒绝且零分配/零INSERT。SQL强制独立source owner FK、原稳定ID/项目ID保护及新旧双向全局UNIQUE；旧两个数据LOGIN仍不能读写身份或proof。
+- 新SQL只通过显式`migrateOutlineIdentities`安装，两个原installer仍可重跑，旧SQL和账本摘要保持。独立随机库证明实际DDL执行后故障回滚原约束/旧行与新列/账本；真实COMMIT丢ACK后4并发新pool恢复幂等。补自定义search_path、无Outline USAGE的旧reader，以及SQL投影的bigint safe-integer兼容。首轮DDL注入用startsWith遗漏SQL首注释，导致测试未触发故障，已改includes后实际回滚通过，未放宽断言或期限。
+- 新迁移目录沿用仓库根`.gitattributes`中的迁移规则，固定SQL为LF。实际`git check-attr`与`git ls-files --eol`核对后，新SQL SHA-256仍为`8bcfaea26cc755edc7a746c6b9232a7559a8de06a43a291cb5a725493e038fe3`，不因Windows检出换行改变已安装账本摘要；原SQL字节保持。
+- 最终`pnpm test:script:local --coverage`终态0：1,314项=1,215普通+99PG，66文件，覆盖98.17/96.44/99.49/99.83%；日志`artifacts/delivery/outline-identities-script-pg-final-verified.log` SHA-256=`39c3a5f90afa044e47e7d86d0997c88ee4a1e0033d0e4166d1b32327b2003668`。最终`pnpm test:server:local --coverage`终态0：583项=521普通+62PG，60文件，覆盖98.20/96.39/99.75/99.91%；日志`artifacts/delivery/outline-identities-server-pg-final.log` SHA-256=`e7fa6fc49c275b7044f269d2d5ea04e227c5728c5792f414ed9bef24749c99e8`。各95%门槛与串行PG/coverage不变。
+- 新旧分配器守护同一历史范围后，实际既有adopter LOGIN可复用大纲先分配的实集身份，同时不能读runs.record来源正文、candidates或reviews.record人审正文。增授敏感列/额外时间列/缺少必需列/GRANT OPTION均被真实verifier拒绝。独立旧数据库只装Outline基础schema不装身份扩展、不授Outline USAGE，实际验证原to_regclass报42501而新catalog探测、角色验证及Development prepare成功；没有为兼容旧库静默安装新表或扩大业务正文权限。
+- 复审发现的跨run尾部补发、部分owner遗漏及旧角色名称解析问题均已补失败反例再修复，最终code/TS/security/DB无未闭合P0–P2。已验证范围仍为内部持久身份与完整映射，正式Outline adopter/intent/API与分节阅读未交付，formalAdoption继续false。开发测试库已显式安装身份元信息扩展，现有项目IR修订和旧ID未修改；部署新binary到已扩展库时需显式运行更新后的角色installer。回退旧binary须按本批增量撤回元信息表/列读取并用旧verifier复核，保留追加身份和新列，不逆向删除数据。
+- 最终`pnpm check`终态0：4,286项=20工具+4,266普通，784文件策略零问题、13包类型检查成功（10缓存/3执行）、13包覆盖率全部实际执行。script普通1,215项覆盖97.86/96.14/99.15/99.38%，server普通521项覆盖98.29/95.77/99.48/99.74%；方法6项及Agent10项基线匹配。日志`artifacts/delivery/outline-identities-workspace-check.log` SHA-256=`d0433fbc2048648b2092adb7bc635a0db739bb390715314c2deb3d45d2d6bcf3`。PG总数包含各自普通用例，不与整仓重复相加。新镜像及四组私有流程仍以推送后精确提交CI实际终态为准；本批尚不宣称完整OL-5或阶段1完成。

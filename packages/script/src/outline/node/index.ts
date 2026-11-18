@@ -18,3 +18,5 @@ export * from './read-model.js';
 export * from './formal-contracts.js';
 export * from './formal-mapping.js';
 export * from './formal-source.js';
+export * from './identity-migrate.js';
+export * from './ir-identities.js';

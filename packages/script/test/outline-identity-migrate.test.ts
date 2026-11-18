@@ -1,0 +1,27 @@
+import {createHash} from 'node:crypto';
+import {EventEmitter} from 'node:events';
+import {readFile} from 'node:fs/promises';
+import type {Pool} from 'pg';
+import {expect,it,vi} from 'vitest';
+import {migrateOutlineIdentities} from '../src/outline/node/identity-migrate.js';
+
+async function fixture(){
+  const paths=['../src/node/migrations/0001-development.sql','../src/node/migrations/0002-brief-runs.sql','../src/node/migrations/0003-development-origins.sql','../src/node/migrations/0004-development-ir-identities.sql','../src/outline/node/migrations/0001-outline.sql','../src/outline/node/identity-migrations/0001-outline-ir-identities.sql'];
+  const files=await Promise.all(paths.map(async path=>{const sql=await readFile(new URL(path,import.meta.url),'utf8');return {sql,checksum:createHash('sha256').update(sql).digest('hex')};}));
+  const state={development:files.slice(0,4).map((file,i)=>({version:i+1,checksum:file.checksum})),outline:[{version:1,checksum:files[4]!.checksum}],identities:[] as {version:number;checksum:string}[],exists:true,fail:'',release:false,disconnect:false};
+  const emitter=new EventEmitter();let snapshot=structuredClone(state.identities);
+  const query=vi.fn(async(sql:string,values:unknown[]=[])=>{if(sql===state.fail)throw new Error('private credential');if(sql.startsWith('BEGIN'))snapshot=structuredClone(state.identities);if(sql==='ROLLBACK')state.identities=structuredClone(snapshot);
+    if(sql.includes('to_regclass'))return {rows:[{development:state.exists,outline:state.exists}]};
+    if(sql==='SELECT version,checksum FROM camery_script.migrations ORDER BY version')return {rows:structuredClone(state.development)};
+    if(sql==='SELECT version,checksum FROM camery_outline.migrations ORDER BY version')return {rows:structuredClone(state.outline)};
+    if(sql==='SELECT version,checksum FROM camery_outline.identity_migrations ORDER BY version')return {rows:structuredClone(state.identities)};
+    if(sql.startsWith('INSERT INTO camery_outline.identity_migrations'))state.identities.push({version:values[0] as number,checksum:values[1] as string});
+    if(sql===files[5]!.sql&&state.disconnect)emitter.emit('error',new Error('private backend'));return {rows:[]};
+  });
+  const release=vi.fn((_destroy?:boolean)=>{if(state.release)throw new Error('private release');});const client=Object.assign(emitter,{query,release}),connect=vi.fn(async()=>client);return {state,files,query,release,client,connect,pool:{connect} as unknown as Pool};
+}
+it('checks all immutable prerequisites before explicitly installing the identity extension once',async()=>{const f=await fixture(),original=structuredClone({development:f.state.development,outline:f.state.outline});await migrateOutlineIdentities(f.pool);expect(f.state.identities).toEqual([{version:1,checksum:f.files[5]!.checksum}]);expect(f.query.mock.calls.filter(([sql])=>sql===f.files[5]!.sql)).toHaveLength(1);await migrateOutlineIdentities(f.pool);expect(f.query.mock.calls.filter(([sql])=>sql===f.files[5]!.sql)).toHaveLength(1);expect({development:f.state.development,outline:f.state.outline}).toEqual(original);expect(f.release).toHaveBeenCalledWith(false);expect(f.client.listenerCount('error')).toBe(0);});
+it.each(['development','outline'] as const)('refuses incomplete or forged %s prerequisites without executing new DDL',async domain=>{const f=await fixture();f.state[domain].pop();await expect(migrateOutlineIdentities(f.pool)).rejects.toMatchObject({code:'INCOMPLETE'});expect(f.query.mock.calls.some(([sql])=>sql===f.files[5]!.sql)).toBe(false);const other=await fixture();other.state[domain][0]!.checksum='0'.repeat(64);await expect(migrateOutlineIdentities(other.pool)).rejects.toMatchObject({code:'CONFLICT'});expect(other.query.mock.calls.some(([sql])=>sql===other.files[5]!.sql)).toBe(false);});
+it('requires preinstalled schema ledgers without creating either source schema',async()=>{const f=await fixture();f.state.exists=false;await expect(migrateOutlineIdentities(f.pool)).rejects.toMatchObject({code:'INCOMPLETE'});expect(f.query.mock.calls.some(([sql])=>sql.startsWith('CREATE'))).toBe(false);});
+it.each(['checksum','version','extra'] as const)('refuses a corrupt identity migration %s ledger',async mode=>{const f=await fixture();f.state.identities=[{version:1,checksum:f.files[5]!.checksum}];if(mode==='checksum')f.state.identities[0]!.checksum='0'.repeat(64);if(mode==='version')f.state.identities[0]!.version=2;if(mode==='extra')f.state.identities.push({version:2,checksum:'0'.repeat(64)});await expect(migrateOutlineIdentities(f.pool)).rejects.toMatchObject({code:'CONFLICT'});expect(f.query.mock.calls.some(([sql])=>sql===f.files[5]!.sql)).toBe(false);});
+it.each(['query','commit','rollback','release','disconnect','connection'] as const)('redacts %s failures and releases only the owned connection',async mode=>{const f=await fixture();if(mode==='query')f.state.fail=f.files[5]!.sql;if(mode==='commit')f.state.fail='COMMIT';if(mode==='rollback'){f.state.fail='ROLLBACK';f.state.development=[];}if(mode==='release')f.state.release=true;if(mode==='disconnect')f.state.disconnect=true;if(mode==='connection')f.connect.mockRejectedValueOnce(new Error('private login'));await expect(migrateOutlineIdentities(f.pool)).rejects.toMatchObject({code:'STORAGE_FAILED'});expect(f.release).toHaveBeenCalledTimes(mode==='connection'?0:1);expect(f.client.listenerCount('error')).toBe(0);if(mode==='rollback'||mode==='disconnect')expect(f.release).toHaveBeenCalledWith(true);});

@@ -7,6 +7,7 @@ import {developmentStageCallId} from '../src/node/contracts.js';
 import {workflowFixture} from './workflow-support.js';
 import {fixtureId as id} from '../../ir/test/fixtures';
 import {DevelopmentError} from '../src/contracts.js';
+import type {DevelopmentBrief} from '../src/contracts.js';
 import {memoryDatabase} from './store-memory.js';
 import {identityPgFixture} from './ir-identities-pg-support.js';
 
@@ -16,9 +17,16 @@ async function fixture(){
   const episodes=await generateEpisodes({...f,foundation:accepted as Parameters<typeof generateEpisodes>[0]['foundation'],method:f.episodeMethod,context:f.context(developmentStageCallId(f.key,'episodes'))});await f.store.saveCandidate(f.key,episodes);const reviewed=await f.store.review(f.key,'episodes',{candidateDigest:episodes.digest,output:episodes.output},f.host);
   const input={source:{...f.key,runDigest:f.run.digest,briefDigest:f.brief.digest,foundationReviewDigest:accepted.digest,episodesReviewDigest:reviewed.digest},target:{tenantId:id('identity-tenant'),projectId:id('identity-project')}};
   const rows:Row[]=[];const events:string[]=[];const options:{fail?:string;release?:boolean;disconnect?:boolean;corrupt?:(row:Row)=>Row}={};let snapshot:Row[]=[];let ordinal=0;const emitter=new EventEmitter();
-  const query=vi.fn(async(sql:string,values:unknown[]=[]):Promise<{rows:Row[]}>=>{
+  const sourceBriefs=new Map<string,DevelopmentBrief>(),sourceKey=(tenantId:string,projectId:string,owner:string)=>JSON.stringify([tenantId,projectId,owner]);
+  const query=vi.fn(async(sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[]}>=>{
     events.push(sql);if(options.fail&&sql.startsWith(options.fail))throw new Error('private-driver');if(sql.startsWith('BEGIN'))snapshot=structuredClone(rows);
     if(sql==='ROLLBACK')rows.splice(0,rows.length,...snapshot);
+    if(sql.includes(' AS installed'))return {rows:[{installed:false}]};
+    if(sql.startsWith('SELECT i.owner_run_id')){
+      const sourceRows=rows.filter(row=>row.tenant_id===values[0]&&row.project_id===values[1]&&['world','character','relationship'].includes(row.kind)&&row.owner_run_id!==null&&row.owner_run_id>String(values[2]));
+      const owners=[...new Map(sourceRows.map(row=>[JSON.stringify([row.owner_run_id,row.ir_tenant_id,row.ir_project_id]),row])).values()].toSorted((a,b)=>a.owner_run_id!<b.owner_run_id!?-1:a.owner_run_id!>b.owner_run_id!?1:0).slice(0,64);
+      return {rows:owners.map(row=>{const brief=sourceBriefs.get(sourceKey(row.tenant_id,row.project_id,row.owner_run_id!));return {owner_run_id:row.owner_run_id,ir_tenant_id:row.ir_tenant_id,ir_project_id:row.ir_project_id,brief_id:brief?.briefId??null,brief_revision:brief?.revision??null,brief_digest:brief?.digest??null,tenant_id:brief?.tenantId??null,project_id:brief?.projectId??null,stored_brief_id:brief?.briefId??null,stored_revision:brief?.revision??null,digest:brief?.digest??null,record:brief??null};})};
+    }
     if(sql.startsWith('SELECT')&&sql.includes('camery_script.ir_identities')){
       if(sql.includes('LIMIT 1'))return {rows:rows.filter(row=>row.tenant_id===values[0]&&row.project_id===values[1]).slice(0,1)};
       const selected=rows.filter(row=>row.tenant_id===values[0]&&row.project_id===values[1]&&(sql.includes('kind=$3')?row.kind===values[2]&&row.owner_key===values[3]&&row.local_key===values[4]:row.owner_key===values[2]&&['world','character','relationship'].includes(row.kind)||row.owner_key==='project'&&['development_plan','episode','episode_plan'].includes(row.kind)));
@@ -31,7 +39,9 @@ async function fixture(){
     return {rows:[]};
   });
   const release=vi.fn((_destroy?:boolean)=>{if(options.release)throw new Error('private-release');});const client=Object.assign(emitter,{query,release});const connect=vi.fn(async()=>client);const pool={connect} as unknown as Pool;
-  const source={readForAdoption:vi.fn(async(supplied:PoolClient)=>{expect(supplied).toBe(client);events.push('SOURCE');return f.progress;})};const newId=vi.fn(()=>id('persistent-'+ordinal++));const store=new PostgresDevelopmentIrIdentities(pool,source,newId);
+  const source={readForAdoption:vi.fn(async(supplied:PoolClient,_command?:unknown)=>{expect(supplied).toBe(client);events.push('SOURCE');return f.progress;})};const newId=vi.fn(()=>id('persistent-'+ordinal++));
+  const storedSource={async readForAdoption(supplied:PoolClient,command:unknown){const progress=await source.readForAdoption(supplied,command),owner=progress.run.origin?.foundation?.runId??progress.run.runId;sourceBriefs.set(sourceKey(progress.run.tenantId,progress.run.projectId,owner),structuredClone(progress.run.brief));return progress;}};
+  const store=new PostgresDevelopmentIrIdentities(pool,storedSource,newId);
   return {...f,input,rows,events,options,query,release,client,connect,source,newId,identities:store};
 }
 it('persists every source identity once after source locks and returns stable frozen identities on retry',async()=>{
