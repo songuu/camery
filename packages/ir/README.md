@@ -1,6 +1,6 @@
 # @camery/ir · 版本化内容契约
 
-当前新建契约为 `0.6.0-draft`，同时严格读取原 `0.5.0-draft`。Zod 定义在 [src/schema.ts](src/schema.ts)，生成 [StoryboardPackage](contracts/storyboard-package.schema.json) 与 [ChangeSet](contracts/changeset.schema.json) 两份双版本交换契约。测试包含生成物一致性检查；旧 schema 独立保存在 `src/legacy/v05-schema.ts`。
+当前最新契约为 `0.7.0-draft`，同时严格读取原 `0.5.0-draft`、`0.6.0-draft`。Zod 定义在 [src/schema.ts](src/schema.ts)，生成 [StoryboardPackage](contracts/storyboard-package.schema.json) 与 [ChangeSet](contracts/changeset.schema.json) 两份三版本交换契约。测试包含生成物一致性检查；旧 schema 独立保存在 `src/legacy/v05-schema.ts`、`src/legacy/v06-schema.ts`，v0.6冻结哈希由测试保护。
 
 ```sh
 pnpm --filter @camery/ir test
@@ -15,6 +15,10 @@ CLI 的输出为 JSON：通过退出 0，校验失败退出 1，参数错误退�
 
 ## 已实现的语义
 
+- v0.7追加严格规划集合 `adaptation_plans`、`outline_beats`、`outline_episode_plans`、`asset_plans`、`outline_plot_units`、`outline_adaptation_decisions`。保留全部五件套、题材/抽离/豁免、来源/方法/审阅谱系、连续分集与节拍、钩子/赌注/卡点、情绪曲线、道具状态和季引擎。人物和Episode复用正式身份；规划节拍不伪造scene、资产规划不允许ready/URI或媒体物化字段。
+- v0.7对象参与原ID、锁和连续性快照检查，固定版本依赖过期时派生stale警告，不改写引用；当前子对象自身的覆盖和顺序独立校验，不能因父对象pin过期而绕过。正式大纲依赖图有独立16MiB预算，包含所引用当前对象，即便其版本已变化。此结构校验不代替来源guard或人工采用授权。
+- `upgradeV05Package`保持原v0.5→v0.6纯转换，`upgradeV06Package`追加v0.6→v0.7；均只加空集合，持久化必须经独立人类项目级ChangeSet。旧请求、快照和对象历史不改写。既有开发映射支持v0.6/v0.7，保留旧边界。
+- 大纲正式采用仍在OL-5实施中，未启用新的大纲来源写入口。完整规范化映射可能超过旧500ops/512KiB；合法单个AdaptationPlan也可能超过旧Workbench单对象983040字节。专用采用intent、来源guard和分节读取/页面继续实现，旧通用入口预算保持，不能据本契约宣称完整大纲采用/正式阅读已交付。
 - v0.6 增加完整 World、Character 开发字段、CharacterRelationship、DevelopmentPlan、EpisodePlan，保留故事设定、欲望/阻力/弧光、主线、未决问题及分集目标/冲突/转折/收尾。审核来源固定普通租户/项目键、run/digest、brief修订、候选/审核摘要与原作者/时点；这些是来源声明，不能自行授予采用权限。
 - 规则/问题使用所属 World/Plan 的局部 key；对象使用 ULID 和明确 RevisionRef。未来版本、悬空对象、同计划重复集号/正式Episode、相同上游版本下的来源混用均拒绝。历史依赖保留原 pin 并产生 `STALE_DEVELOPMENT_DEPENDENCY`；`developmentDependencyIssues` 可定位受影响计划和分集，后续生成消费者必须先拒绝这类过期上下文。此提示不证明导入前历史已在本机完整核实。
 - `upgradeV05Package` 只是纯结构转换，增加空集合、保留旧对象及版本，不写数据库。已有正式 head 必须通过版本域独立 `upgrade_schema` ChangeSet 显式采用；有其他待审候选时先处理候选。v0.3 迁移仍明确输出并校验 v0.5，不暗改旧样例或已保存请求。

@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {AccessError,authorize,parseIdentity,permissionsFor} from '@camery/access';
 import type {Permission,SessionIdentity} from '@camery/access';
-import {Asset,ChangeSet,StableId} from '@camery/ir';
+import {Asset,ChangeSet,StableId,OUTLINE_COLLECTIONS} from '@camery/ir';
 import {WorkbenchStateSchema,WorkbenchPreviewSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,DevelopmentCandidatePrepareSchema,WorkbenchCandidateListQuerySchema,WorkbenchReadQuerySchema,WorkbenchHistoryQuerySchema,WorkbenchObjectHistorySchema,WorkbenchCollectionSchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
 import {freeze} from '@camery/methods';
 import {snapshotJson,JsonBoundaryError} from '@camery/methods/json';
@@ -124,6 +124,8 @@ export class ProjectApplication{
     // Inspect commands directly: dependent split IDs can make a side-effect-free preview unavailable.
     const head=stored.state.head as unknown as Record<string,unknown>;
     for(const op of request.ops){
+      // Outline evidence needs its own transactional source guard; the generic manual path must remain closed until then.
+      if('collection' in op&&(OUTLINE_COLLECTIONS as readonly string[]).includes(op.collection))throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual outline source');
       if(!('collection' in op)||!['development_plans','episode_plans'].includes(op.collection))continue;
       if(op.op==='add')throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual development source');
       if(op.op!=='replace'&&op.op!=='update')continue;
@@ -158,7 +160,7 @@ export class ProjectApplication{
     const command=capture(DevelopmentCandidatePrepareSchema,input.command);const runId=capture(Id,input.runId);const authority=await this.authority(input,'candidate:write');
     const context={subject:authority.subject,projectId:authority.scope.projectId};
     const digest=this.digest(authority,'development',command,runId);const existing=await this.existing(authority,command.applicationId,digest);if(existing)return this.finishCandidate(context,existing);
-    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version!=='0.6.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','development preparation');
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version==='0.5.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','development preparation');
     const source={...authority.scope,runId,runDigest:command.runDigest,briefDigest:command.briefDigest,foundationReviewDigest:command.foundationReviewDigest,episodesReviewDigest:command.episodesReviewDigest};
     const prepared=await this.options.development.identities.prepare({source,target:authority.versionKey});
     const foundation=prepared.progress.foundation.review;const episodes=prepared.progress.episodes.review;
@@ -183,8 +185,9 @@ export class ProjectApplication{
     const command=capture(WorkbenchUpgradeSchema,input.command);const authority=await this.authority(input,'candidate:write');
     const context={subject:authority.subject,projectId:authority.scope.projectId};
     const digest=this.digest(authority,'schema-upgrade',command);const existing=await this.existing(authority,command.applicationId,digest);if(existing)return this.finishCandidate(context,existing);
-    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version!=='0.5.0-draft')throw new ProjectApplicationError('CONFLICT','schema already upgraded');
-    const request=ChangeSet.parse({schema_version:'0.6.0-draft',id:this.options.newId(),author:{kind:'user',id:authority.actor.id},base_revision:stored.state.head.revision.number,base_revisions:[],status:'candidate',ops:[{op_id:this.options.newId(),op:'upgrade_schema',from:'0.5.0-draft',to:'0.6.0-draft'}]});
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version==='0.7.0-draft')throw new ProjectApplicationError('CONFLICT','schema already upgraded');
+    const from=stored.state.head.schema_version,to=from==='0.5.0-draft'?'0.6.0-draft':'0.7.0-draft';
+    const request=ChangeSet.parse({schema_version:to,id:this.options.newId(),author:{kind:'user',id:authority.actor.id},base_revision:stored.state.head.revision.number,base_revisions:[],status:'candidate',ops:[{op_id:this.options.newId(),op:'upgrade_schema',from,to}]});
     const result=submitChangeSet(stored.state,request);if(result.status!=='candidate')throw new ProjectApplicationError('CONFLICT','pending changes block schema upgrade');
     const saved=await this.options.intents.putCandidate({version:1,scope:authority.scope,applicationId:command.applicationId,actor:authority.actor,target:authority.versionKey,commandDigest:digest,source:{kind:'manual'},expectation:expectation(command),changeId:request.id,request});return this.finishCandidate(context,saved);
   }
@@ -203,6 +206,7 @@ export class ProjectApplication{
     const key={scope:authority.scope,actorKind:authority.actor.kind,actorKey:authority.actor.key,requestId};const previous=await this.options.intents.findDecision(key);
     const body:DecisionIntentBody={version:1,scope:authority.scope,requestId,actor:authority.actor,changeId:candidateId,action,adoptionScope:command.scope,expectation:expectation(command),reason:'reason' in command&&typeof command.reason==='string'?command.reason:null,at:previous?.at??this.options.now?.()??new Date().toISOString()};
     const decision=await this.options.intents.putDecision(body);const receipt=await this.options.intents.readDecisionReceipt(key);if(receipt)return receipt;
+    if(action==='adopt'&&candidate.source.kind==='manual')this.manualPolicy(candidate.request,await this.read(authority.versionKey));
     const options={actor:authority.principal,scope:decision.adoptionScope,at:decision.at,authorize:authority.authorize,expectation:decision.expectation};const writer=this.options.intents.decisionReceiptWriter(decision,candidate);
     if(action==='adopt'){
       const guard=candidate.source.kind==='development'?createDevelopmentSourceGuard(this.options.development.store,candidate.source.source):async()=>{};

@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {ChangeSetV06,SCHEMA_VERSION,upgradeV05Package} from '@camery/ir';
+import {ChangeSetV06,DEVELOPMENT_SCHEMA_VERSION as SCHEMA_VERSION,upgradeV05Package} from '@camery/ir';
 import {adoptChangeSet,createVersionState,rejectChangeSet,submitChangeSet} from '../src/index';
 import {changeSet,fixtureId as id,makePackage} from '../../ir/test/fixtures';
 const approval={actor:{kind:'user' as const,id:id('user_1')},scope:{kind:'project' as const,id:id('prj_demo')},at:'2026-11-17T04:00:00.000Z',authorize:()=>true};

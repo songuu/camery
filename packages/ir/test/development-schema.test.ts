@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {StoryboardPackage,SCHEMA_VERSION,upgradeV05Package,validatePackage,developmentDependencyIssues} from '../src/index';
+import {StoryboardPackage,DEVELOPMENT_SCHEMA_VERSION as SCHEMA_VERSION,upgradeV05Package,validatePackage,developmentDependencyIssues} from '../src/index';
 import {fixtureId,makePackage} from './fixtures';
 import {makeDevelopmentPackage as fixture} from './development-fixture';
 const id=fixtureId;

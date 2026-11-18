@@ -41,13 +41,13 @@ CI 对 pull request 和 push 执行相同的 `pnpm check`，再运行真实 Post
 
 私有化开发基础设施与已知限制见 [deploy/README.md](deploy/README.md)。当前文档和工程骨架不等同于应用已可运行；各阶段任务必须分别通过验收。
 
-当前已落地的 [IR v0.5/v0.6 契约与 CLI](packages/ir/README.md)、[阶段 0 进展与剩余项](docs/plan/phase0-progress.md) 分别记录使用方法、验证证据和实现边界。
+当前已落地的 [IR v0.5/v0.6/v0.7 契约与 CLI](packages/ir/README.md)、[阶段 0 进展与剩余项](docs/plan/phase0-progress.md) 分别记录使用方法、验证证据和实现边界。
 
 [阶段1进展](docs/plan/phase1-progress.md)已接入[小说与剧本导入核心](packages/ingest/README.md)、认证来源HTTP和[React来源工作台](packages/web/README.md)：精确来源定位、分批幂等、PostgreSQL读取游标，以及Fountain/CSV/TSV/DOCX候选。StoryBible及后续生成链路仍按计划逐项实施。
 
 [StoryBible候选领域](packages/bible/README.md)提供有界分块、结构化抽取、跨块合并建议、精确引文与受信人工确认/拒绝；[PostgreSQL与逐块预算任务](packages/bible/POSTGRES.md)支持日志提交后SIGKILL、新连接恢复及未知结果对账。认证审阅应用、常驻服务接线、真实文本模型质量和人审仍按[T1.2计划](docs/plan/storybible-phase1.md)继续，不把候选或库级确认直接写入正式IR。
 
-[T1.4 剧作大纲](docs/plan/dramaturgy-phase1.md)已具备五件套契约、固定原创方法、已审阅 Development/Bible 来源、不可变 PostgreSQL 候选与显式人工审阅。单阶段预算工作流仅把运行引用写入任务日志，完整输入和输出保持原有容量；恢复沿用原任务、原模型回执和预算，未知结果须明确对账。认证 API、来源/简报/运行目录、脱敏状态投影和[配置型常驻宿主](deploy/outline.md)已接入，默认关闭；已付费日志在无文本配置的新进程中仍可恢复。[五件套编辑审阅页面](packages/web/README.md)已接真实同源 API，支持普通字段、语义引用、抽离判断和逐问题豁免，保留原候选与人改审计；正式 IR 采用继续推进。合成协议测试不代表真实文本质量或真人签核。
+[T1.4 剧作大纲](docs/plan/dramaturgy-phase1.md)已具备五件套契约、固定原创方法、已审阅 Development/Bible 来源、不可变 PostgreSQL 候选与显式人工审阅。单阶段预算工作流仅把运行引用写入任务日志，完整输入和输出保持原有容量；恢复沿用原任务、原模型回执和预算，未知结果须明确对账。认证 API、来源/简报/运行目录、脱敏状态投影和[配置型常驻宿主](deploy/outline.md)已接入，默认关闭；已付费日志在无文本配置的新进程中仍可恢复。[五件套编辑审阅页面](packages/web/README.md)已接真实同源 API，支持普通字段、语义引用、抽离判断和逐问题豁免，保留原候选与人改审计；正式 v0.7 规划图与顺序升级已接入，完整采用映射和分节读取继续推进。合成协议测试不代表真实文本质量或真人签核。
 
 [时间线代数](packages/timeline/README.md) 提供精确时间推算、锚点与音轨检查、不可变编辑；既定技术选择见 [ADR-001–019](docs/adr/README.md)。
 

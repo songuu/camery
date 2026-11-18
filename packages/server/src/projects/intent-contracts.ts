@@ -22,7 +22,7 @@ export const CandidateIntentBodySchema=CandidateIntentKeySchema.extend({version:
   if(request&&(request.id!==value.changeId||request.author.kind!==value.actor.kind||request.author.id!==value.actor.id||request.base_revision!==value.expectation.expectedSnapshotRevision||request.status!=='candidate'||request.ops.length>500))context.addIssue({code:'custom',message:'Candidate request binding'});
   if(value.source.kind==='development'){
     const source=value.source.source;const identities=value.source.identities;
-    if(source.tenantId!==value.scope.tenantId||source.projectId!==value.scope.projectId||identities.tenantId!==value.scope.tenantId||identities.projectId!==value.scope.projectId||identities.target.tenantId!==value.target.tenantId||identities.target.projectId!==value.target.projectId||request&&request.schema_version!=='0.6.0-draft')context.addIssue({code:'custom',message:'Development source binding'});
+    if(source.tenantId!==value.scope.tenantId||source.projectId!==value.scope.projectId||identities.tenantId!==value.scope.tenantId||identities.projectId!==value.scope.projectId||identities.target.tenantId!==value.target.tenantId||identities.target.projectId!==value.target.projectId||request&&!['0.6.0-draft','0.7.0-draft'].includes(request.schema_version))context.addIssue({code:'custom',message:'Development source binding'});
   }else if(!request)context.addIssue({code:'custom',message:'Only a verified development draft can be unchanged'});
 });
 export type CandidateIntentBody=z.infer<typeof CandidateIntentBodySchema>;

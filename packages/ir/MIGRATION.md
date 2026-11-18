@@ -68,3 +68,11 @@ await writeFile('examples/fiction.v03-migration.report.json', JSON.stringify(res
 测试会重新读取两个原始样例、调用真实迁移函数，验证规划检查、全文保留、确定性、语义阻塞、绝对时间及生成物一致性。仅有新 JSON 文件本身不构成迁移完成的证据。
 
 本次两个原始样例还分别通过了原 `storyboard_platform_v3/tools/validate_package.py` 校验：均为 `valid:true`，保留 planned-media、estimated-timing 警告；知识样例另有 reference-only 警告。新迁移没有把这些警告当作素材、事实或授权的验证结论。
+
+## v0.6 → v0.7 大纲规划
+
+`upgradeV06Package` 只接受严格 v0.6，保留每个旧对象、版本和修订声明，追加六个空规划集合。它是纯转换；持久化必须提交独立的 v0.7 `upgrade_schema`（from=`0.6.0-draft`、to=`0.7.0-draft`），再由授权人类按项目范围明确采用。v0.5 项目先走原有 v0.5→v0.6，不跳级；旧待采用候选须先处理，升级与其他操作不能混在同一个 ChangeSet。版本域保留旧请求、快照、对象历史及重放回执，失败事务不会改变 head。
+
+v0.7严格结构不把规划升级成已制作内容：`outline_beats` 没有虚构scene，`asset_plans`没有ready或URI；分集规划保留自己的钩子/赌注估计秒数和简报时长，`episode_id`仅表示正式Episode所属关系，不把既有Episode元信息当作实测时长。后续采用映射须明确同步首次写入的Episode标题/时长及所有稳定身份，不能由schema转换生成故事内容或来源人审。
+
+完整大纲规范化映射、专用来源guard/采用intent及超出旧Workbench单对象上限的分节读取仍按OL-5推进。通用手工入口暂时拒绝六个来源管理集合的内容写入；不要用v0.6读者回退解释已采用v0.7快照，回退服务须保留新数据并明确报告不支持的版本。

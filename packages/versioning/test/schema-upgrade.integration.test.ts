@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
 import {afterAll,beforeAll,expect,it} from 'vitest';
-import {ChangeSetV06,SCHEMA_VERSION} from '@camery/ir';
+import {ChangeSetV06,DEVELOPMENT_SCHEMA_VERSION as SCHEMA_VERSION} from '@camery/ir';
 import {migrateVersioning,PostgresVersionStore} from '../src/node/index';
 import {changeSet,fixtureId as id,makePackage} from '../../ir/test/fixtures';
 const url=process.env['CAMERY_TEST_DATABASE_URL'];if(!url)throw new Error('CAMERY_TEST_DATABASE_URL required for schema upgrade integration');

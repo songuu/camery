@@ -4,7 +4,7 @@ import type {PoolClient,QueryConfig} from 'pg';
 import {beforeAll,afterAll,expect,it} from 'vitest';
 import {AccessService,issueSession} from '@camery/access';
 import {migrateAccess,PostgresSessionStore} from '@camery/access/node';
-import {upgradeV05Package} from '@camery/ir';
+import {upgradeV05Package,upgradeV06Package} from '@camery/ir';
 import {migrateVersioning,PostgresVersionStore} from '@camery/versioning/node';
 import {migrateDevelopment,PostgresDevelopmentIrIdentities,prepareDevelopmentDraft,finalizeDevelopmentChangeSet,createDevelopmentSourceGuard} from '@camery/script/node';
 import {identityPgFixture} from '../../script/test/ir-identities-pg-support.js';
@@ -31,9 +31,9 @@ afterAll(async()=>{
   for(const tenantId of [...owned.map(id),...extraVersionTenants]){const client=await pool.connect();try{await client.query('BEGIN');await client.query('SET CONSTRAINTS ALL DEFERRED');for(const table of ['adoptions','object_revisions','changes','snapshots','projects'])await client.query(`DELETE FROM camery_versioning.${table} WHERE tenant_id=$1`,[tenantId]);await client.query('COMMIT');}catch{failed=true;await client.query('ROLLBACK').catch(()=>{});}finally{client.release();}}
   await pool.end();if(failed)throw new Error('Immutable candidate intent fixture cleanup failed');
 });
-async function fixture(){
+async function fixture(v07=false){
   // Protocol source/audits are explicit synthetic fixtures; all below storage and formal mutations use actual PostgreSQL.
-  const f=await identityPgFixture(pool,owned);const baseline=upgradeV05Package(makePackage());for(const [name,value] of Object.entries(baseline))if(Array.isArray(value))(baseline as unknown as Record<string,unknown>)[name]=[];
+  const f=await identityPgFixture(pool,owned);const old=upgradeV05Package(makePackage()),baseline=v07?upgradeV06Package(old):old;for(const [name,value] of Object.entries(baseline))if(Array.isArray(value))(baseline as unknown as Record<string,unknown>)[name]=[];
   baseline.project.id=f.target.projectId;baseline.project.source_ids=[];baseline.project.rights_status='unknown';baseline.project.scope={label:'明确准备的开发基线',expected_episode_count:0,expected_scene_count:0,expected_required_beat_count:0};baseline.revision={number:1,status:'adopted',note:'Explicit synthetic fixture installation'};await versions.initialize(f.target,baseline);
   const register=new ProjectIdentityRegistrar(pool);await register.registerTenant({tenantId:f.scope.tenantId,irTenantId:f.target.tenantId});await register.registerProject({...f.scope,irProjectId:f.target.projectId});
   for(const key of ['editor','reviewer','source-reviewer'])await register.registerPrincipal({tenantId:f.scope.tenantId,kind:'user',key,irActorId:id(f.scope.tenantId+key)});
@@ -52,9 +52,9 @@ async function fixture(){
 }
 async function counts(f:Awaited<ReturnType<typeof fixture>>){return Promise.all(['snapshots','changes','object_revisions','adoptions'].map(async table=>Number((await pool.query<{count:string}>(`SELECT count(*)::text count FROM camery_versioning.${table} WHERE tenant_id=$1 AND project_id=$2`,[f.target.tenantId,f.target.projectId])).rows[0]!.count)));}
 function observedPool(observe:(client:PoolClient,text:string)=>Promise<void>,afterCommit?:()=>void):Pool{return new Proxy(pool,{get(target,property){if(property==='connect')return async()=>{const client=await target.connect();return new Proxy(client,{get(connection,field){if(field==='query')return async(input:string|QueryConfig,values?:unknown[])=>{const text=typeof input==='string'?input:input.text;const result=await connection.query(input,values);await observe(connection,text);if(text.trim().toUpperCase()==='COMMIT')afterCommit?.();return result;};const value:unknown=Reflect.get(connection,field);return typeof value==='function'?value.bind(connection):value;}});};const value:unknown=Reflect.get(target,property);return typeof value==='function'?value.bind(target):value;}});}
-it('adopts the complete reviewed development into typed IR and atomically persists actual preparation and adoption receipts',async()=>{
-  const f=await fixture();expect((await f.submit()).status).toBe('candidate');const decision=await f.decision();const adopted=await versions.adoptGuarded(f.target,f.candidate.changeId,decision.options,createDevelopmentSourceGuard(f.store,f.source),decision.receipt);expect(adopted.status).toBe('adopted');
-  const head=adopted.state.head;if(head.schema_version!=='0.6.0-draft')throw new Error('Expected complete development schema');expect(head.worlds).toHaveLength(1);expect(head.development_plans).toHaveLength(1);expect(head.episode_plans).toHaveLength(10);expect(head.episodes).toHaveLength(10);expect(head.scenes).toEqual([]);expect(head.shots).toEqual([]);expect(head.assets).toEqual([]);
+it.each([false,true])('adopts the complete reviewed development into typed IR with v07=%s and atomically persists actual preparation and adoption receipts',async v07=>{
+  const f=await fixture(v07);expect((await f.submit()).status).toBe('candidate');const decision=await f.decision();const adopted=await versions.adoptGuarded(f.target,f.candidate.changeId,decision.options,createDevelopmentSourceGuard(f.store,f.source),decision.receipt);expect(adopted.status).toBe('adopted');
+  const head=adopted.state.head;expect(head.schema_version).toBe(v07?'0.7.0-draft':'0.6.0-draft');if(head.schema_version==='0.5.0-draft')throw new Error('Expected complete development schema');expect(head.worlds).toHaveLength(1);expect(head.development_plans).toHaveLength(1);expect(head.episode_plans).toHaveLength(10);expect(head.episodes).toHaveLength(10);expect(head.scenes).toEqual([]);expect(head.shots).toEqual([]);expect(head.assets).toEqual([]);
   expect(head.development_plans[0]!.source.reviewer_id).toBe(f.reviewers.foundation.id);expect(head.development_plans[0]!.source.reviewer_id).not.toBe(decision.intent.actor.id);expect(head.episode_plans[0]!.source.review_digest).toBe(f.source.episodesReviewDigest);expect(head.characters[0]!.development?.desire).toBe(f.prepared.progress.foundation.review!.status==='reviewed'?f.prepared.progress.foundation.review!.output.characters[0]!.desire:undefined);
   expect((await intents.readPreparationReceipt({scope:f.scope,applicationId:'application'}))?.status).toBe('candidate');const receipt=await intents.readDecisionReceipt(decision.key);expect(receipt?.status).toBe('adopted');expect(receipt?.adoption).toEqual(adopted.state.adoptions[0]);expect(f.calls()).toBe(2);
 });

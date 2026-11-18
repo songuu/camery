@@ -1,7 +1,7 @@
 import {randomBytes} from 'node:crypto';
 import {Pool} from 'pg';
 import {afterAll,beforeAll,expect,it} from 'vitest';
-import {upgradeV05Package} from '@camery/ir';
+import {upgradeV05Package,upgradeV06Package} from '@camery/ir';
 import {WorkbenchCandidateDetailSchema,WorkbenchCandidatePageSchema,WorkbenchActionReceiptSchema} from '@camery/ir/workbench';
 import {AccessService,issueSession} from '@camery/access';
 import {migrateAccess,PostgresSessionStore,verifyRuntimeRole} from '@camery/access/node';
@@ -41,13 +41,13 @@ afterAll(async()=>{
   for(const name of [...roles].reverse())try{await admin.query(`DROP OWNED BY ${quote(name)}`);await admin.query(`DROP ROLE ${quote(name)}`);}catch{failed=true;}
   await admin.end();if(failed)throw new Error('Dedicated project adoption LOGIN fixture cleanup failed');
 });
-async function installedSource(){
-  const f=await identityPgFixture(admin,owned);const versions=new PostgresVersionStore(admin);const baseline=upgradeV05Package(makePackage());for(const [name,value] of Object.entries(baseline))if(Array.isArray(value))(baseline as unknown as Record<string,unknown>)[name]=[];
+async function installedSource(v07=false){
+  const f=await identityPgFixture(admin,owned);const versions=new PostgresVersionStore(admin);const old=upgradeV05Package(makePackage()),baseline=v07?upgradeV06Package(old):old;for(const [name,value] of Object.entries(baseline))if(Array.isArray(value))(baseline as unknown as Record<string,unknown>)[name]=[];
   baseline.project.id=f.target.projectId;baseline.project.source_ids=[];baseline.project.rights_status='unknown';baseline.project.scope={label:'独立 LOGIN 验收基线',expected_episode_count:0,expected_scene_count:0,expected_required_beat_count:0};baseline.revision={number:1,status:'adopted',note:'Explicit restricted LOGIN fixture installation'};await versions.initialize(f.target,baseline);
   const registrar=new ProjectIdentityRegistrar(admin);await registrar.registerTenant({tenantId:f.scope.tenantId,irTenantId:f.target.tenantId});await registrar.registerProject({...f.scope,irProjectId:f.target.projectId});for(const key of ['editor','reviewer','source-reviewer','viewer'])await registrar.registerPrincipal({tenantId:f.scope.tenantId,kind:'user',key,irActorId:id(f.scope.tenantId+key)});return f;
 }
-it('uses two actual LOGINs for source-local IDs, formal submit and guarded adoption with both durable receipts',async()=>{
-  const f=await installedSource();
+it.each([false,true])('uses two actual LOGINs on v07=%s for source-local IDs, formal submit and guarded adoption with both durable receipts',async v07=>{
+  const f=await installedSource(v07);
   const runtime=await createProjectRuntime({tenantId:f.scope.tenantId,readerDatabaseUrl:readerUrl,adoptionDatabaseUrl:adopterUrl});try{
     const {identities,development,versions:restricted,intents}=runtime.options;const author=await identities.resolve({...f.scope,kind:'user',key:'editor'});expect(author.versionKey).toEqual(f.target);
     const prepared=await development.identities.prepare({source:f.source,target:f.target});const reviewerId=id(f.scope.tenantId+'source-reviewer');const reviewers={foundation:{key:'source-reviewer',id:reviewerId},episodes:{key:'source-reviewer',id:reviewerId}};const head=(await restricted.read(f.target))!.state.head;const draft=prepareDevelopmentDraft({...prepared,source:f.source,reviewers,head});
@@ -55,7 +55,7 @@ it('uses two actual LOGINs for source-local IDs, formal submit and guarded adopt
     const body:CandidateIntentBody={version:1,scope:f.scope,applicationId:'restricted-application',actor:{...author.principal,key:'editor'},target:f.target,commandDigest:projectIntentDigest({source:f.source,expectation:{expectedSnapshotRevision:1,expectedWriteVersion:1}}),source:{kind:'development',mapperVersion:1,source:f.source,identities:prepared.identities,reviewers},expectation:{expectedSnapshotRevision:1,expectedWriteVersion:1},changeId,request};const candidate=await intents.putCandidate(body);
     expect((await restricted.submitWithReceipt(f.target,candidate.request,{expectation:candidate.expectation},intents.preparationReceiptWriter(candidate))).status).toBe('candidate');
     const {principal:reviewer}=await identities.resolvePrincipal({tenantId:f.scope.tenantId,kind:'user',key:'reviewer'});const decisionBody:DecisionIntentBody={version:1,scope:f.scope,requestId:'restricted-decision',actor:{...reviewer,key:'reviewer'},changeId,action:'adopt',adoptionScope:{kind:'project',id:f.target.projectId},expectation:{expectedSnapshotRevision:1,expectedWriteVersion:2},reason:null,at:'2026-11-17T06:00:00.000Z'};const decision=await intents.putDecision(decisionBody);
-    const result=await restricted.adoptGuarded(f.target,changeId,{actor:reviewer,scope:decision.adoptionScope,expectation:decision.expectation,at:decision.at,authorize:()=>true},createDevelopmentSourceGuard(development.store,f.source),intents.decisionReceiptWriter(decision,candidate));expect(result.status).toBe('adopted');expect(result.state.head.episodes).toHaveLength(10);
+    const result=await restricted.adoptGuarded(f.target,changeId,{actor:reviewer,scope:decision.adoptionScope,expectation:decision.expectation,at:decision.at,authorize:()=>true},createDevelopmentSourceGuard(development.store,f.source),intents.decisionReceiptWriter(decision,candidate));expect(result.status).toBe('adopted');expect(result.state.head.schema_version).toBe(v07?'0.7.0-draft':'0.6.0-draft');expect(result.state.head.episodes).toHaveLength(10);
     expect((await intents.readPreparationReceipt({scope:f.scope,applicationId:body.applicationId}))?.status).toBe('candidate');expect((await intents.readDecisionReceipt({scope:f.scope,actorKind:'user',actorKey:'reviewer',requestId:decision.requestId}))?.status).toBe('adopted');
   }finally{await runtime.close();}
 });

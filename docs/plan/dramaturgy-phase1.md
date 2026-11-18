@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 8 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 9 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -23,10 +23,10 @@ Revision 8 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md`
 | 任务 | 文件集合 / 依赖 | 风险 | 验收 / 当前状态 |
 | --- | --- | --- | --- |
 | OL-1 契约、引用验证、规则和题材资产 | `packages/script/src/outline/*`、对应单测、明确子路径导出；无外部依赖 | L2 | AC-OL-1/2；领域增量已验证，见下方证据 |
-| OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；库级及实际旧来源读口组合已验证，生产持久宿主/API仍属后续任务 |
-| OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；核心存储/预算/恢复已验证；常驻宿主及认证服务组合仍待 OL-4/6 |
+| OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；来源/固定方法/人审及持久宿主/API组合已验证，真人质量仍后补 |
+| OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；存储/预算/恢复、常驻宿主与认证服务组合已验证，正式采用继续 |
 | OL-4 鉴权 API 和编辑审阅页面 | script transport/read models、server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；先浏览器契约/列表/状态投影，再认证服务/常驻宿主/页面/实际验收，实施中 |
-| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；待做 |
+| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/顺序升级基础已验证；完整映射、专用采用/guard/分节读取继续 |
 | OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；待做 |
 
 ## 契约变化及验证
@@ -208,3 +208,35 @@ AC不变。追加 `/api/v1/projects/:projectId/outlines`，复用全局默认拒
 - 前端构建终态0，大纲单独懒加载；日志 `artifacts/delivery/outline-browser-build.log` SHA-256=`08c23cf2ac9f6852d7d6049912fa9fe447df87569db75819665e268d81e4b3f2`。Vite仍提示主chunk约500.56kB，无调大告警阈值，不据此宣称性能已完成优化。
 - 最终 `pnpm check` 终态0：4011项=20工具+3991普通，746文件策略零问题，13包类型检查成功（11缓存/2执行），13包覆盖率全部实际执行；方法6项/Agent10项基线匹配。Web175项覆盖98.24/95.93/98.58/99.69%，新outline-review-state四维100%；server505项98.31/95.70/99.47/99.73%。日志 `artifacts/delivery/outline-browser-workspace-check.log` SHA-256=`ddf21d5999b0ef152903641c03b335d5cd09b34f274d931f6e4f91543e08e6ae`。TSX既有策略由SSR/浏览器作证，未改变纯TS95%门槛或新增覆盖排除。
 - code/TS/security只读复审无未闭合P0–P2。此批不改变数据库/权限/宿主生产代码；真实PG/镜像恢复由前批独立证据及最终精确提交CI再次核验。OL-5正式IR版本/映射/采用和OL-6后续组合继续，完整OL-4/T1.4/阶段1不提前判完成。编辑器、法务、设计伙伴及真实文本质量依用户安排后补，ComfyUI保持。精确提交远端CI以实际终态为准。
+
+## Revision 9 · OL-5 显式正式结构与升级
+
+继续AC-OL-1/3/4/5，唯一验收语义不改。直接扩展v06会改变旧严格读者；把五件套塞进自由JSON无法验证图，复用旧scene/媒体beats/ready资产会虚构已制作内容。选择冻结v06严格schema/validator，追加v07结构化规划对象、显式顺序升级及随后完整来源采用事务。IR仅依赖timeline/zod，不反向依赖script；完整模型/人审证据回放留在script映射层。
+
+| 边界/消费者 | Before | After / 一致性证据 |
+| --- | --- | --- |
+| IR package / ChangeSet / CLI / tracked JSON schema | 严格v05/v06，v05→v06 | 保留旧版本读者和原升级语义，显式v06→v07；完整图参与旧ID/锁/快照验证 |
+| 正式大纲 | 无 | adaptation_plans、outline_beats、outline_episode_plans、asset_plans、outline_plot_units、outline_adaptation_decisions；人物和Episode复用正式身份，规划与已制作对象分离 |
+| 版本域/PG | 精确base、升级独占、人类项目级采用、JSON历史 | 顺序升级，不跳级；旧快照/历史/锁/待候选保持；不因版本号重写旧SQL |
+| 旧开发采用/Workbench/正式投影 | v06固定读者、版本枚举、500ops/512KiB手工入口 | 新head仍接受旧开发流程，版本投影包含三版本、引用/所属白名单完整；旧入口容量保持 |
+| 大纲映射/采用 | 后续待接入 | 原64人物/500节拍/100集/256资产/100PlotUnit/512KiB输出保持。规范化可能超过1000ops及512KiB，设计专用有界映射/intent/分页，不能降低输出容量或放宽全域旧入口 |
+
+任务顺序：冻结v06读者/窄测[P,L2独立新文件]与纯新类型schema[P,L2独立新文件]；根串行实现v07图/所属/来源引用/版本验证及包升级（L3）；根串行接版本域、旧开发映射/服务/读取投影消费者并实施真实PG回归（L4）；随后完整大纲local→formal映射、专用完整容量采用intent/source-guard/最小权限/API/页面及OL-6（L4，依赖前者，当前不预称交付）。本批类型基础不能冒称整个OL-5完成。
+
+规划对象必须保留全部改编取舍、配方/标志场景/抽离判断、节拍与钩子卡点/情绪/付费卡点、资产道具状态、PlotUnit、季引擎、来源/简报/方法/人审谱系；稳定引用固定版本，旧依赖显式stale，不重绑当前对象。专用正式大纲图预算16MiB，为局部ID→稳定版本引用扩张留足界限，后续映射必须证明完整容量。手工来源策略在尚未接专用guard前拒绝新增或修改受来源管理的大纲对象。
+
+Gate：失败测试→窄测→类型/lint→代码/TS/安全/DB复核→串行PG与覆盖率→整仓/派生schema一致性/原镜像流程→精确提交远端CI。升级前保留原快照及对象历史，失败事务不动head；不在现有用户数据库自动升级或回退已采用schema。回退服务时保留新数据和明确不支持版本错误，不能把v07静默当v06读取。前批页面提交bfcb3ba远端CI已实际成功，https://github.com/songuu/camery/actions/runs/44220296862；当前仍不是完整T1.4/阶段1完成声明。
+
+## OL-5 结构与升级基础证据（2026-11-18）
+
+- 冻结原v06 schema/validator，测试记录原package/ChangeSet JSON Schema哈希，保持v05/v06严格字段、原升级、完整图ID/锁/连续性快照语义。新版IR与tracked两份JSON Schema同步支持三版本，`SCHEMA_VERSION`为v07，原常量显式为`DEVELOPMENT_SCHEMA_VERSION`；旧测试仍验证原0.6字面值，只将对应旧语义导入改成明确别名。CLI生成物与结构校验均经真实回归，不改v03→v05旧样例迁移。
+- 新增109项普通测试：IR89（冻结8、图反例与完整容量70、schema/升级边界11）、版本域4、旧开发映射5、服务10、web1。新增真实PG5（版本域3、服务v07模式2）。最大正式图夹具64人物/500节拍/100集/256资产/100PlotUnit/128取舍，超过1000对象；这是正式结构/引用验证，不冒称已经实现完整local→formal采用映射或付费生成512KiB→正式图扩张证明。
+- 核心复审3项P2及跟进闭合：发布的v07操作使用独立literal升级边而非仅运行时refine；16MiB计量按引用ID纳入当前对象，不因旧pin而漏计；当前Episode/PlotUnit独立核验自身完整节拍覆盖和1..N顺序，不能由父对象stale跳过。对应wire、超大stale对象、缺拍/重复顺序反例全部红→绿。安全复审另发现旧versioning只透传开发stale告警，已追加大纲告警并以提交/采用/实际PG断言核验。合法旧pin保持原值并显式stale，不静默重绑。
+- 新v07输入预算选择只读取own data descriptor，原开发映射保留旧2MiB边界，新正式head有独立有界扩张空间；空值、访问器及proxy错误回到明确DevelopmentError，不执行getter、不外泄上下文。纯转换不授予来源或采用权限；通用手工六集合写入/首次采用均失败闭合，后续专用来源guard仍未启用。
+- IR完整486项终态0，覆盖98.69/97.40/98.56/99.69%；日志 `artifacts/delivery/outline-formal-ir-coverage.log` SHA-256=`a4f2bb2d8359bbd43e650f63fe9479bc3e043aa3deef930c66b41cba0a0d7058`。包版本更新后按仓库verify-deps要求执行 `pnpm install --offline --frozen-lockfile`，仅刷新现有工作区状态，锁文件无变化、无新依赖。
+- `pnpm test:versioning:local --coverage` 最终终态0：312项=258普通+54PG，22文件，覆盖98.06/95.88/99.47/99.84%。新3项使用随机独立tenant/project：v05旧候选采用→v06→v07跨新pool、原请求/4快照/历史/撤权与重放；实际大纲锁/owner解锁修订/旧值与stale子pin；receipt INSERT后失败同事务回滚、真实COMMIT后注入ACK丢失、新pool恢复与旧CAS重放不重复guard/行。首次运行定位一处冻结夹具需structuredClone及上述告警遗漏，修复后全量重跑；不放宽断言/期限。日志 `artifacts/delivery/outline-formal-versioning-pg.log` SHA-256=`7a61f40d0f646d23f9ef8e99d64907e47be27b684992a8426e988eefdd268d61`。
+- 最终代码串行 `pnpm test:script:local --coverage` 终态0：1118项=1055普通+63PG，覆盖98.62/97.10/100/99.80%；日志 `artifacts/delivery/outline-formal-script-pg.log` SHA-256=`b23fba02c727bcf2fb9880f8f98a4190f6310f65b0137e52e52e2e3256abdbb1`。`pnpm test:server:local --coverage` 终态0：570项=515普通+55PG，覆盖98.19/96.38/99.74/99.91%；日志 `artifacts/delivery/outline-formal-server-pg.log` SHA-256=`0b14107791218d0d93304accd00598e1150b6bb4d3baf7723061584edccc5f63`。新增v07模式均保留原v06完整断言，实际LOGIN、来源事务guard、准备/采用双回执共同验证旧开发链路兼容。SQL迁移、GRANT/角色策略未修改。
+- 最终前端构建终态0（主chunk505.66kB仍有原Vite提示，未放宽告警）；日志 `artifacts/delivery/outline-formal-web-build.log` SHA-256=`00695f8b90489dd3c4145b33b74338f96c28cb4a2a73c93dba96b9a0770687a0`。最终Chromium大纲回归1case/8组终态0，日志 `artifacts/delivery/outline-formal-browser.log` SHA-256=`72b270d132d3ade198af672e03218f63a73360d6f790e65939fd3dac73b731ab`。报告及desktop/mobile在 `artifacts/delivery/outline-formal-browser/`，哈希分别为`a4134f365109dd330ead43d507e51db8098c9f0e5bfb612e432d250827e7ad21`、`09c1bde73aec97fa4314f30dcd8c61ecd3dc7389bbd182fae41f21740d7e4e9e`、`e0449a99adfe4798891b9cd0c1d0b6460aeaea8948212854ad0488f9c8b2ee7c`，与前批已视审证据字节相同。执行前明确备份/执行后恢复前批三文件，历史路径哈希保持。
+- 最终 `pnpm check` 终态0：4120项=20工具+4100普通，759文件策略零问题，13包类型检查成功（3缓存/10执行）、13包覆盖率全部实际执行，方法6项和Agent10项基线匹配。日志 `artifacts/delivery/outline-formal-workspace-check.log` SHA-256=`3316d8affedfd9b3af9e810c0779c3eb0e10a612b332c1e53e3e467a98d252b4`。各PG总数含各自普通测试，不与整仓重复相加；code/TS/DB/security复审无未闭合P0–P2。新镜像与原四组容器流程由最终精确提交CI再次核验，以实际终态为准。
+- 已验证的后续缺口：合法AdaptationPlan含32×500节拍标志场景引用及完整人工理由时，单对象1,101,588字节可通过IR校验，却超过原Workbench983040字节，即使limit1仍明确INPUT_LIMIT。当前不声称完整容量正式阅读交付；后续须专用分节分页完整返回，并解决>500ops、intent正文/差异/告警容量，保留旧通用入口约束。人物/正式Episode只是复用身份，规划秒数按brief解释，不把正式Episode元信息当实测或由schema转换补故事。
+- 本批完成显式类型/图/顺序升级及旧消费者基础，OL-5完整映射/采用intent/源guard/最小权限/API/页面/分节读取与OL-6继续，大纲formalAdoption仍false。完整OL-4/T1.4/阶段1未完成，用户安排后补的编辑器、法务、设计伙伴及真实文本质量不由合成协议或PG证明替代。

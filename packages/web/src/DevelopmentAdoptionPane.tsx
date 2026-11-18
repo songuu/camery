@@ -76,7 +76,7 @@ function AdoptionSession({client,generation,projectId,run,onFailure}:Props){
   function prepare(){
     const source=adoptionSource(run);if(!state||!source||!state.canWrite||hasPending)return;
     const prepared=detail?.managed&&detail.status==='prepared'&&detail.source.kind==='development'&&detail.source.runId===run.runId&&detail.applicationId&&detail.baseWriteVersion!==null?detail:null;
-    if(!prepared&&(state.schemaVersion!=='0.6.0-draft'||run.sourceChanged))return;
+    if(!prepared&&(!['0.6.0-draft','0.7.0-draft'].includes(state.schemaVersion)||run.sourceChanged))return;
     const applicationId=prepared?.applicationId??crypto.randomUUID();
     const command={applicationId,...source,expectedSnapshotRevision:prepared?.baseRevision??state.snapshotRevision,expectedWriteVersion:prepared?.baseWriteVersion??state.writeVersion};void execute({kind:'prepare',command},applicationId);
   }

@@ -1,6 +1,6 @@
 import {expect,it,vi} from 'vitest';
 import {createVersionState,submitChangeSet,adoptChangeSet} from '@camery/versioning';
-import {validatePackage} from '@camery/ir';
+import {validatePackage,upgradeV06Package} from '@camery/ir';
 import {fixtureId as id,makePackage} from '../../ir/test/fixtures';
 import {prepareDevelopmentDraft,finalizeDevelopmentChangeSet} from '../src/node/development-mapping.js';
 import type {DevelopmentMappingDraft} from '../src/node/development-mapping.js';
@@ -8,6 +8,9 @@ import {developmentRunDigest} from '../src/node/contracts.js';
 import {createFoundationCandidate,createEpisodeCandidate} from '../src/development.js';
 import type {ReviewedDevelopment} from '../src/contracts.js';
 import {mappingFixture} from './development-mapping-fixture.js';
+it.each([null,undefined,0])('rejects malformed mapping input %s with the domain error boundary',input=>{expect(()=>prepareDevelopmentDraft(input as never)).toThrowError(expect.objectContaining({name:'DevelopmentError',code:'INVALID_INPUT'}));});
+it('does not execute head or schema accessors while selecting the new input budget',()=>{const getter=vi.fn(()=>{throw new Error('private path');});for(const input of [Object.defineProperty({},'head',{get:getter,enumerable:true}),{head:Object.defineProperty({},'schema_version',{get:getter,enumerable:true})},new Proxy({},{getOwnPropertyDescriptor(){throw new Error('private path');}})]){expect(()=>prepareDevelopmentDraft(input as never)).toThrowError(expect.objectContaining({name:'DevelopmentError',code:'INVALID_INPUT'}));}expect(getter).not.toHaveBeenCalled();});
+it('preserves old development adoption against an explicitly upgraded v07 head including larger new-version input',async()=>{const f=await mappingFixture();const head=upgradeV06Package(f.head);head.project.title='x'.repeat(2_100_000);expect(validatePackage(head).valid).toBe(true);const draft=prepareDevelopmentDraft({...f,head});const request=finalize(draft,'v07-development');expect(request.schema_version).toBe('0.7.0-draft');const state=createVersionState(head),pending=submitChangeSet(state,request);expect(pending.status).toBe('candidate');const result=adoptChangeSet(pending.state,request.id,{actor:{kind:'user',id:id('adopter')},scope:{kind:'project',id:head.project.id},authorize:()=>true,at:'2026-11-18T03:00:00.000Z'});expect(result.status).toBe('adopted');expect(validatePackage(result.state.head).valid).toBe(true);const old=structuredClone(f.head);old.project.title='x'.repeat(2_100_000);expect(()=>prepareDevelopmentDraft({...f,head:old})).toThrow();});
 
 function finalize(draft:DevelopmentMappingDraft,alias='mapping-change'){
   return finalizeDevelopmentChangeSet({draft,changeSetId:id(alias),author:{kind:'user',id:id('adopter')},operationIds:draft.operations.map(row=>({slot:row.slot,id:id(alias+row.slot)}))});

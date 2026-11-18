@@ -1,7 +1,7 @@
 import {expect,it} from 'vitest';
 import {createVersionState,submitChangeSet,adoptChangeSet} from '@camery/versioning';
 import {changeSet,fixtureId as id,makePackage} from '../../ir/test/fixtures';
-import {ChangeSetV06,SCHEMA_VERSION} from '@camery/ir';
+import {ChangeSetV06,DEVELOPMENT_SCHEMA_VERSION as SCHEMA_VERSION} from '@camery/ir';
 import {projectCandidateDetail,projectPreview} from '../src/projects/projection.js';
 import type {CandidateIntent,ProjectActionReceipt} from '../src/projects/intent-contracts.js';
 import {mappingFixture} from '../../script/test/development-mapping-fixture.js';

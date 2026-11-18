@@ -16,7 +16,7 @@ const positionSchema=z.strictObject({snapshotRevision:z.number().int().positive(
 const MAX_BYTES=983040;
 const scalarIds=new Set(['source_id','character_id','from_character_id','to_character_id','appearance_id','location_id','episode_id','scene_id','beat_id','speaker_id','rendition_id','shot_id','track_id','asset_id','line_id','default_voice_ref_id','adopted_asset_ref_id','visible_speaker_id','setup_episode_id','payoff_episode_id','world_id','continues_from','camera_placement_id']);
 const arrayIds=new Set(['source_ids','scene_ids','character_ids','reference_asset_ref_ids','beat_refs','claim_ids','only_rendition_ids','asset_ref_ids','candidate_asset_ref_ids','affected_beat_ids','replacement_beat_ids','holding','episode_ids']);
-const explicitRefs=new Set(['world','characters','relationships','development_plan','based_on','anchor_refs','continuity_from','media_asset_id','segment_revision_id','generated_from_segment','derived_from']);
+const explicitRefs=new Set(['world','characters','relationships','development_plan','based_on','anchor_refs','continuity_from','media_asset_id','segment_revision_id','generated_from_segment','derived_from','adaptation_plan','character','beats','beat','episodes','assets','plot_units','decisions','affected_beats']);
 const parents=new Set(['episode_id','scene_id','beat_id','shot_id','track_id','rendition_id']);
 // These fields describe membership or a past/future index, rather than content needed to render the selected scope.
 const noExpansion=new Set(['scene_ids','episode_ids','only_rendition_ids','setup_episode_id','payoff_episode_id']);
@@ -69,7 +69,7 @@ function scopeFor(head:StoryboardPackage,query:WorkbenchReadQuery):Scope{
 function owner(row:ObjectRow,all:Map<string,ObjectRow>):{scene?:string;episode?:string}{
   const value=row.value;let scene:string|undefined;let episode:string|undefined;
   if(row.ref.collection==='episodes')episode=row.ref.id;
-  else if(['scenes','episode_plans','episode_state_snapshots','audio_cues'].includes(row.ref.collection)&&typeof value['episode_id']==='string')episode=value['episode_id'];
+  else if(['scenes','episode_plans','outline_episode_plans','episode_state_snapshots','audio_cues'].includes(row.ref.collection)&&typeof value['episode_id']==='string')episode=value['episode_id'];
   if(row.ref.collection==='scenes')scene=row.ref.id;
   else if(typeof value['scene_id']==='string')scene=value['scene_id'];
   else if(typeof value['shot_id']==='string')scene=all.get(value['shot_id'])?.value['scene_id'] as string|undefined;
@@ -93,17 +93,25 @@ function inRendition(row:ObjectRow,renditionId:string|undefined,all:Map<string,O
 }
 function select(head:StoryboardPackage,all:Map<string,ObjectRow>,relations:Map<string,Relation[]>,scope:Scope,query:WorkbenchReadQuery):Map<string,'owned'|'context'>{
   const selected=new Map<string,'owned'|'context'>();
+  const outlineEpisodes=new Set<string>(),outlineBeats=new Set<string>();
+  if(scope.kind==='episode'&&head.schema_version==='0.7.0-draft'){
+    for(const episode of head.outline_episode_plans)if(episode.episode_id===scope.id){outlineEpisodes.add(episode.id);for(const beat of episode.beats)outlineBeats.add(beat.id);}
+  }
   for(const row of all.values()){
     // Locks follow selected targets below; selecting them first could pull an unrelated rendition back into view.
     if(row.ref.collection==='locks'||!inRendition(row,query.renditionId,all))continue;const located=owner(row,all);
     if(scope.kind==='project'||scope.kind==='scene'&&located.scene===scope.id||scope.kind==='episode'&&(located.episode===scope.id||row.ref.collection==='plot_units'&&Array.isArray(row.value['episode_ids'])&&row.value['episode_ids'].includes(scope.id)))selected.set(row.ref.id,'owned');
+    if(scope.kind==='episode'&&(row.ref.collection==='outline_beats'&&outlineBeats.has(row.ref.id)||row.ref.collection==='asset_plans'&&Array.isArray(row.value['beats'])&&row.value['beats'].some((ref:unknown)=>!!ref&&typeof ref==='object'&&'id' in ref&&outlineBeats.has(String(ref.id)))||row.ref.collection==='outline_plot_units'&&Array.isArray(row.value['episodes'])&&row.value['episodes'].some((ref:unknown)=>!!ref&&typeof ref==='object'&&'id' in ref&&outlineEpisodes.has(String(ref.id)))))selected.set(row.ref.id,'owned');
   }
   if(scope.kind==='scene'){
     const episode=all.get(scope.id)?.value['episode_id'];
-    for(const row of all.values())if(row.ref.collection==='episode_plans'&&row.value['episode_id']===episode)selected.set(row.ref.id,'context');
+    for(const row of all.values())if(['episode_plans','outline_episode_plans'].includes(row.ref.collection)&&row.value['episode_id']===episode)selected.set(row.ref.id,'context');
   }
   const queue=[...selected.keys()];
   for(let index=0;index<queue.length;index++)for(const relation of relations.get(queue[index]!)??[]){
+    // The season parent is context; following all its memberships would pull every other episode into this view.
+    if(scope.kind!=='project'&&relation.from.collection==='adaptation_plans'&&!relation.field.startsWith('characters['))continue;
+    if(scope.kind==='episode'&&(relation.to.collection==='outline_episode_plans'&&!outlineEpisodes.has(relation.to.id)||relation.to.collection==='outline_beats'&&!outlineBeats.has(relation.to.id)))continue;
     const field=relation.field.split(/[.[]/).filter(Boolean).at(-1)!;
     // Do not re-expand an appearance's scene index into every scene that happens to share it.
     if(noExpansion.has(field)||[...noExpansion].some(name=>relation.field===name||relation.field.startsWith(name+'[')||relation.field.endsWith('.'+name)))continue;

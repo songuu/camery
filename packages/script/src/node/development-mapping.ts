@@ -1,6 +1,6 @@
 import {z} from 'zod';
-import {ChangeSetV06,StoryboardPackageV06,validatePackage} from '@camery/ir';
-import type {StoryboardPackageV06 as FormalPackage} from '@camery/ir';
+import {ChangeSet,StoryboardPackageV06,StoryboardPackageV07,validatePackage,OUTLINE_FORMAL_BYTES} from '@camery/ir';
+type FormalPackage=z.infer<typeof StoryboardPackageV06>|z.infer<typeof StoryboardPackageV07>;
 import {DevelopmentError,Integer} from '../contracts.js';
 import type {DevelopmentCandidate,DevelopmentStage,ReviewedDevelopment} from '../contracts.js';
 import {validateFoundationCandidate,validateEpisodeCandidate} from '../development.js';
@@ -20,10 +20,10 @@ const operation=z.discriminatedUnion('op',[
   z.strictObject({op:z.literal('remove'),collection,target:FormalStableId}),
 ]);
 type MappingOperation=z.infer<typeof operation>;
-type FormalChangeSet=z.infer<typeof ChangeSetV06>;
+type FormalChangeSet=z.infer<typeof ChangeSet>;
 const slot=z.string().min(1).max(128);
 const revision=z.strictObject({id:FormalStableId,version:Integer.min(1)});
-const DraftSchema=z.strictObject({version:z.literal(1),target:DevelopmentVersionKeySchema,source:DevelopmentAdoptionSourceSchema,baseRevision:Integer.min(1),baseRevisions:z.array(revision),
+const DraftSchema=z.strictObject({version:z.literal(1),schemaVersion:z.enum(['0.6.0-draft','0.7.0-draft']).default('0.6.0-draft'),target:DevelopmentVersionKeySchema,source:DevelopmentAdoptionSourceSchema,baseRevision:Integer.min(1),baseRevisions:z.array(revision),
   operations:z.array(z.strictObject({slot,op:operation})).max(500),reservedIds:z.array(FormalStableId)});
 export type DevelopmentMappingDraft=z.infer<typeof DraftSchema>;
 const InputSchema=z.strictObject({progress:z.strictObject({run:z.unknown(),foundation:z.strictObject({candidate:z.unknown(),review:z.unknown()}),episodes:z.strictObject({candidate:z.unknown(),review:z.unknown()})}),
@@ -53,9 +53,16 @@ function headObjects(head:FormalPackage):Map<string,{collection:string;value:Ver
   }
   return result;
 }
+function mappingSchemaVersion(input:unknown):unknown{
+  try{const head=input!==null&&typeof input==='object'?Object.getOwnPropertyDescriptor(input,'head'):undefined;
+    return head&&'value' in head&&head.value!==null&&typeof head.value==='object'?Object.getOwnPropertyDescriptor(head.value,'schema_version')?.value:undefined;
+  }catch{return undefined;} // The strict snapshot below owns malformed/proxy errors and their safe domain context.
+}
 /** Pure integrity replay of trusted stored evidence. Hashes do not authorize approval or prove latest-source freshness. */
 export function prepareDevelopmentDraft(input:{progress:DevelopmentProgress;source:DevelopmentAdoptionSource;identities:DevelopmentFormalIdentities;reviewers:DevelopmentReviewerBindings;head:unknown}):DevelopmentMappingDraft{
-  const raw=parse(InputSchema,copy(input,2_097_152),'formal mapping input');const {source,identities,reviewers}=raw;
+  const version=mappingSchemaVersion(input);
+  // New formal plans expand local references; preserve the legacy input budget while allowing a bounded v07 head.
+  const raw=parse(InputSchema,copy(input,version==='0.7.0-draft'?OUTLINE_FORMAL_BYTES+2_097_152:2_097_152),'formal mapping input');const {source,identities,reviewers}=raw;
   const run=validateDevelopmentRun({tenantId:source.tenantId,projectId:source.projectId,runId:source.runId},raw.progress.run);
   if(!raw.progress.foundation.candidate||!raw.progress.foundation.review||!raw.progress.episodes.candidate||!raw.progress.episodes.review)throw new DevelopmentError('INCOMPLETE','reviewed mapping source');
   const foundationCandidate=validateFoundationCandidate(run.brief,raw.progress.foundation.candidate);modelBinding(run,'foundation',foundationCandidate);
@@ -68,7 +75,7 @@ export function prepareDevelopmentDraft(input:{progress:DevelopmentProgress;sour
   const inherited=run.origin?.foundation;if(inherited&&(inherited.candidateDigest!==foundationCandidate.digest||inherited.reviewDigest!==foundation.digest))conflict('formal mapping inherited audit');
   if(identities.tenantId!==run.tenantId||identities.projectId!==run.projectId||identities.foundationOwner.runId!==owner.runId||identities.foundationOwner.runDigest!==owner.runDigest
     ||reviewers.foundation.key!==foundation.actorId||reviewers.episodes.key!==episodes.actorId)conflict('formal mapping authority identities');
-  const head=parse(StoryboardPackageV06,raw.head,'formal schema upgrade required');
+  const head=parse(z.discriminatedUnion('schema_version',[StoryboardPackageV06,StoryboardPackageV07]),raw.head,'formal schema upgrade required');
   if(head.project.id!==identities.target.projectId||head.revision.status!=='adopted'||!validatePackage(head).valid)conflict('formal mapping adopted target');
   const characters=exactLocalIds(identities.characters,foundation.output.characters,'character');const relationships=exactLocalIds(identities.relationships,foundation.output.relationships,'relationship');
   unique(identities.episodes.map(item=>item.number),'episode slots');const slots=new Map(identities.episodes.map(item=>[item.number,item]));
@@ -107,7 +114,7 @@ export function prepareDevelopmentDraft(input:{progress:DevelopmentProgress;sour
     if(old){const plan=old as unknown as FormalPackage['episode_plans'][number];if(plan.development_plan.id!==identities.planId||plan.episode_id!==mapped.episodeId||plan.number!==mapped.number||plan.source.tenant_key!==run.tenantId||plan.source.project_key!==run.projectId)conflict('formal mapping removed episode owner');}
     remove('episode_plans',mapped.planId);remove('episodes',mapped.episodeId);
   }
-  return freeze(parse(DraftSchema,copy({version:1,target:identities.target,source,baseRevision:head.revision.number,baseRevisions:[...bases].sort(([left],[right])=>left.localeCompare(right)).map(([id,version])=>({id,version})),operations,reservedIds:[...new Set([...protectedIds,...objects.keys(),...ids,reviewers.foundation.id,reviewers.episodes.id])]},1_048_576),'formal mapping draft'));
+  return freeze(parse(DraftSchema,copy({version:1,schemaVersion:head.schema_version,target:identities.target,source,baseRevision:head.revision.number,baseRevisions:[...bases].sort(([left],[right])=>left.localeCompare(right)).map(([id,version])=>({id,version})),operations,reservedIds:[...new Set([...protectedIds,...objects.keys(),...ids,reviewers.foundation.id,reviewers.episodes.id])]},1_048_576),'formal mapping draft'));
 }
 /** Finalize only an already prepared trusted draft, with IDs fixed by a separately persisted application intent. */
 export function finalizeDevelopmentChangeSet(input:{draft:DevelopmentMappingDraft;changeSetId:string;author:{kind:'user';id:string};operationIds:readonly {slot:string;id:string}[]}):FormalChangeSet{
@@ -123,5 +130,5 @@ export function finalizeDevelopmentChangeSet(input:{draft:DevelopmentMappingDraf
     if(row.op.op!=='add'&&!bases.has(id)||row.op.op==='replace'&&row.op.value['version']!==bases.get(id))conflict('mapping operation base');
     return {...row.op,op_id:ids.get(row.slot)!};
   });
-  return freeze(parse(ChangeSetV06,copy({schema_version:'0.6.0-draft',id:changeSetId,base_revision:draft.baseRevision,author,status:'candidate',base_revisions:draft.baseRevisions,ops},524288),'formal development ChangeSet'));
+  return freeze(parse(ChangeSet,copy({schema_version:draft.schemaVersion,id:changeSetId,base_revision:draft.baseRevision,author,status:'candidate',base_revisions:draft.baseRevisions,ops},524288),'formal development ChangeSet'));
 }
