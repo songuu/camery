@@ -15,6 +15,8 @@ import { GetOutlineBriefSchema,OutlineBriefKeySchema,OutlineKeySchema,OutlineRun
 import type { OutlineBriefKey,OutlineRun,OutlineRunKey,OutlineStore,OutlineProgress,StoredOutlineBrief } from './persistence-contracts.js';
 import { createOutlineSourceTransaction } from './source-transaction.js';
 import type { OutlineSourceTransaction } from './source-transaction.js';
+import {OutlineAdoptionSourceSchema} from './formal-contracts.js';
+import {captureOutlineAdoptionProgress} from './formal-source.js';
 
 type BriefRow={tenant_id:string;project_id:string;brief_id:string;revision:string|number;actor_id:string;digest:string;request_digest:string;record:unknown;created_at:Date|string};
 type RunRow={tenant_id:string;project_id:string;run_id:string;brief_id:string;brief_revision:string|number;brief_digest:string;source_digest:string;digest:string;request_digest:string;record:unknown;created_at:Date|string};
@@ -120,6 +122,21 @@ export class PostgresOutlineStore implements OutlineStore {
     });
   }
   async read(input:OutlineRunKey):Promise<OutlineProgress>{const key=capture(OutlineKeySchema,input,'run key',2048);return this.transaction(key,null,client=>this.progress(client,key));}
+  /** Reuse the adopter's transaction: source locks must remain held until the same formal commit. */
+  async readForAdoption(client:PoolClient,input:unknown):Promise<OutlineProgress>{
+    const source=deepFreeze(capture(OutlineAdoptionSourceSchema,input,'adoption source',4096)),key={tenantId:source.tenantId,projectId:source.projectId,runId:source.runId};
+    try{
+      const rows=await client.query<{brief_id:string}>('SELECT brief_id FROM camery_outline.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));
+      if(!rows.rows.length)throw new OutlineError('NOT_FOUND','adoption run','run');if(rows.rows.length!==1)failed('adoption brief cardinality');
+      const briefKey=capture(OutlineBriefKeySchema,{tenantId:key.tenantId,projectId:key.projectId,briefId:rows.rows[0]!.brief_id},'adoption brief key',2048);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_outline:brief',...briefKeys(briefKey)])]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_outline:run',...runKeys(key)])]);
+      const progress=captureOutlineAdoptionProgress(source,await this.progress(client,key));if(progress.run.brief.briefId!==briefKey.briefId)failed('adoption parent binding');
+      const latest=await this.brief(client,briefKey);if(latest?.brief.digest!==progress.run.brief.digest)throw new OutlineError('CONFLICT','adoption current brief','brief');
+      const actual=await this.source(client,progress.run.source.descriptor);
+      if(actual.digest!==progress.run.source.digest||hash(actual.descriptor)!==hash(progress.run.source.descriptor))throw new OutlineError('CONFLICT','adoption upstream source','source');return progress;
+    }catch(error){if(error instanceof OutlineError)throw error;return failed('adoption source transaction');}
+  }
   private async briefKey(key:OutlineRunKey):Promise<OutlineBriefKey>{
     try{const rows=await this.pool.query<{brief_id:string}>('SELECT brief_id FROM camery_outline.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));if(rows.rows.length===0)throw new OutlineError('NOT_FOUND','outline run','run');if(rows.rows.length!==1)failed('brief key cardinality');return capture(OutlineBriefKeySchema,{tenantId:key.tenantId,projectId:key.projectId,briefId:rows.rows[0]!.brief_id},'run brief key',2048);}
     catch(error){if(error instanceof OutlineError&&error.code==='NOT_FOUND')throw error;return failed('brief key');}

@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 9 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 10 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -26,7 +26,7 @@ Revision 9 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md`
 | OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；来源/固定方法/人审及持久宿主/API组合已验证，真人质量仍后补 |
 | OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；存储/预算/恢复、常驻宿主与认证服务组合已验证，正式采用继续 |
 | OL-4 鉴权 API 和编辑审阅页面 | script transport/read models、server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；先浏览器契约/列表/状态投影，再认证服务/常驻宿主/页面/实际验收，实施中 |
-| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/顺序升级基础已验证；完整映射、专用采用/guard/分节读取继续 |
+| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/升级、完整纯映射及同事务源guard已验证；持久身份/intent/专用采用/分节读取继续 |
 | OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；待做 |
 
 ## 契约变化及验证
@@ -240,3 +240,32 @@ Gate：失败测试→窄测→类型/lint→代码/TS/安全/DB复核→串行P
 - 最终 `pnpm check` 终态0：4120项=20工具+4100普通，759文件策略零问题，13包类型检查成功（3缓存/10执行）、13包覆盖率全部实际执行，方法6项和Agent10项基线匹配。日志 `artifacts/delivery/outline-formal-workspace-check.log` SHA-256=`3316d8affedfd9b3af9e810c0779c3eb0e10a612b332c1e53e3e467a98d252b4`。各PG总数含各自普通测试，不与整仓重复相加；code/TS/DB/security复审无未闭合P0–P2。新镜像与原四组容器流程由最终精确提交CI再次核验，以实际终态为准。
 - 已验证的后续缺口：合法AdaptationPlan含32×500节拍标志场景引用及完整人工理由时，单对象1,101,588字节可通过IR校验，却超过原Workbench983040字节，即使limit1仍明确INPUT_LIMIT。当前不声称完整容量正式阅读交付；后续须专用分节分页完整返回，并解决>500ops、intent正文/差异/告警容量，保留旧通用入口约束。人物/正式Episode只是复用身份，规划秒数按brief解释，不把正式Episode元信息当实测或由schema转换补故事。
 - 本批完成显式类型/图/顺序升级及旧消费者基础，OL-5完整映射/采用intent/源guard/最小权限/API/页面/分节读取与OL-6继续，大纲formalAdoption仍false。完整OL-4/T1.4/阶段1未完成，用户安排后补的编辑器、法务、设计伙伴及真实文本质量不由合成协议或PG证明替代。
+
+## Revision 10 · 完整人改大纲到正式图的映射与来源事务
+
+继续AC-OL-1/3/4/5，不改变唯一验收语义。以实际run/candidate/review完整回放作为输入，正式化必须使用review.output；descriptor固定run/brief/source/candidate/review摘要，普通主体到正式Reviewer的映射仍由共享项目注册表授予。局部ID逐命名空间完整映射成稳定ID，人物和正式Episode复用既有对象语义，不使用名字猜身份、自由JSON封装或现造媒体。
+
+| 文件/消费者 | Before | After / gate |
+| --- | --- | --- |
+| 大纲formal contracts与纯字段投影[P,L2独立文件] | v07正式类型与领域review存在，尚无完整转换 | 严格来源/identity/reviewer/draft边界、camel/snake双向完整投影；roundtrip核对人改字段/引用不丢失 |
+| 根：formal mapping/data/finalize（L3） | 原开发500ops/512KiB不能承接大纲 | 独立64MiB内部输入、16MiB ChangeSet、4096ops，保留原大纲输出512KiB及旧入口全部界限；支持>1000对象，不截取列表 |
+| 根：来源readForAdoption/guard（L4） | Outline只支持自有read事务 | 调用方既有client，brief→run→上游源→formal project，完整scope/digest/已人审/最新brief核验；源拒绝与硬存储故障分开，未知ACK不重执行 |
+| 后续稳定ID注册表/intent/API/页面 | 原表有项目Episode槽与开发owner；完整大纲尚未接 | 同一项目槽必须共享，跨来源全局ID唯一须有实际SQL保障；不能靠新方查询旧表冒称双向唯一。完整意图及分节读取继续，不据纯mapper宣称API采用已开放 |
+
+计划与子对象互相固定版本，采用一个内容变更时形成完整的计划修订；内容完全相同时保留原对象版本，不产生空ChangeSet。原候选/人审/方法/来源及固定引用完整带入，新增资源仅规划；保留未由该计划拥有的已采用对象与文件。旧项目需先显式升级v07，独立采用流程仍由授权人类决定。
+
+有序gate：契约与投影窄测→完整身份集/源证据/正式图roundtrip→版本事务完整容量及重放→真实PG已审阅来源、同连接freshness、回滚/丢ACK/新pool→包类型/lint/覆盖率、代码/TS/DB/安全复审→整仓与精确提交CI。PG/覆盖率串行，源guard不调用自有read事务、不调用模型。缺失真实模型/法务/编辑器/设计伙伴仍后补；大纲formalAdoption保持false直到完整应用接线验收，完整OL-5/T1.4/阶段1不提前判完成。
+
+### 完整容量触发的版本内核性能修复
+
+实际512KiB内的人改输出映射为1,249操作，原内核逐操作复制整图并对全部旧对象计算签名，首次完整采用用例63,646ms，超过原30,000ms期限。保留数据、完整断言及期限；根L3追加修改`versioning/src/evaluate.ts`：add/update/replace/remove仅执行显式单对象写与原字段锁检查，其余有隐式写的move/split/merge/lock/unlock/upgrade仍保留整图比较。原候选不可变、显式base、历史ID、行锁/字段锁、最后统一版本递增及完整图校验保持。复用该失败用例为性能红例，并补完整容量第二次人改采用和无变化回放；版本包全部普通/PG覆盖率与code/TS/安全复核后方可提交。
+
+## OL-5 完整纯映射及来源事务证据（2026-11-18）
+
+- 新增71项普通测试与7项PG。严格捕获实际workflow保存的run/candidate/人工修改review，重放固定方法/原模型调用证据，再按各局部命名空间完整身份映射。双向逐字段核对五件套、题材配方/标志场景/抽离、情绪/付费卡点、道具状态、PlotUnit、季引擎和完整来源/简报/方法/人审谱系；不以候选正文替代人改正文。正式图使用独立有界容量，不放宽旧请求、512KiB输出或旧通用Workbench。
+- 最大原输出约500,000字节，64人物/500节拍/100正式集及100集计划/256资产规划/100PlotUnit/128取舍，完整1,249操作通过原Versioning提交/采用。独立人审领域夹具的第二份审计再次经内核提交/采用，1,084子行与主计划固定版本2，人物与正式集不变；完整往返及no-op草稿、原模型exchange计数1均断言。此第二份审计是纯映射/内核测试输入，不表示允许覆写数据库已有不可变review；实际来源guard另从持久库核验固定review摘要。
+- 映射保留既有角色业务metadata、独立正式对象修订、无关世界/实集/用户内容；仅清理本计划拥有的旧规划对象。跨scope/owner、身份缺失/重复/跨集合/保留ID、版本溢出、getter及finalize slot/base/opID错配均失败闭合。原正式锁仍由内核在提交/采用时执行，纯映射不创建HTTP权限或审批。首次预览遗漏派生集数导致的SCOPE拒绝由失败测试发现，修复为与内核相同的内部预览派生，不添加项目写操作。
+- 实际PG7项全部使用真实Development/Bible审阅来源及完整映射，三类竞争写通过`pg_blocking_pids`证明来源锁保持到正式提交；source guard、正式project锁、adoption INSERT的backend PID及txid一致。最新大纲简报、上游开发简报、Bible文档推进均拒绝首次采用且正式行计数/状态不变。真实COMMIT后注入ACK丢失，新pool恢复原请求、完整图和唯一采用记录；过期来源的已完成重试不重复guard/行，但当前授权仍重新检查。硬证据/存储错误使用独立错误码，不进入来源拒绝的恢复分支。
+- `pnpm test:versioning:local --coverage` 终态0：312项=258普通+54PG，覆盖98.08/95.94/99.47/99.84%；日志`artifacts/delivery/outline-mapping-versioning-pg.log` SHA-256=`30d36d48eddaf470be5b8a856962da9557fe7feb70d405fc4eacdd8976abddea`。`pnpm test:script:local --coverage` 终态0：1,196项=1,126普通+70PG，61文件，覆盖98.38/96.76/99.28/99.82%；日志`artifacts/delivery/outline-mapping-script-pg.log` SHA-256=`3eafccea6f4e24fad86b24cbbf3adff8fe67a7eaccded70819aead8a4a1560a5`。保持各95%门槛及串行PG/coverage。code/TS/security/DB只读复审无未闭合P0–P2。
+- 当前只交付内部完整映射与实际来源事务组合，固定ID来自受信任测试宿主；持久稳定身份注册表、完整intent及低权限Outline adopter、专用认证API/页面采用、分节完整阅读及OL-6仍待实现。无SQL迁移、生产角色或现有用户schema变更，formalAdoption继续false；用户安排后补的编辑器、法务、设计伙伴及真实文本质量保持未知，不由合成协议证明替代。
+- 最终`pnpm check`终态0：4,191项=20工具+4,171普通，772文件策略零问题、13包类型检查（3缓存/10执行）、13包覆盖率全部实际执行，方法6项及Agent10项基线匹配。script普通1,126项覆盖98.10/96.52/98.92/99.34%，versioning258项覆盖98.12/95.95/99.18/99.79%。日志`artifacts/delivery/outline-mapping-workspace-check.log` SHA-256=`cfa280b5fbc9b6891941266287027ae8d55bc226131bc9830210ee8f7f5720a5`。原UI/媒体及部署未改，精确提交的新镜像/四组私有流程仍以推送后的实际CI终态为准；前批`6ce53710c38cc4e09e5da658d8e9254f6132f868`的CI https://github.com/songuu/camery/actions/runs/44228698678 已实际成功。

@@ -15,3 +15,6 @@ export * from './catalog.js';
 export * from './brief-catalog.js';
 export * from './source-catalog.js';
 export * from './read-model.js';
+export * from './formal-contracts.js';
+export * from './formal-mapping.js';
+export * from './formal-source.js';

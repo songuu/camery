@@ -19,18 +19,20 @@ function rows(pkg: StoryboardPackage, collection: EditableCollection): Versioned
   return value as VersionedObject[];
 }
 
+function checkObjectLocks(id:string,collection:string,before:VersionedObject,after:VersionedObject|undefined,locks:StoryboardPackage['locks'],released?:string):void{
+  const fields=after===undefined?['']:changedFields(before,after);
+  if(!fields.length)return;
+  if(collection==='lines'&&before.locked===true&&fields.some(field=>overlapsField('text',field)))
+    throw new VersioningError('LOCKED_LINE','/lines/'+id,'Line text requires an explicit prior unlock');
+  for(const lock of locks)if(lock.id!==released&&lock.target===id&&(lock.fields.length===0||lock.fields.some(path=>fields.some(field=>overlapsField(path,field)))))
+    throw new VersioningError('LOCKED','/locks/'+lock.id,'Operation touches a locked object or field');
+}
 function checkLocks(before: StoryboardPackage, after: StoryboardPackage, released: string | undefined): void {
   const oldObjects = objects(before);
   const newObjects = objects(after);
   for (const [id, old] of oldObjects) {
     const current = newObjects.get(id);
-    const fields = current === undefined ? [''] : changedFields(old.value, current.value);
-    if (!fields.length) continue;
-    if (old.collection === 'lines' && old.value.locked === true && fields.some(field => overlapsField('text', field)))
-      throw new VersioningError('LOCKED_LINE', '/lines/' + id, 'Line text requires an explicit prior unlock');
-    for (const lock of before.locks) if (lock.id !== released && lock.target === id &&
-        (lock.fields.length === 0 || lock.fields.some(path => fields.some(field => overlapsField(path, field)))))
-      throw new VersioningError('LOCKED', '/locks/' + lock.id, 'Operation touches a locked object or field');
+    checkObjectLocks(id,old.collection,old.value,current?.value,before.locks,released);
   }
 }
 
@@ -80,7 +82,11 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
       const op = structuredClone(suppliedOp);
       if (opIds.has(op.op_id)) throw new VersioningError('DUPLICATE_OP', `/ops/${index}/op_id`, 'Operation IDs must be unique');
       opIds.add(op.op_id);
-      const before = structuredClone(draft);
+      // Direct collection edits cannot mutate other rows. Preserve full graph comparison for operations with implicit writes.
+      const direct=op.op==='add'||op.op==='update'||op.op==='replace'||op.op==='remove';
+      const before=direct?undefined:structuredClone(draft);
+      let directBefore:{id:string;collection:string;value:VersionedObject}|undefined;
+      let directAfter:VersionedObject|undefined;
       let released: string | undefined;
       if(op.op==='upgrade_schema'){
         humanRequest(request);
@@ -88,6 +94,7 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
         draft=op.from===LEGACY_SCHEMA_VERSION?upgradeV05Package(draft):upgradeV06Package(draft);
       }else if (op.op === 'update' || op.op === 'replace' || op.op === 'remove') {
         const original = requireObject(draft, op.target, op.collection);
+        directBefore={id:op.target,collection:op.collection,value:original};
         touched.add(op.target);
         const list = rows(draft, op.collection);
         const at = list.findIndex(row => row.id === op.target);
@@ -97,6 +104,7 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
           if (value.id !== original.id || value.version !== original.version) throw new VersioningError('IMMUTABLE_IDENTITY', `/ops/${index}`, 'An update cannot set object ID or revision');
           if (op.collection === 'lines' && value.locked !== original.locked) throw new VersioningError('LOCK_OPERATION_REQUIRED', `/ops/${index}`, 'Line locks require explicit lock/unlock operations');
           list[at] = value as VersionedObject;
+          directAfter=value as VersionedObject;
         }
       } else if (op.op === 'add') {
         reserve(op.value.id, `/ops/${index}/value/id`);
@@ -154,12 +162,14 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
           throw new VersioningError('LOCK_OPERATION_REQUIRED', `/ops/${index}`, 'Release the explicit text/object locks first');
         line.locked = false; touched.add(line.id);
       }
-      checkLocks(before, draft, released);
-      const afterObjects = objects(draft);
-      for (const [id, old] of objects(before)) {
-        const current = afterObjects.get(id);
-        if (current === undefined || jsonSignature(old.value) !== jsonSignature(current.value)) touched.add(id);
-      }
+      if(before){
+        checkLocks(before,draft,released);
+        const afterObjects=objects(draft);
+        for(const [id,old] of objects(before)){
+          const current=afterObjects.get(id);
+          if(current===undefined||jsonSignature(old.value)!==jsonSignature(current.value))touched.add(id);
+        }
+      }else if(directBefore)checkObjectLocks(directBefore.id,directBefore.collection,directBefore.value,directAfter,draft.locks);
     }
     for (const id of touched) if (initial.has(id) && !base.has(id)) throw new VersioningError('BASE_REQUIRED', '/base_revisions/' + id, 'Every explicit and implicit write requires an object base revision');
     for (const [id, row] of objects(draft)) {
