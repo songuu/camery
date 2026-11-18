@@ -7,9 +7,10 @@ import {migrateOutlineProjectIntents} from '../src/projects/outline-intent-migra
 
 type MigrationRow={version:number;checksum:string};
 async function fixture(){
-  const paths=['../src/projects/migrations/0001-identity-bindings.sql','../src/projects/migrations/0002-application-intents.sql','../src/projects/migrations/0003-candidate-catalog.sql','../../script/src/outline/node/identity-migrations/0001-outline-ir-identities.sql','../src/projects/outline-intent-migrations/0001-outline-intents.sql'];
+  const paths=['../src/projects/migrations/0001-identity-bindings.sql','../src/projects/migrations/0002-application-intents.sql','../src/projects/migrations/0003-candidate-catalog.sql','../../script/src/outline/node/identity-migrations/0001-outline-ir-identities.sql','../src/projects/outline-intent-migrations/0001-outline-intents.sql','../src/projects/outline-intent-migrations/0002-outline-candidate-catalog.sql'];
   const files=await Promise.all(paths.map(async path=>{const sql=await readFile(new URL(path,import.meta.url),'utf8');return {sql,checksum:createHash('sha256').update(sql,'utf8').digest('hex')};}));
-  const state={projects:files.slice(0,3).map((file,i)=>({version:i+1,checksum:file.checksum})),identities:[{version:1,checksum:files[3]!.checksum}],extension:[] as MigrationRow[],exists:{projects:true,identities:true},fail:'',release:false,disconnect:false};
+  const extensions=files.slice(4).map((file,index)=>({version:index+1,checksum:file.checksum}));
+  const state={projects:files.slice(0,3).map((file,i)=>({version:i+1,checksum:file.checksum})),identities:[{version:1,checksum:files[3]!.checksum}],extension:[] as MigrationRow[],exists:{projects:true,identities:true},fail:'',failVersion:0,release:false,disconnect:false,disconnectVersion:0};
   const emitter=new EventEmitter();let snapshot:MigrationRow[]=[];
   const query=vi.fn(async(sql:string,values:unknown[]=[])=>{
     if(sql===state.fail)throw new Error('private credential');
@@ -19,28 +20,50 @@ async function fixture(){
     if(sql==='SELECT version,checksum FROM camery_projects.migrations ORDER BY version')return {rows:structuredClone(state.projects)};
     if(sql==='SELECT version,checksum FROM camery_outline.identity_migrations ORDER BY version')return {rows:structuredClone(state.identities)};
     if(sql==='SELECT version,checksum FROM camery_projects.outline_migrations ORDER BY version')return {rows:structuredClone(state.extension)};
-    if(sql.startsWith('INSERT INTO camery_projects.outline_migrations'))state.extension.push({version:values[0] as number,checksum:values[1] as string});
-    if(sql===files[4]!.sql&&state.disconnect)emitter.emit('error',new Error('private backend'));
+    if(sql.startsWith('INSERT INTO camery_projects.outline_migrations')){if(values[0]===state.failVersion)throw new Error('private ledger credential');state.extension.push({version:values[0] as number,checksum:values[1] as string});}
+    if(sql===files[4]!.sql&&state.disconnect||state.disconnectVersion>0&&sql===files[3+state.disconnectVersion]!.sql)emitter.emit('error',new Error('private backend'));
     return {rows:[]};
   });
   const release=vi.fn((_destroy?:boolean)=>{if(state.release)throw new Error('private release');});
   const client=Object.assign(emitter,{query,release}),connect=vi.fn(async()=>client);
-  return {state,files,query,release,client,connect,pool:{connect} as unknown as Pool};
+  return {state,files,extensions,query,release,client,connect,pool:{connect} as unknown as Pool};
 }
 
-it('installs the dedicated v1 ledger explicitly after immutable prerequisites, without grants or changing source ledgers',async()=>{
+it('records dedicated catalog support as a second ordered migration after immutable prerequisites, without grants or changing source ledgers',async()=>{
   const f=await fixture(),original=structuredClone({projects:f.state.projects,identities:f.state.identities});
   await migrateOutlineProjectIntents(f.pool);
-  expect(f.state.extension).toEqual([{version:1,checksum:f.files[4]!.checksum}]);
-  expect(f.query.mock.calls.filter(([sql])=>sql===f.files[4]!.sql)).toHaveLength(1);
+  expect(f.state.extension).toEqual(f.extensions);
+  expect(f.query.mock.calls.filter(([sql])=>f.files.slice(4).some(file=>file.sql===sql)).map(([sql])=>sql)).toEqual(f.files.slice(4).map(file=>file.sql));
   expect(f.query.mock.calls.some(([sql])=>sql.startsWith('CREATE TABLE IF NOT EXISTS camery_projects.outline_migrations'))).toBe(true);
   expect(f.query.mock.calls.some(([sql])=>/\bGRANT\b/i.test(sql))).toBe(false);
   expect(f.query.mock.calls.some(([sql])=>f.files.slice(0,4).some(file=>file.sql===sql))).toBe(false);
   expect({projects:f.state.projects,identities:f.state.identities}).toEqual(original);
   await migrateOutlineProjectIntents(f.pool);
-  expect(f.query.mock.calls.filter(([sql])=>sql===f.files[4]!.sql)).toHaveLength(1);
+  expect(f.query.mock.calls.filter(([sql])=>f.files.slice(4).some(file=>file.sql===sql)).map(([sql])=>sql)).toEqual(f.files.slice(4).map(file=>file.sql));
   expect(f.release).toHaveBeenCalledTimes(2);expect(f.release).toHaveBeenLastCalledWith(false);
   expect(f.client.listenerCount('error')).toBe(0);
+});
+
+it('preserves the four prerequisite and original intent migration checksum pins',async()=>{
+  const f=await fixture();expect(f.files.slice(0,5).map(file=>file.checksum)).toEqual([
+    'dc716b712599372df263abfd7a124a465287420332b2bac81ac0eb39dfef9b82',
+    '9502bdb5935e26d0c99f44dde835dfac12bf127e7bb306dfc1a6950a9ca08be3',
+    'da7db310236e212f3465738317004d559c38dcb53a1c6827e901d0f90d7dc7be',
+    '8bcfaea26cc755edc7a746c6b9232a7559a8de06a43a291cb5a725493e038fe3',
+    '0347b878b4d6c2f4e08b7ebfb4f0ef518a89f28894facbcee915e7c182f6c46a',
+  ]);
+});
+
+it('upgrades an already installed v1 with only v2 and leaves its original receipt-table migration untouched',async()=>{
+  const f=await fixture();f.state.extension=structuredClone(f.extensions.slice(0,1));await migrateOutlineProjectIntents(f.pool);
+  expect(f.state.extension).toEqual(f.extensions);expect(f.query.mock.calls.some(([sql])=>sql===f.files[4]!.sql)).toBe(false);
+  expect(f.query.mock.calls.filter(([sql])=>sql===f.files[5]!.sql)).toHaveLength(1);
+  expect(f.query.mock.calls.filter(([sql])=>sql.startsWith('INSERT INTO camery_projects.outline_migrations')).map(([,values])=>values)).toEqual([[2,f.files[5]!.checksum]]);
+});
+
+it('does not rerun either DDL or insert ledger rows when the complete two-version prefix is installed',async()=>{
+  const f=await fixture();f.state.extension=structuredClone(f.extensions);await migrateOutlineProjectIntents(f.pool);
+  expect(f.state.extension).toEqual(f.extensions);expect(f.query.mock.calls.some(([sql])=>f.files.slice(4).some(file=>file.sql===sql)||sql.startsWith('INSERT INTO camery_projects.outline_migrations'))).toBe(false);
 });
 
 it('takes shared migration locks in script, outline, projects order before inspecting prerequisites',async()=>{
@@ -85,12 +108,34 @@ it.each([0,1,2])('checks the actual source checksum of projects prerequisite row
 });
 
 it.each(['checksum','version','extra'] as const)('refuses a corrupt dedicated %s ledger without rerunning DDL',async mode=>{
-  const f=await fixture();f.state.extension=[{version:1,checksum:f.files[4]!.checksum}];
+  const f=await fixture();f.state.extension=structuredClone(f.extensions);
   if(mode==='checksum')f.state.extension[0]!.checksum='0'.repeat(64);
-  if(mode==='version')f.state.extension[0]!.version=2;
-  if(mode==='extra')f.state.extension.push({version:2,checksum:'0'.repeat(64)});
+  if(mode==='version')f.state.extension[1]!.version=3;
+  if(mode==='extra')f.state.extension.push({version:3,checksum:'0'.repeat(64)});
   await expect(migrateOutlineProjectIntents(f.pool)).rejects.toMatchObject({code:'CONFLICT'});
-  expect(f.query.mock.calls.some(([sql])=>sql===f.files[4]!.sql)).toBe(false);
+  expect(f.query.mock.calls.some(([sql])=>f.files.slice(4).some(file=>file.sql===sql))).toBe(false);
+});
+
+it.each([0,1])('refuses changed checksum bytes at dedicated version index %i before any DDL',async index=>{
+  const f=await fixture();f.state.extension=structuredClone(f.extensions);f.state.extension[index]!.checksum='f'.repeat(64);
+  await expect(migrateOutlineProjectIntents(f.pool)).rejects.toMatchObject({code:'CONFLICT'});expect(f.query.mock.calls.some(([sql])=>f.files.slice(4).some(file=>file.sql===sql))).toBe(false);
+});
+
+it('rejects a v2 row without its v1 predecessor instead of treating it as a new installation',async()=>{
+  const f=await fixture();f.state.extension=structuredClone(f.extensions.slice(1));await expect(migrateOutlineProjectIntents(f.pool)).rejects.toMatchObject({code:'CONFLICT'});
+  expect(f.query.mock.calls.some(([sql])=>f.files.slice(4).some(file=>file.sql===sql))).toBe(false);
+});
+
+it.each(['ddl','ledger','commit','disconnect'] as const)('retains the original v1 prefix after a v2 %s failure',async mode=>{
+  const f=await fixture(),original=structuredClone(f.extensions.slice(0,1));f.state.extension=structuredClone(original);
+  if(mode==='ddl')f.state.fail=f.files[5]!.sql;
+  if(mode==='ledger')f.state.failVersion=2;
+  if(mode==='commit')f.state.fail='COMMIT';
+  if(mode==='disconnect')f.state.disconnectVersion=2;
+  const failure=await migrateOutlineProjectIntents(f.pool).then(()=>undefined,(error:unknown)=>error);
+  expect(failure).toMatchObject({code:'STORAGE_FAILED'});expect(String(failure)).not.toContain('private');expect(f.state.extension).toEqual(original);
+  expect(f.query.mock.calls.some(([sql])=>sql===f.files[4]!.sql)).toBe(false);expect(f.query.mock.calls.some(([sql])=>sql===f.files[5]!.sql)).toBe(true);expect(f.query.mock.calls.some(([sql])=>sql==='ROLLBACK')).toBe(true);
+  expect(f.release).toHaveBeenCalledWith(mode==='disconnect');expect(f.client.listenerCount('error')).toBe(0);
 });
 
 it.each(['query','commit','rollback','release','disconnect','connection'] as const)('redacts %s failures, rolls back and releases only the owned connection',async mode=>{

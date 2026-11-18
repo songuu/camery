@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 12 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 13 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -340,3 +340,37 @@ Gate：失败测试→窄测→类型/lint→代码/TS/安全/DB复核→串行P
 - 最终`pnpm check`终态0：4,412项=20工具+4,392普通，797文件策略零问题；13包类型与13包覆盖率均全部实际执行、无缓存，方法6项及Agent10项基线匹配。server普通647项，覆盖98.15/95.55/99.56/99.69%。日志`artifacts/delivery/outline-intents-workspace-check.log` SHA-256=`59c7e01fb50d889a414646c379c78868185a85cd6107c65db46684603a39296b`。PG与整仓普通用例不重复相加，新镜像及私有流程以随后精确提交CI实际终态为准。
 - 首次远端运行`4004920`/44250650621的整仓、来源与预算恢复均已通过；截至06:39:49Z仍在认证/server PG，距06:20:51Z作业启动已19分钟，后续镜像及四组私有流程尚未执行。为容纳新增完整容量和事务回归，将CI总作业预算由20改为30分钟；各测试自身deadline、断言、覆盖率和全部门禁保持。后续以包含此预算变更的精确提交重新验证，不将前一运行的部分通过当作完整成功。
 - 此批只交付采用意图基础，认证应用的来源完整重放/角色/分页读取/API/页面接线及OL-6继续，formalAdoption保持false；不宣称完整阶段1完成。用户安排后补的编辑器、法务、设计伙伴及真实文本质量仍后补。
+
+## Revision 13 · 认证大纲采用应用与专用权限
+
+前批`b792fe809490f7f5c2ed343d573394bcd28c531e`完整CI https://github.com/songuu/camery/actions/runs/44253153174 completed/success（06:55:28Z）；本批继续AC-OL-3/4/5，交付可信应用、专用角色及可独立注册的HTTP模块，之后继续部署宿主、完整正式对象分节读取与UI组合，不提前开放原Outline页面的formalAdoption。
+
+| owner / 任务 | 风险 / 前置 | 完成条件 |
+| --- | --- | --- |
+| [P] IR独立outline-adoption浏览器协议及测试 | L2；冻结本节接口，无Node依赖 | 严格小命令、候选目录/摘要、紧凑回执及完整消息分页，旧Workbench预算保持 |
+| [P] 认证应用单测及SQL memory support | L2测试；仅新test文件 | 实际mapper/native engine，先授权后查询、错误scope/来源、输入捕获、重试与分页游标边界 |
+| [P] 独立应用/专用角色PG组合测试 | L2测试；复用真实来源/意图fixture | 新LOGIN最小权限实际prepare/adopt/reject/重读、超限完整大纲、撤权/回滚/丢ACK/越权；不自行启动PG |
+| 根：OutlineAdoptionApplication/options/projection/catalog/HTTP与新角色 | L4；依赖前批完整意图与源guard | 固定服务器映射与真实来源，动作回执同版本事务；认证目录和逐页完整回执、无自由request/actor/target；角色显式安装、运行仅验证，无旧角色增权 |
+
+新公共入口`@camery/ir/outline-adoption`：prepare命令只含applicationId、五个source摘要和精确snapshot/write CAS；adopt只有CAS，reject另含reason；user actor、formal target、reviewer和project adoption scope由服务器已有身份注册表决定。应用重新校验完整人审来源与身份准备结果再mapper，不接受HTTP提供的draft、固定ID、来源正文或配置。重复application先校验当前write权限和相同command摘要，再复用原intent/receipt；采用/拒绝及历史ACK先验证当前review权限，来源guard由原生adopter同client执行，拒绝允许来源已变化。
+
+读接口：project:read先于存储查询；目录只查有界头字段，单候选不返回完整IR/模型正文；准备回执及本人决策回执的issues/warnings分别分页，游标绑定当前主体/ordinary及formal项目/候选/种类/requestId/section/完整回执摘要与offset，换scope或损坏均拒绝；自适应字节分页保留所有消息，公共响应≤983040字节。读不分配身份、不写意图、不提交变更或调用模型。候选摘要区分当前snapshot/write与原始preparation版本，历史ACK不被刷新后的head替换。
+
+专用adopter只读Outline/旧来源、共享身份注册元信息及原生版本数据；只对共享ID/准备proof、新四表和版本快照/审计INSERT，原生projects仅UPDATE两个counter、changes仅UPDATE(status,record)，序列仅USAGE。不能创建项目、写来源正文、人审或Access/任务/预算表；拒绝额外列权限、所有权、角色成员、GRANT OPTION和未知表权限。旧adopter权限保持。新HTTP模块仅显式可信注册，已有部署和formalAdoption能力待完整宿主/UI组合gate才启用。
+
+目录的`COLLATE "C"` keyset范围/排序必须有同collation索引；默认locale索引不能替代。DB复审发现此缺口后，追加独立`0002-outline-candidate-catalog.sql`，按ordinary scope+formal target+change C DESC和同前缀+run_id+change C DESC建两条目录索引。原v1字节/0347b878…摘要保持，installer核验有序前缀账本后只追加缺少的v2；v2失败回滚保留已提交v1，重复不重建索引。真实PG检查索引有效性、列顺序/collation及有/无run筛选的keyset EXPLAIN，无匹配索引时不以小夹具结果分页证明查询开销有界。
+
+Gate：失败反例→窄测/类型/lint→code/TS/security/DB复审→串行真实PG及覆盖率→整仓→本批显式commit/push与精确CI。用户脏文件保留，生产来源、真实项目及部署角色不自动迁移或授权；不把本批内部可注册模块当完整OL-5/阶段1或真人质量完成。
+
+## OL-5 认证采用与分页验证证据（2026-11-18）
+
+- 独立`@camery/ir/outline-adoption`为纯浏览器协议，实际ESM打包无Node依赖；35项严格命令/摘要/分页schema测试通过。HTTP仅接受applicationId、真实来源五摘要及CAS，操作者、审阅者、正式target、project采用scope、完整draft及固定ID均由可信应用产生。新模块仅在`AccessOptions.outlineAdoption`显式提供时注册；现有部署宿主和页面能力仍关闭，后续继续部署与完整正式对象分节读取/UI组合。
+- 应用新增62项实际mapper/native engine单测，未知提交异常与commit后ACK丢失的失败反例已闭合：公共边界保留已知安全错误码，未知异常及opaque proxy不泄露依赖诊断，重试复用原ID/时间及回执；旧共享installer的opaque prototype异常由新role边界安全处理。角色30项与目录17项普通用例、迁移新增10项均通过；迁移原20项保留，已安装v1仅追加v2，v2故障回滚原已提交v1。
+- 新增18项实际PG测试。新独立LOGIN从新run实际分配shared IDs/proof，再准备、采用、无变化确认、来源变化后拒绝和新pool恢复；写来源/注册主体/Access/旧意图/额外原生列/创建表均被真实SQL拒绝，额外表/列/GRANT OPTION/成员身份/缺proof权限被verifier拒绝。旧adopter保持独立，无新表授权。真实8并发保留首次IDs，intent/submit/adopt的真实COMMIT后丢ACK由新pool恢复，准备/决策回执失败回滚正式写入，撤权在历史ACK lookup前拒绝。
+- 实际HTTP完成1,249操作完整容量大纲采用并新pool逐字段roundtrip；由真实旧依赖产生超过500条native告警，准备和决策回执经HTTP全部逐页读回、无丢失/重复或额外模型调用。跨用户、section、request游标拒绝，错误自由actor/target/draft/request、重复headers和越界body/query拒绝。所有读目录/消息/候选均不分配身份、不改正式版本或意图。
+- 目录索引复审P2通过追加v2闭合：v1 SHA-256仍`0347b878b4d6c2f4e08b7ebfb4f0ef518a89f28894facbcee915e7c182f6c46a`；v2 SHA-256=`106f247f082c942041a33187b608684d47c672b30313c322c06885a643ebdaa1`。实际检查btree ready/valid、完整key列、C collation与DESC，专用测试事务`SET LOCAL enable_seqscan=off`下，project/run两种header keyset EXPLAIN分别使用匹配索引且无Sort，证明所需访问路径可用；重复安装账本不变。code/TS/security/DB复审无未闭合P0–P2。
+- 封套边界补强前的完整`pnpm test:server:local --coverage`终态0：870项=766普通+104 PG，68文件；覆盖97.59/95.31/99.81/99.86%。日志`artifacts/delivery/outline-adoption-server-pg-verified.log` SHA-256=`04872d1209bb8cfd89f1ad971542ab8f871f446230cf208f96ead116b5e2bf3e`。首轮在新增v2失败反例时明确失败1项，其余859项通过；随后补齐v2 installer与完整prefix测试并整轮重跑，未放宽既有迁移或测试门槛。
+- 普通HTTP补充35项真实Nest/Fastify边界测试，仅替换应用依赖，不替换路由或guard。覆盖六路dispatch、撤权/未登录/跨项目/角色、严格DTO/query/幂等键、16KiB body、响应投影及安全错误映射。新增真实失败反例证明只预算data不够：合法data983020字节时旧完整wire983080字节超限；真实分页data983036时封套983096超限。改为校验整个HTTP封套983040，生产分页预留256字节并按实际items推进游标，逐页保持全部完整消息。普通覆盖率不足通过补独立风险反例闭合，95%门槛保持；最终整仓及更新后PG结果随后记录。
+- 应用普通用例最终72项：补充opaque依赖异常、错误读绑定、错候选地址、NoChange缺原回执、封套预算和遗漏writer的实际引擎反例。遗漏writer时原生状态确实改变，应用必须安全失败而不误报成功；采用可按原生历史重放恢复回执，拒绝仍受原CAS约束，不伪造回滚或放宽版本检查。
+- 最终`pnpm check`终态0：4,611项=20工具+4,591普通，814文件策略零问题；13包类型检查成功（12缓存/1执行）、13包覆盖率全部实际执行。server普通811项覆盖97.85/95.02/99.61/99.72%，IR普通521项；方法6项和Agent10项黄金基线匹配。日志`artifacts/delivery/outline-adoption-workspace-check-complete.log` SHA-256=`e58e6ed229de59a23f677ccd2b6b91d8a78862fc288905217f3e3cb8b752c139`。前几轮普通覆盖率不足记录保留，最终通过不依赖修改95%门槛。
+- 最终封套修复后`pnpm test:server:local --coverage`终态0：915项=811普通+104 PG，69文件，覆盖97.79/95.53/99.81/99.86%。日志`artifacts/delivery/outline-adoption-server-pg-final.log` SHA-256=`c0b008dd7cf2b4014cbe9189e344e1c83aeb418a7b790eec74af2191044b46e4`。与整仓普通用例不重复相加；完整镜像和私有组合流程仍以随后精确提交CI终态为准。此批未部署生产配置、未启用formalAdoption，完整OL-5/OL-6与阶段1继续。

@@ -62,7 +62,7 @@ it('installs its own ledger without rewriting prior project, Outline or identity
   expect((await pool.query('SELECT version,checksum FROM camery_projects.migrations ORDER BY version')).rows).toEqual(oldLedgers.projects);
   expect((await pool.query('SELECT version,checksum FROM camery_outline.migrations ORDER BY version')).rows).toEqual(oldLedgers.outline);
   expect((await pool.query('SELECT version,checksum FROM camery_outline.identity_migrations ORDER BY version')).rows).toEqual(oldLedgers.identities);
-  expect((await pool.query('SELECT version,checksum FROM camery_projects.outline_migrations ORDER BY version')).rows).toEqual([expect.objectContaining({version:1,checksum:expect.stringMatching(/^[a-f0-9]{64}$/)})]);
+  expect((await pool.query('SELECT version,checksum FROM camery_projects.outline_migrations ORDER BY version')).rows).toEqual([1,2].map(version=>expect.objectContaining({version,checksum:expect.stringMatching(/^[a-f0-9]{64}$/)})));
 });
 
 it('preserves the first generated IDs across eight concurrent producers and a new pool',async()=>{
