@@ -16,6 +16,11 @@ import { readDevelopmentConfig } from './development-config.js';
 import { createDevelopmentModelRuntime } from './development-runtime.js';
 import { verifyDevelopmentTaskRuntimeRole } from './development-task-role.js';
 import type { DevelopmentApiOptions } from './development-options.js';
+import { PostgresOutlineStore,PostgresOutlineCatalog,PostgresOutlineBriefCatalog,PostgresOutlineSourceCatalog,verifyOutlineRuntimeRole } from '@camery/script/outline/node';
+import { readOutlineConfig } from './outline-config.js';
+import { createOutlineModelRuntime } from './outline-runtime.js';
+import { verifyOutlineTaskRuntimeRole } from './outline-task-role.js';
+import type { OutlineApiOptions } from './outline-options.js';
 import {readProjectConfig} from './projects/config.js';
 import {createProjectRuntime} from './projects/runtime.js';
 
@@ -23,12 +28,13 @@ import {createProjectRuntime} from './projects/runtime.js';
 let pool: Pool | undefined;
 let biblePool:Pool|undefined;let taskPool:Pool|undefined;
 let developmentPool:Pool|undefined;let developmentTaskPool:Pool|undefined;
+let outlinePool:Pool|undefined;let outlineTaskPool:Pool|undefined;
 let projectsHost:Awaited<ReturnType<typeof createProjectRuntime>>|undefined;
 let app: Awaited<ReturnType<typeof createApplication>> | undefined;
-const close=()=>releaseResources([()=>app?.close(),()=>pool?.end(),()=>biblePool?.end(),()=>taskPool?.end(),()=>developmentPool?.end(),()=>developmentTaskPool?.end(),()=>projectsHost?.close()]);
+const close=()=>releaseResources([()=>app?.close(),()=>pool?.end(),()=>biblePool?.end(),()=>taskPool?.end(),()=>developmentPool?.end(),()=>developmentTaskPool?.end(),()=>outlinePool?.end(),()=>outlineTaskPool?.end(),()=>projectsHost?.close()]);
 try {
   const features = loadApplicationFeatures(process.env);
-  const [config,bibleConfig,developmentConfig,projectConfig] = await Promise.all([readRuntimeConfig(process.env),readBibleConfig(process.env),readDevelopmentConfig(process.env),readProjectConfig(process.env)]);
+  const [config,bibleConfig,developmentConfig,outlineConfig,projectConfig] = await Promise.all([readRuntimeConfig(process.env),readBibleConfig(process.env),readDevelopmentConfig(process.env),readOutlineConfig(process.env),readProjectConfig(process.env)]);
   pool = new Pool({ connectionString: config.databaseUrl, max: 4, connectionTimeoutMillis: 5000, query_timeout: 5000 });
   pool.on('error', () => { console.error('API database connection unavailable'); });
   await verifyRuntimeRole(pool);
@@ -54,10 +60,20 @@ try {
     await verifyDevelopmentRuntimeRole(developmentPool);await verifyDevelopmentTaskRuntimeRole(developmentTaskPool);
     development={store:new PostgresDevelopmentStore(developmentPool),catalog:new PostgresDevelopmentCatalog(developmentPool),briefs:new PostgresDevelopmentBriefCatalog(developmentPool),tasks:new PostgresDurableStore(developmentTaskPool),presetFor:createDevelopmentModelRuntime(developmentConfig).presetFor,formalAdoption:!!projectsHost};
   }
+  let outlines:OutlineApiOptions|undefined;
+  if(outlineConfig){
+    if(outlineConfig.tenantId!==config.tenantId)throw new Error('Outline tenant mismatch');
+    outlinePool=new Pool({connectionString:outlineConfig.outlineDatabaseUrl,max:4,connectionTimeoutMillis:5000,query_timeout:5000});
+    outlineTaskPool=new Pool({connectionString:outlineConfig.taskDatabaseUrl,max:4,connectionTimeoutMillis:5000,query_timeout:5000});
+    outlinePool.on('error',()=>console.error('Outline storage connection unavailable'));outlineTaskPool.on('error',()=>console.error('Outline task connection unavailable'));
+    await verifyOutlineRuntimeRole(outlinePool);await verifyOutlineTaskRuntimeRole(outlineTaskPool);
+    outlines={store:new PostgresOutlineStore(outlinePool),catalog:new PostgresOutlineCatalog(outlinePool),briefs:new PostgresOutlineBriefCatalog(outlinePool),sources:new PostgresOutlineSourceCatalog(outlinePool),tasks:new PostgresDurableStore(outlineTaskPool),presetFor:createOutlineModelRuntime(outlineConfig).presetFor};
+  }
   app = await createApplication({ tenantId: config.tenantId, store: new PostgresSessionStore(pool),
     ...(features.sourceImports ? { sources: { novels: new PostgresDocumentStore(pool), scripts: new PostgresScriptStore(pool) } } : {}),
     ...(bibles?{bibles}:{}),
     ...(development?{development}:{}),
+    ...(outlines?{outlines}:{}),
     ...(projectsHost?{projects:projectsHost.options}:{}),
     ...(features.frontendDirectory === undefined ? {} : { frontendDirectory: features.frontendDirectory }) });
   await app.listen(config.port, config.host);

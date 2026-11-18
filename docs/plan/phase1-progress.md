@@ -1,5 +1,13 @@
 # 阶段 1 开发进展
 
+### T1.4 OL-4 认证 API 与可恢复常驻宿主（2026-11-18）
+
+- 大纲来源/简报/运行目录、简报修订、start/状态/详情、人工确认/拒绝已接真实会话 RBAC。模型配置固定在受信宿主，GET 不创建任务；原 start 重试沿用原 execution、任务和预算。默认关闭，正式采用 capability 保持 false。
+- 独立 data/task/auth LOGIN 和连接池、配置文件、同镜像 `outline-worker.mjs`、可选 Compose 接入；无文本配置的新 worker 可恢复已完成 decision，未知结果仍需明确对账。仅新 confirm 路由允许 2MiB，旧路由与共享默认容量保持。部署见[大纲说明](../../deploy/outline.md)。
+- 新增79项普通测试及2项真实 PG 组合；server PG 558项（含505普通），覆盖98.22/96.34/99.74/99.91%。同镜像大纲容器1项通过：实际合成模型 HTTP、decision 提交后 SIGKILL、无文本配置恢复、预算/回执不重建、超过256KiB人工确认及重启/撤权；旧 API2项、章节worker1项、原创开发1项兼容通过。环境中断的首次容器运行未计通过，核实停机并只清理其自有资源后重跑取得终态0。
+- 最终 `pnpm check` 退出0：3969项=20工具+3949普通，13包类型检查及全部实际覆盖率、6方法/10 Agent基线通过。代码/TypeScript/数据库/安全审查无未闭合P0–P2；完整日志、SHA-256与容量修复依据见[实施证据](dramaturgy-phase1.md)。远端CI以最终提交实际终态为准。
+- 接下来继续五件套编辑审阅页面、正式 IR 采用与组合验收；完整 OL-4、T1.4和阶段1未完成。真实文本质量、编辑器验收、法务签核与设计伙伴确认依用户安排后补，已有ComfyUI连接保持。
+
 ### T1.4 OL-4 浏览器数据边界与来源发现（2026-11-17）
 
 - 新增独立 `@camery/script/outline/http`：请求不接宿主身份/执行画像/回执，完整五件套与人工判断/逐项豁免保持；小操作64KiB、confirm2MiB且输出独立512KiB、detail6MiB且来源独立512KiB。只读run/brief/source目录采用scope绑定keyset，来源目录只作发现，最终start仍由事务store核验。状态投影保留原journal优先，未投递、unknown、blocked和人工结果分开；内部Task错误与模型回执不外发。

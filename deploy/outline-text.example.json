@@ -1,0 +1,13 @@
+{
+  "label": "待配置的文本模型",
+  "baseUrl": "https://replace.example/v1",
+  "connectionId": "outline-text",
+  "modelIdentity": "replace-with-model",
+  "structuredOutput": "json_schema",
+  "timeoutMs": 120000,
+  "allowPrivateNetworks": false,
+  "allowInsecureHttp": false,
+  "currency": "CNY",
+  "reservation": { "tokens": 24000, "costMicros": 1000000 },
+  "limits": { "steps": 1, "tokens": 24000, "costMicros": 1000000 }
+}

@@ -11,6 +11,7 @@
     "start:worker:built": "node dist/worker.mjs",
     "start:bible-worker": "node dist/bible-worker.mjs",
     "start:development-worker": "node dist/development-worker.mjs",
+    "start:outline-worker": "node dist/outline-worker.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",

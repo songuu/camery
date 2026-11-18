@@ -1,0 +1,46 @@
+# Add to compose.private.yml + compose.api.yml after explicit outline/task identity and budget provisioning.
+# Text is optional: the worker can drain an existing paid journal without provider credentials.
+services:
+  api:
+    environment:
+      CAMERY_OUTLINE_ENABLED: '1'
+      CAMERY_OUTLINE_PROJECT_ID: ${CAMERY_OUTLINE_PROJECT_ID:?Set the authorized outline model project}
+      CAMERY_OUTLINE_DATABASE_URL_FILE: /run/secrets/outline_database_url
+      CAMERY_OUTLINE_TASK_DATABASE_URL_FILE: /run/secrets/outline_task_database_url
+    secrets:
+      - outline_database_url
+      - outline_task_database_url
+  outline-worker:
+    image: camery-api:phase0
+    command: [node, outline-worker.mjs]
+    restart: on-failure:3
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 1g
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    environment:
+      CAMERY_TENANT_ID: ${CAMERY_TENANT_ID:?Set the deployment tenant}
+      CAMERY_OUTLINE_ENABLED: '1'
+      CAMERY_OUTLINE_PROJECT_ID: ${CAMERY_OUTLINE_PROJECT_ID:?Set the authorized outline model project}
+      CAMERY_OUTLINE_DATABASE_URL_FILE: /run/secrets/outline_database_url
+      CAMERY_OUTLINE_TASK_DATABASE_URL_FILE: /run/secrets/outline_task_database_url
+      CAMERY_OUTLINE_WORKER_ID: ${CAMERY_OUTLINE_WORKER_ID:-outline-worker}
+      CAMERY_OUTLINE_POLL_MS: ${CAMERY_OUTLINE_POLL_MS:-1000}
+      CAMERY_OUTLINE_RUNS_PER_ROUND: ${CAMERY_OUTLINE_RUNS_PER_ROUND:-20}
+    secrets:
+      - outline_database_url
+      - outline_task_database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # A configured request may take 280s plus a bounded durable tail; wait for that attempt before closing pools.
+    stop_grace_period: 330s
+secrets:
+  outline_database_url:
+    file: ${CAMERY_OUTLINE_DATABASE_SECRET_FILE:?Set the restricted outline URL secret file}
+  outline_task_database_url:
+    file: ${CAMERY_OUTLINE_TASK_DATABASE_SECRET_FILE:?Set the restricted task URL secret file}

@@ -12,6 +12,10 @@ import fastifyStatic from '@fastify/static';
 import { ImportError } from '@camery/ingest';
 import { BibleError } from '@camery/bible';
 import { DevelopmentError } from '@camery/script';
+import { OutlineError } from '@camery/script/outline/contracts';
+import { OUTLINE_HTTP_CONFIRM_BYTES } from '@camery/script/outline/http';
+import { OutlineModule } from './outline.js';
+import type { OutlineApiOptions } from './outline-options.js';
 import { DevelopmentModule } from './development.js';
 import type { DevelopmentApiOptions } from './development-options.js';
 import { BibleModule } from './bible.js';
@@ -30,7 +34,7 @@ export { RequireAccess } from './policy.js';
 const SERVICE = Symbol('camery.access.service');
 // Public access stays private to this module so new business routes must declare a policy.
 const Public = (): MethodDecorator => SetMetadata(POLICY, 'public');
-export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly bibles?:BibleApiOptions; readonly development?:DevelopmentApiOptions; readonly projects?:ProjectApplicationOptions; readonly frontendDirectory?: string }
+export interface AccessOptions { readonly tenantId: string; readonly store: SessionStore; readonly sources?: SourceStores; readonly bibles?:BibleApiOptions; readonly development?:DevelopmentApiOptions; readonly outlines?:OutlineApiOptions; readonly projects?:ProjectApplicationOptions; readonly frontendDirectory?: string }
 
 class AccessGuard implements CanActivate {
   private readonly reflector = new Reflector();
@@ -70,7 +74,7 @@ class SafeErrors implements ExceptionFilter {
     } else if (error instanceof BibleError) {
       code=error.code;
       status=({INVALID_INPUT:400,INPUT_LIMIT:413,INVALID_EVIDENCE:422,CONFLICT:409,FORBIDDEN:403,INCOMPLETE:409,MODEL_FAILED:503,NOT_FOUND:404,STORAGE_FAILED:503} as const)[error.code];
-    } else if (error instanceof DevelopmentError) {
+    } else if (error instanceof DevelopmentError || error instanceof OutlineError) {
       code=error.code;
       status=({INVALID_INPUT:400,INPUT_LIMIT:413,INVALID_REFERENCE:422,CONFLICT:409,FORBIDDEN:403,INVALID_EVIDENCE:422,INCOMPLETE:409,NOT_FOUND:404,STORAGE_FAILED:503} as const)[error.code];
     } else if(error instanceof ProjectIdentityError){
@@ -121,7 +125,7 @@ export class AccessModule {
 /** No trusting proxy identity, credential cookies, global user state or request/header logging. */
 export async function createApplication(options: AccessOptions): Promise<NestFastifyApplication> {
   if(options.projects&&options.projects.tenantId!==options.tenantId)throw new Error('Project tenant mismatch');
-  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : []),...(options.bibles?[BibleModule.register(options.bibles)]:[]),...(options.development?[DevelopmentModule.register(options.development)]:[]),...(options.projects?[ProjectModule.register(options.projects)]:[])] }) class ApplicationModule {}
+  @Module({ imports: [AccessModule.register(options), ...(options.sources ? [IngestModule.register(options.sources)] : []),...(options.bibles?[BibleModule.register(options.bibles)]:[]),...(options.development?[DevelopmentModule.register(options.development)]:[]),...(options.outlines?[OutlineModule.register(options.outlines)]:[]),...(options.projects?[ProjectModule.register(options.projects)]:[])] }) class ApplicationModule {}
   const app = await NestFactory.create<NestFastifyApplication>(ApplicationModule,
     new FastifyAdapter({ logger: false, trustProxy: false, bodyLimit: 16384, routerOptions: { maxParamLength: 512 }, genReqId: () => randomUUID() }),
     { logger: false, abortOnError: false });
@@ -136,6 +140,7 @@ export async function createApplication(options: AccessOptions): Promise<NestFas
       if (route.url === '/api/v1/projects/:projectId/scripts/:documentId/:format' && route.method === 'PUT') route.bodyLimit = 8_000_000;
       if (route.url === '/api/v1/projects/:projectId/bibles/:runId/confirm' && route.method === 'POST') route.bodyLimit = 2_097_152;
       if (route.url === '/api/v1/projects/:projectId/development/:runId/:stage/confirm' && route.method === 'POST') route.bodyLimit = 524288;
+      if (route.url === '/api/v1/projects/:projectId/outlines/:runId/confirm' && route.method === 'POST') route.bodyLimit = OUTLINE_HTTP_CONFIRM_BYTES;
       if (route.method === 'POST' && ['/api/v1/projects/:projectId/workbench/candidates','/api/v1/projects/:projectId/workbench/changes/preview'].includes(route.url)) route.bodyLimit = 532480;
   });
   if (options.frontendDirectory) await app.register(fastifyStatic, { root: options.frontendDirectory, wildcard: false, index: ['index.html'], cacheControl: false });

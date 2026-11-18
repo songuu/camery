@@ -63,6 +63,7 @@ COPY --from=build --chown=node:node /workspace/packages/server/dist/main.mjs ./m
 COPY --from=build --chown=node:node /workspace/packages/server/dist/worker.mjs ./worker.mjs
 COPY --from=build --chown=node:node /workspace/packages/server/dist/bible-worker.mjs ./bible-worker.mjs
 COPY --from=build --chown=node:node /workspace/packages/server/dist/development-worker.mjs ./development-worker.mjs
+COPY --from=build --chown=node:node /workspace/packages/server/dist/outline-worker.mjs ./outline-worker.mjs
 COPY --from=build --chown=node:node /workspace/packages/server/dist/content ./content
 COPY --from=build --chown=node:node /workspace/packages/web/dist ./public
 USER node

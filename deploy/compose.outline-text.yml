@@ -1,0 +1,21 @@
+# Add only after installing the trusted text profile/token and project budget.
+services:
+  api:
+    environment:
+      CAMERY_OUTLINE_TEXT_CONFIG_FILE: /run/secrets/outline_text_config
+      CAMERY_OUTLINE_TEXT_TOKEN_FILE: /run/secrets/outline_text_token
+    secrets:
+      - outline_text_config
+      - outline_text_token
+  outline-worker:
+    environment:
+      CAMERY_OUTLINE_TEXT_CONFIG_FILE: /run/secrets/outline_text_config
+      CAMERY_OUTLINE_TEXT_TOKEN_FILE: /run/secrets/outline_text_token
+    secrets:
+      - outline_text_config
+      - outline_text_token
+secrets:
+  outline_text_config:
+    file: ${CAMERY_OUTLINE_TEXT_CONFIG_SECRET_FILE:?Set the trusted outline text configuration file}
+  outline_text_token:
+    file: ${CAMERY_OUTLINE_TEXT_TOKEN_SECRET_FILE:?Set the outline text API token secret file}

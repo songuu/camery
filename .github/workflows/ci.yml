@@ -103,6 +103,8 @@ jobs:
         run: pnpm test:private-worker:local
       - name: Verify built original development API and worker with isolated HTTP protocol fixtures
         run: pnpm test:private-development:local
+      - name: Verify built outline API, paid journal crash and no-text worker recovery
+        run: pnpm test:private-outline:local
       - name: Remove this job's private API database fixture
         if: always()
         run: |

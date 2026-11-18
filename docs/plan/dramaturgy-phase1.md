@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 6 · 2026-11-17。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 7 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -161,3 +161,33 @@ AC及容量/超时语义不变。真实PG首轮1113项中仅原聚合恢复用�
 - 原恢复用例失败及定向诊断保留，单例对照在相同45秒门槛下通过，套件11.33秒；因只跑1例，子集整体覆盖率不足而退出1，未作为包门槛成功。随后完整PG实际过95%门槛。诊断日志 `outline-ol4-large-profile.log` SHA-256=`6e8324f83294a55403dbdfff7d64e0e120053142d591b9238a185f22086cd954`；快路径对照 `outline-ol4-large-profile-optimized.log` SHA-256=`8549c1016020d71e083e5b3f4760a86fc63bf14337ede15bf0db61c754f133e7`。新增5项methods精确测试覆盖大ASCII、完整UTF16单元、property key/array、转义及超限停止访问；38项JSON窄测及安全独立穷举通过。
 - 从公开package子路径实际构建浏览器ES，135771字节，未出现Node内置或external占位。初次工具探针的Windows绝对路径import错误已改为file URL，生产导出不受影响。最终日志 `artifacts/delivery/outline-ol4-http-browser-verified.log` SHA-256=`102c4b60488ffec6953c2541d19c4d6fab9f4fcd0e73725f52d560e0dad6cb6d`。继续本计划的认证API、独立常驻宿主及五件套编辑审阅页，再执行镜像/真实浏览器组合与正式IR采用。
 - 最终 `pnpm check` 终态0：3890项=20工具+3870普通，716文件策略零问题、typed lint与13包类型检查（6缓存/7实际）通过，13包覆盖率全部实际执行、0覆盖率缓存，6方法golden及10 Agent合成基线匹配。script1050项覆盖98.30/96.82/99.54/99.26%，methods260项97.34/96.12/98.94/99.68%，各95%门槛不变。全仓日志 `artifacts/delivery/outline-ol4-data-workspace-check.log` SHA-256=`bc04ff8c448b05373d3fb47d4b16dae44eb636233185e1ed786ef7ed208e758b`。精确提交远端CI仍以推送后实际Actions终态为准。
+
+## Revision 7 · 认证 API 与可恢复常驻宿主
+
+AC不变。追加 `/api/v1/projects/:projectId/outlines`，复用全局默认拒绝会话/RBAC；read/capabilities/list/source只需project:read，brief/start需task:run，confirm/reject需candidate:review。tenant/actor/time来自宿主；public source selection在宿主补scope，固定方法由领域生成。新run使用部署preset；同一start语义重试读实际原run后沿用原execution并由store重新核请求，不因当前text配置移除/变化而遗失原journal。不同简报或来源请求仍冲突，终态/unknown不造新任务。
+
+| 有序任务 / 文件owner | 风险 / 依赖 | 完成证据 |
+| --- | --- | --- |
+| [P] bounded outline host + test（独立新文件） | L2；复用既有目录/dispatcher/Worker，无新授权决策 | 全run公平分页、原尾部优先、unknown跳过、每轮/停止边界、无泄漏 |
+| [P] outline config wrapper + test（独立新文件） | L2；复用现有文件secret reader及单阶段execution校验 | 默认关闭/半配置拒绝、await前捕获、无text合法、同一份额预算、错误脱敏 |
+| [P] 认证HTTP夹具/反例（独立test文件） | L2；已冻结options/transport，根实现控制器 | 各角色/作用域/会话、noText读取/保存、start原ID恢复、确认容量/身份注入/错误映射 |
+| API模块/runtime/app/main/worker/build接线（根） | L4；以上收敛后串行组合 | 同会话逐请求授权、精确路由2MiB body例外、固定profile lazy session、独立pools/LOGIN验证、cached无text恢复 |
+| 实际PG HTTP及镜像/部署（根） | L4；服务接线后 | 实际认证/存储/Task/budget、低权限pool、原ACK/撤权/并发、新pool/停止恢复、默认关闭/实际构建 |
+
+新worker允许配置启用但text为空，仍注册原workflow并扫描全部run；cached decision不调用session，新的未缓存请求失败闭合。对调用中的停止等待当次attempt完成再关闭池；强杀仍交既有lease/unknown门禁。任务/预算LOGIN复用既有明确固定权限实现的alias，不扩大data LOGIN，不自安装迁移。API数据读写按真实会话tenant及项目grant限定，模型preset/常驻宿主额外固定部署project；配置tenant必须匹配认证tenant，页面与IR采用仍后续。
+
+界限：全局body16KiB和旧路由保持，仅新confirm路由POST允许2MiB，schema继续output512KiB与人工判断/豁免上限。ModelSession新增完整input2MiB/output512KiB配置，transport及run完整execution画像由受信host固定；模型配置/connection/mode/modelIdentity不从HTTP读取，构造runtime/session不发网络。GET不enqueue、不创建模型session。正式采用capability保持false直到OL-5实际接入。
+
+发布gate：先红绿窄测，合并后type/lint/完整覆盖率，code/TS/security/SQL只读复核、实际PG及构建/镜像证据，最后整仓与精确提交远端CI。PG/coverage串行。开关默认关闭，失败关闭新模块并保留原数据/任务/预算；不触碰现有ComfyUI、编辑器项目或用户脏文档。真实文本凭据及质量仍后补，不由合成HTTP协议替代。
+
+## OL-4 API / 宿主验证证据（2026-11-18）
+
+- 新增79项普通测试：HTTP36、host24、config13、runtime5、task角色alias1。完整server普通505项、46文件退出0，覆盖98.31/95.70/99.47/99.73%，门槛95%。日志 `artifacts/delivery/outline-api-server-coverage.log` SHA-256=`3478c8ac8766b30f55382e53a6211d3ac25976e95671f3a98705fd088ad5e3da`。
+- TypeScript复审发现transport默认1MiB不足以承接ModelSession完整2MiB输入；仅本域显式设置2MiB+64KiB封套，保留共享默认及响应4MiB。json_schema/json_object各自通过实际loopback HTTP，输入超过1MiB、输出300000字节，单次调用/收据与无隐式重试断言保持。代码、TS、数据库和安全只读复审无未闭合P0–P2。
+- `pnpm test:server:local --coverage` 终态0：558项=505普通+53 PG，59文件，覆盖98.22/96.34/99.74/99.91%。新2项分别从真实已审阅Development/Bible开始，验证实际三类最小权限LOGIN、会话授权/撤权、真实合成模型HTTP、candidate与人审提交后丢ACK、新pool无text恢复、来源过期和已审阅尾部恢复、unknown明确对账/取消不重投，以及超过256KiB完整人改输出。日志 `artifacts/delivery/outline-api-server-pg.log` SHA-256=`f8b91000a341cb8215f85f9c11b7989e71423a75ff05328af9b7026d45150c01`。无新SQL迁移或grant策略扩权。
+- 实际构建测试保留3项并验证5个原生进程入口，新worker与既有worker同样仅排除父进程覆盖率；API/host/config/runtime保留95%门槛。同镜像构建退出0，manifest list ID=`sha256:8aac1a8dda17714fca2ce78402076bd03d8f60826819867661af04ad45b4ef37`，构建日志 `artifacts/delivery/outline-api-image-build.log`。
+- 新 `pnpm test:private-outline:local` 终态0，1项：独立随机Compose project/tenant/三类LOGIN，默认关闭404、真实HTTP合成provider、decision提交后在本运行candidate唯一键阻塞窗口SIGKILL（137）、原lease过期后无text重新创建API/worker，原候选/收据恢复且provider调用1次、allocation1份/300tokens。超过256KiB人工确认、API重启后审计、无text简报保存/新start409、无关任务不领取、撤销401、日志脱敏及正常stop退出均通过。使用未提交本运行占位PK制造窗口，不锁整表，不修改被测生产代码。日志 `artifacts/delivery/outline-api-private-compose-verified.log` SHA-256=`f647cb7fc55b2662fb8550f1913c80d9415b8ee4887a1857ba8e2795820b8439`。
+- 首次Compose运行遇外部Docker/会话中断，仅有RUN输出，未计成功。核实原进程停止后，逐项核验自有project label、随机tenant/role及临时目录，清理其2容器、3角色和8个明确文件；基础PG和外部网络保持。重跑同一已构建镜像后取得上述明确终态，不以启动或子集输出代替通过。
+- 同镜像旧容器串行回归均终态0：API2项（`outline-api-existing-api-compose.log` SHA-256=`67a815b2f1afbc24d4ee7786b08cede95e469afd47bde8007a756401c8da3ac9`）；章节worker1项（`outline-api-existing-worker-compose.log` SHA-256=`e769c2722c5897e558ecb918a5701adeae01799b3cf8c15f783ba1e04f33e854`）；原创开发1项（`outline-api-existing-development-compose.log` SHA-256=`f3dcfde18d5afaab67725ff4c9487b222de17f3abdc4928ab81400cf2a61dc9c`），日志均位于 `artifacts/delivery/`。固定私有化入口只允许已声明target和参数，CI追加新大纲步骤。
+- 最终 `pnpm check` 终态0：3969项=20工具+3949普通，13包类型检查成功（6缓存/7执行），13包覆盖率全部实际执行；方法6项和Agent10项基线匹配。日志 `artifacts/delivery/outline-api-workspace-check.log` SHA-256=`7ff5be8ce95bb1847fdd27a0f9689deb8802120cfd5bebd307e382a63f94ee03`。上述PG总数包含普通测试，不与整仓重复相加。远端以推送后精确提交CI实际终态为准。
+- 此批交付API、配置型常驻宿主与部署/恢复组合，页面和OL-5正式IR采用继续；完整OL-4、T1.4及阶段1仍未完成。真实文本供应方/账单/质量、编辑器、法务和设计伙伴继续后补，不以合成HTTP或数据库断言替代，ComfyUI接线未改。

@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 // This local-only helper reads the ignored phase-0 credential file; the URL goes only to the test child's environment.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const [target, ...args] = process.argv.slice(2);
-if (!['durable', 'versioning', 'agents', 'access', 'server', 'ingest', 'bible', 'script', 'private-api', 'private-worker','private-development'].includes(target)) throw new Error('Select durable, versioning, agents, access, server, ingest, bible, script, private-api, private-worker or private-development tests');
-const composeTest = target === 'private-api' || target === 'private-worker'||target==='private-development';
+if (!['durable', 'versioning', 'agents', 'access', 'server', 'ingest', 'bible', 'script', 'private-api', 'private-worker','private-development','private-outline'].includes(target)) throw new Error('Select durable, versioning, agents, access, server, ingest, bible, script, private-api, private-worker, private-development or private-outline tests');
+const composeTest = target === 'private-api' || target === 'private-worker'||target==='private-development'||target==='private-outline';
 const packageName = composeTest ? 'server' : target;
 const packageRoot = fileURLToPath(new URL(`../packages/${packageName}/`, import.meta.url));
 if (args.some(arg => arg !== '--coverage')) throw new Error('Only --coverage is supported');
@@ -35,7 +35,7 @@ if (!databaseUrl) {
 const require = createRequire(new URL(`../packages/${packageName}/package.json`, import.meta.url));
 const vitestPackage = require.resolve('vitest/package.json');
 const vitest = path.join(path.dirname(vitestPackage), JSON.parse(readFileSync(vitestPackage, 'utf8')).bin.vitest);
-const config = target === 'private-api' ? 'vitest.compose.config.ts' : target === 'private-worker' ? 'vitest.worker-compose.config.ts' :target==='private-development'?'vitest.development-compose.config.ts': 'vitest.integration.config.ts';
+const config = target === 'private-api' ? 'vitest.compose.config.ts' : target === 'private-worker' ? 'vitest.worker-compose.config.ts' :target==='private-development'?'vitest.development-compose.config.ts':target==='private-outline'?'vitest.outline-compose.config.ts': 'vitest.integration.config.ts';
 const result = spawnSync(process.execPath, [vitest, 'run', '--config', config, ...args], {
   cwd: packageRoot, env: { ...process.env, CAMERY_TEST_DATABASE_URL: databaseUrl }, stdio: 'inherit',
 });
