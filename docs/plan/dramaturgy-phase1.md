@@ -1,6 +1,6 @@
 # 阶段 1：T1.4 剧作大纲与方法资产
 
-Revision 11.1 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
+Revision 12 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.md` 的当前 v2.1 要求继续实施。编辑器验收、法务签核、设计伙伴确认后补；它们不阻塞独立工程任务。当前不是 T1.4 或阶段 1 完成声明。
 
 <!-- design-authority:start -->
 ## Design Authority（shadow）
@@ -26,7 +26,7 @@ Revision 11.1 · 2026-11-18。依据 `implementation_plan_v2.md`、`solution_v2.
 | OL-2 固定方法、来源适配、生成收据、人工审阅 | script outline runtime / methods / bible 的明确接口；依赖 OL-1 | L3 | AC-OL-3；来源/固定方法/人审及持久宿主/API组合已验证，真人质量仍后补 |
 | OL-3 数据库、恢复与预算 | script node / migrations / PostgreSQL 测试；依赖 OL-2 | L4 | AC-OL-4；存储/预算/恢复、常驻宿主与认证服务组合已验证，正式采用继续 |
 | OL-4 鉴权 API 和编辑审阅页面 | script transport/read models、server / web；依赖 OL-3 | L4 | AC-OL-3/4/5；先浏览器契约/列表/状态投影，再认证服务/常驻宿主/页面/实际验收，实施中 |
-| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/升级、完整纯映射、持久身份及同事务源guard已验证；intent/专用采用与其角色/分节读取继续 |
+| OL-5 正式 IR 升级、映射与采用 | ir / versioning / projects；依赖 OL-2/3，稳定契约后冻结迁移设计 | L4 | AC-OL-5；v07结构/图/升级、完整纯映射、持久身份、同事务源guard及专用intent/receipt已验证；采用应用、角色及分节读取继续 |
 | OL-6 组合验收及交付 | 真实 PG、登录浏览器、私有镜像、远端 CI；依赖以上 | L3 | AC-OL-1 至 5；待做 |
 
 ## 契约变化及验证
@@ -307,3 +307,35 @@ Gate：失败测试→窄测→类型/lint→代码/TS/安全/DB复核→串行P
 - 新旧分配器守护同一历史范围后，实际既有adopter LOGIN可复用大纲先分配的实集身份，同时不能读runs.record来源正文、candidates或reviews.record人审正文。增授敏感列/额外时间列/缺少必需列/GRANT OPTION均被真实verifier拒绝。独立旧数据库只装Outline基础schema不装身份扩展、不授Outline USAGE，实际验证原to_regclass报42501而新catalog探测、角色验证及Development prepare成功；没有为兼容旧库静默安装新表或扩大业务正文权限。
 - 复审发现的跨run尾部补发、部分owner遗漏及旧角色名称解析问题均已补失败反例再修复，最终code/TS/security/DB无未闭合P0–P2。已验证范围仍为内部持久身份与完整映射，正式Outline adopter/intent/API与分节阅读未交付，formalAdoption继续false。开发测试库已显式安装身份元信息扩展，现有项目IR修订和旧ID未修改；部署新binary到已扩展库时需显式运行更新后的角色installer。回退旧binary须按本批增量撤回元信息表/列读取并用旧verifier复核，保留追加身份和新列，不逆向删除数据。
 - 最终`pnpm check`终态0：4,286项=20工具+4,266普通，784文件策略零问题、13包类型检查成功（10缓存/3执行）、13包覆盖率全部实际执行。script普通1,215项覆盖97.86/96.14/99.15/99.38%，server普通521项覆盖98.29/95.77/99.48/99.74%；方法6项及Agent10项基线匹配。日志`artifacts/delivery/outline-identities-workspace-check.log` SHA-256=`d0433fbc2048648b2092adb7bc635a0db739bb390715314c2deb3d45d2d6bcf3`。PG总数包含各自普通用例，不与整仓重复相加。新镜像及四组私有流程仍以推送后精确提交CI实际终态为准；本批尚不宣称完整OL-5或阶段1完成。
+
+## Revision 12 · 完整大纲采用意图与同事务回执
+
+继续AC-OL-3/4/5。前批`d7b413c9241a6901b8c112fc3459cc3e705622aa`精确CI https://github.com/songuu/camery/actions/runs/44243871071 completed/success（2026-11-18T05:38:26Z）。本批将固定请求及操作ID持久化，随后接正式采用应用、独立最小权限与完整分页阅读，不因内部store交付而提前开放formalAdoption。
+
+| 任务 / 文件owner | 风险 / 前置 | Before → After / gate |
+| --- | --- | --- |
+| [P] 独立outline-intent-contracts.ts与窄测 | L2；既有完整mapper与身份契约已固定 | 私有严格body/actor/source/target/draft/操作ID/receipt边界，旧generic契约不变 |
+| [P] 意图SQL协议测试与memory support | L2测试；以下API/SQL字段冻结 | 实际mapper与Versioning engine、固定ID重试、完整容量、上下文拒绝、无变化/CAS与错误脱敏 |
+| 根：outline-intent-data/codec/store及receipt writer | L4；依赖冻结契约 | 单份完整draft+固定change/opIDs派生原ChangeSet，不双存全部ops；保存first IDs/时间，不重复提交；回执绑定实际版本client/context/actor/scope/原请求 |
+| 根：显式outline-intent-migrate与独立SQL目录/账本、PG组合 | L4；Projects原3迁移及Outline identity扩展先显式安装 | 新四表、原project/principal FK、真实identity准备见证复合FK；不改旧SQL或扩大旧接口/角色权限；实际回滚/丢ACK/并发/新pool |
+
+接口冻结：`PostgresOutlineProjectIntents(pool)`提供findCandidate/candidateForChange/findDecision/putCandidate/putDecision/readPreparationReceipt/readDecisionReceipt/preparationReceiptWriter/decisionReceiptWriter，与既有Node使用习惯一致但独立表及命名空间。候选body保存version/scope/applicationId、user actor、target、commandDigest、source(kind=outline,mapperVersion=1,source descriptor,identities,reviewer)、expectation、changeId、完整OutlineMappingDraft与slot/id操作表；`request`仅从这些不可变字段派生，拒调用者额外存入自由request。候选业务摘要忽略新生成change/opIDs，决策业务摘要忽略重试时钟；同键变更正文/actor/target/source/base仍冲突。决策只允许user、project scope。
+
+独立容量：私有body及receipt各32MiB，含派生request的内部envelope与SQL JSONB存储各64MiB；派生ChangeSet仍≤16MiB/4096ops，保留原512KiB大纲输出。新receipt问题/告警上限131072条，与完整内部引用预算匹配；超限显式失败并回滚，不截断，不放宽旧500条/512KiB/1MiB边界。这些是Node内部预算，后续公共接口必须分页，不能直接返回原始intent/envelope或模型配置。
+
+原子性：有变化的准备回执、采用/拒绝回执只在VersionStore提供的同一client写入，不另开事务、连接或模型。执行context必须逐项匹配target/CAS/operation/原request signature/actor/scope/at/reason，历史已采用ACK保留真正原adoption审计。无变化不造空ChangeSet：在自身事务锁定实际正式project及读取schema/CAS，精确匹配才保存unchanged；并发base变化保存实际conflicted回执。不可变intent/receipt缺失或摘要错配不自动“补好”成新请求。
+
+迁移选择独立显式installer和账本，避免旧Projects初始化依赖未启用的Outline域；核对Projects三个旧摘要及Outline identity扩展摘要后创建专用四表与准备见证复合authority索引/FK。新表只保存注册的ordinary scope/正式target/真实准备run/review及正式主体；运行时不迁移或GRANT。SQL目录从创建时固定LF，不改旧文件。新权限在后续明确Outline adopter gate中声明，当前不扩大既有adopter访问这些意图表。
+
+有序gate：失败测试→契约/实际mapper/engine完整容量窄测→类型/lint→code/TS/security/DB复核→串行真实PG/coverage（原提交/采用/拒绝、receipt失败回滚、COMMIT丢ACK/新pool/撤权/CAS/无变化）→整仓→授权commit/push与精确CI。回滚服务保留追加意图/回执/身份，不删除历史或重写旧账本；当前只在测试随机scope/独立测试库安装。原五件套UI、真实文本质量及用户安排后补的验收边界保持，完整阶段1继续。
+
+## OL-5 采用意图与回执验证证据（2026-11-18）
+
+- 新增专用Node协议与四张表，候选仅持久化完整draft和固定ID，再推导同一份正式请求。相同业务重试保留首次change/opIDs、决策保留首次时间；同键变更业务语义冲突。存储摘要、SQL authority字段及派生请求逐项重新验证，不由普通JSON或摘要授予权限。
+- 新显式installer核对既有Projects三迁移与Outline身份迁移，独立`camery_projects.outline_migrations` v1；DDL SHA-256=`0347b878b4d6c2f4e08b7ebfb4f0ef518a89f28894facbcee915e7c182f6c46a`。三个域依固定顺序加迁移锁；新候选外键绑定实际普通项目、主体和含run/review摘要及正式目标的准备见证。原账本未改，无新增GRANT，真实旧adopter LOGIN无新四表权限。
+- 普通新增126项：严格协议34、实际mapper/engine/SQL协议72、显式安装器20。覆盖完整1,249个操作（body>1MiB、request>512KiB）、131,072条完整私有回执、32MiB/16MiB边界、访问器拒绝、字段/摘要损坏、故障脱敏、固定ID恢复和历史ACK。首次合法大回执触发旧Method canonical的2MiB限制，增加专用有界快照与排序序列化修复，旧通用工具和接口预算保持。
+- 实际PG新增24项：八个首次并发producer只产生一份原始ID；提交/采用/拒绝三个真实COMMIT确认丢失后新pool读回原始回执；版本与回执同backend/txid，回执失败使正式变更一起回滚；完整容量来源、1,350个持久身份、1,249操作实际采用后重读一致。另由真实旧依赖制造超过500条kernel告警，准备和采用回执均完整保存并经新pool读回，未拼接伪造result。
+- 无变化草稿不提交空ChangeSet，在真实正式project行锁下检查v07及精确CAS；漂移回执记录实际conflicted版本，回执失败回滚新intent；已存无变化但缺原回执时拒绝从当前head补造。错误操作者、目标租户、scope、动作、时间、理由、CAS及实际原生请求均拒绝，源guard异常/过期不缓存完成回执；撤权与历史采用审计保留原语义。
+- 最终`pnpm test:server:local --coverage`终态0：733项=647普通+86 PG，64文件；语句98.08%、分支96.08%、函数99.78%、行99.85%。日志`artifacts/delivery/outline-intents-server-pg-verified.log` SHA-256=`adb2a20cead3d91a9c9e6f4a2cc5631f8c8f65ea9d6896c637eca078babf2955`。首次失败还发现测试夹具SQL CHECK先于FK、原生author误带key，分别保留CHECK反例、同步authority字段后验证真实FK，并修正author，不放宽生产校验。code/TS/security/DB复审无未闭合P0–P2。
+- 最终`pnpm check`终态0：4,412项=20工具+4,392普通，797文件策略零问题；13包类型与13包覆盖率均全部实际执行、无缓存，方法6项及Agent10项基线匹配。server普通647项，覆盖98.15/95.55/99.56/99.69%。日志`artifacts/delivery/outline-intents-workspace-check.log` SHA-256=`59c7e01fb50d889a414646c379c78868185a85cd6107c65db46684603a39296b`。PG与整仓普通用例不重复相加，新镜像及私有流程以随后精确提交CI实际终态为准。
+- 此批只交付采用意图基础，认证应用的来源完整重放/角色/分页读取/API/页面接线及OL-6继续，formalAdoption保持false；不宣称完整阶段1完成。用户安排后补的编辑器、法务、设计伙伴及真实文本质量仍后补。
