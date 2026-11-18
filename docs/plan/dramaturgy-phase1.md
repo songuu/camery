@@ -405,3 +405,21 @@ Gate：失败反例→窄测/types/lint→code/TS/security/DB复审→串行真�
 - 正式读取/存储/HTTP新增119项普通测试（59应用及分页、28存储、32HTTP），包括授权先于所有读、撤权/跨scope、合法空集合、超大单行/批量收缩后无丢失续读、完整封套983040字节、伪造版本/末尾offset及损坏依赖安全失败。没有改动95%覆盖率门槛；首次普通分支94.48%的失败记录保留，新增15项风险反例后通过。Code/TS/security/DB复审无未闭合P0–P2。
 - 最终 `pnpm check` 终态0：4,814项=20工具+4,794普通，835文件策略零问题；13包类型成功（12缓存/1执行）、13包覆盖率全部实际执行，方法6项和Agent10项黄金基线匹配。Server普通964项，覆盖97.85/95.15/99.48/99.68%；IR571项。日志 `artifacts/delivery/outline-formal-workspace-check-final.log` SHA-256=`17a89b3b54d638c9677590429ce319201f302cb6193aac2587723f36a5db7382`。
 - 最终 `pnpm test:server:local --coverage` 终态0：1,072项=964普通+108PG，76文件，覆盖97.8/95.64/99.66/99.81%。新实际PG四项包含全部1085行逐字段重建、2048来源引用和22节完整HTTP、读前后零写/零模型/零分配、新pool恢复历史cursor、相同project跨formal tenant及旧/损坏快照、真实built main默认关闭/启用/错误角色与退出。日志 `artifacts/delivery/outline-formal-server-pg-final.log` SHA-256=`43b99eb17366343107e06d211973c2ea1b35df47eab1aed6e4e3474f996293ea`。PG普通项与整仓不重复相加；全部镜像/私有组合及精确提交CI在推送后核对，不把启动当终态成功。完整五件套页面/OL-6及阶段1继续，formalAdoption保持false，用户安排后补项不变。
+
+## Revision 14.1 · 远端完整容量读取性能
+
+`9b3504d7d90188309c5b003e376f038cf4f68293` 远端CI 44274429452未通过：整仓与前置PG步骤均成功，server1071项通过、唯一失败为完整容量HTTP读取45秒超时。阶段计时显示来源夹具8893ms、实际采用22254ms、可信容量导入32349ms、bulk42338ms、全部sections81971ms；本地1072项成功不能替代此远端失败。保留1085行/2048引用/22节、原45秒及95%门槛。
+
+| owner / 任务 | 风险 / 完成条件 |
+| --- | --- |
+| [P] store单测 | L2测试；热缓存仍查询PG与新header、错误digest/flag/target/package/revision拒绝，单entry逐出与await前并发捕获，先RED后GREEN |
+| [P] 实际PG缓存完整性反例 | L2测试；低权限真实LOGIN，原容量不缩减；同revision管理员改正文/头后必须重新验证，历史payload与当前counters分开，根串行PG |
+| [P] DB设计及SQL静态复核 | L2只读审查；SHA256核心函数、单MVCC与MATERIALIZED一次指纹计算、完整key和权限/资源约束 |
+| 根：有界store缓存与全部验证/CI | L4；每页在数据库计算实际JSONB SHA256，同指纹才复用已完整验证且冻结的单份snapshot；改变正文或键立即重新验证，不信任revision本身 |
+
+缓存只保存一个≤64MiB完整校验的不可变snapshot。每页仍执行授权/registry解析和同一条SELECT，数据库仍读取并序列化正文计算SHA256；收益是省去重复网络传输、JS复制、schema/图验证。SQL显式命中才省正文返回，scope/revision/package/digest严格匹配，当前head/write总由本次MVCC头重建。await前捕获同一个cache引用及对应SQL参数，不能在返回时误用另一并发请求替换的entry；失败不替换entry。标准PG16核心函数无需pgcrypto或新增授权，额外硬化撤销函数权限时安全失败，不在运行时自动GRANT。指纹不授予任何读取/采用权限，不省略每页权限检查，也不承诺O(1)数据库开销。完成后复审、窄测、串行PG/整仓及新精确提交CI。
+
+- Cache store先RED后GREEN，原28项扩至48项：真实命中省正文且新header保留、同revision指纹变化、current/历史选择、异tenant/project淘汰、11种损坏命中协议、query开始前缓存捕获的两种并发、热缓存后的opaque driver失败；无旧cache静默降级。Code/TS/security/DB复审无未闭合P0–P2。
+- 实际PG原完整容量测试保持不变，本地定向用时14619ms（fixture3451、adopt8257、可信import12778、bulk13320、sections14485ms），完整1085行/2048引用/22节仍逐字段比对。追加两项实际受限LOGIN缓存测试：提交/采用后旧payload配当前head/write、同revision合法正文修改触发重新验证、非法正文安全失败且不污染旧引用、热缓存头packageId错误拒绝；数据库原生约束保持。
+- 最终 `pnpm check` 终态0：4,834项=20工具+4,814普通，836文件策略零问题；13包类型成功（12缓存/1执行）、13包覆盖率实际执行；server984普通，覆盖97.82/95.15/99.48/99.68%，方法6项/Agent10项黄金基线匹配。日志 `artifacts/delivery/outline-formal-cache-workspace-check.log` SHA-256=`1497ef3811bfc1efd5864b966241bb1b5805adebf116de34868e85e40b3f44f4`。
+- 最终 `pnpm test:server:local --coverage` 终态0：1,094项=984普通+110PG，76文件，覆盖97.78/95.64/99.66/99.82%。日志 `artifacts/delivery/outline-formal-cache-server-pg.log` SHA-256=`99121ac8de651d7c0ac1ff701e4123a9dd15a18a72f24e3ae79cd5c611045994`。前述普通项不重复相加；远端先前失败不改判，新性能修复以随后精确提交CI实际终态为准，完整阶段1及五件套页面/OL-6继续。

@@ -174,3 +174,40 @@ it('starts the built main with explicit secret-backed host configuration and kee
     await Promise.all(processes.map(process=>process.stop()));await roles.close();await rm(resolved,{recursive:true,force:true});
   }
 });
+
+it('reuses only a verified immutable payload while every actual PG read refreshes head and write counters',async()=>{
+  const f=await fixture();await withHost(f,async host=>{
+    const reader=host.formalOptions.store,before=await f.persistenceCounts(),versionsBefore=await outlineVersionCounts(pool,f.target),initial=await reader.snapshot({target:f.target,revision:1});
+    expect(initial).not.toBeNull();expect(initial!.snapshot).toEqual(f.baseline);expect(Object.isFrozen(initial!.snapshot)).toBe(true);expect(Object.isFrozen(initial!.snapshot.project)).toBe(true);
+    const repeated=await reader.snapshot({target:f.target});expect(repeated!.snapshot).toBe(initial!.snapshot);expect(repeated).toMatchObject({headRevision:1,writeVersion:1,revision:1});
+    expect(await f.persistenceCounts()).toEqual(before);expect(await outlineVersionCounts(pool,f.target)).toEqual(versionsBefore);
+    const submitted=await f.submit();expect(submitted.status).toBe('candidate');const pending=await reader.snapshot({target:f.target});expect(pending!.snapshot).toBe(initial!.snapshot);expect(pending).toMatchObject({headRevision:1,writeVersion:submitted.writeVersion,revision:1});
+    const decision=await f.decision(),adoption=await f.versions.adopt(f.target,f.candidate.request!.id,decision.options);expect(adoption.status).toBe('adopted');
+    const after=await f.persistenceCounts(),versionsAfter=await outlineVersionCounts(pool,f.target),historic=await reader.snapshot({target:f.target,revision:1});
+    expect(historic!.snapshot).toBe(initial!.snapshot);expect(historic).toMatchObject({revision:1,headRevision:2,writeVersion:adoption.writeVersion});
+    const historicAgain=await reader.snapshot({target:f.target,revision:1});expect(historicAgain!.snapshot).toBe(initial!.snapshot);expect(historicAgain).toMatchObject({revision:1,headRevision:2,writeVersion:adoption.writeVersion});
+    const current=await reader.snapshot({target:f.target});expect(current!.snapshot).toEqual(adoption.state.head);expect(current!.snapshot).not.toBe(initial!.snapshot);expect(current).toMatchObject({revision:2,headRevision:2,writeVersion:adoption.writeVersion});
+    expect(initial!.snapshot).toEqual(f.baseline);expect(await f.persistenceCounts()).toEqual(after);expect(await outlineVersionCounts(pool,f.target)).toEqual(versionsAfter);
+  });
+});
+
+it('fingerprints the actual selected PG snapshot before cache reuse and rejects corruption even at the same revision',async()=>{
+  const f=await fixture();await withHost(f,async host=>{
+    const reader=host.formalOptions.store,initial=await reader.snapshot({target:f.target,revision:1}),before=await f.persistenceCounts(),versionsBefore=await outlineVersionCounts(pool,f.target),changed=structuredClone(f.baseline);
+    expect(initial).not.toBeNull();expect((await reader.snapshot({target:f.target,revision:1}))!.snapshot).toBe(initial!.snapshot);
+    changed.project.scope.label+=' Explicit administrator-owned cache fixture update.';
+    try{
+      await pool.query('UPDATE camery_versioning.snapshots SET package=$1::jsonb WHERE tenant_id=$2 AND project_id=$3 AND revision=1',[JSON.stringify(changed),f.target.tenantId,f.target.projectId]);
+      const refreshed=await reader.snapshot({target:f.target,revision:1});expect(refreshed!.snapshot).toEqual(changed);expect(refreshed!.snapshot).not.toBe(initial!.snapshot);expect((await reader.snapshot({target:f.target,revision:1}))!.snapshot).toBe(refreshed!.snapshot);expect(initial!.snapshot).toEqual(f.baseline);
+      const corrupted=structuredClone(changed);corrupted.project.scope.expected_episode_count=-1;
+      await pool.query('UPDATE camery_versioning.snapshots SET package=$1::jsonb WHERE tenant_id=$2 AND project_id=$3 AND revision=1',[JSON.stringify(corrupted),f.target.tenantId,f.target.projectId]);
+      await expect(reader.snapshot({target:f.target,revision:1})).rejects.toMatchObject({code:'STORAGE_FAILED'});expect(refreshed!.snapshot).toEqual(changed);
+    }finally{await pool.query('UPDATE camery_versioning.snapshots SET package=$1::jsonb WHERE tenant_id=$2 AND project_id=$3 AND revision=1',[JSON.stringify(f.baseline),f.target.tenantId,f.target.projectId]);}
+    const restored=await reader.snapshot({target:f.target,revision:1});expect(restored!.snapshot).toEqual(f.baseline);
+    try{
+      await pool.query('UPDATE camery_versioning.projects SET package_id=$1 WHERE tenant_id=$2 AND project_id=$3',[fixtureId('corrupted-cached-formal-package'),f.target.tenantId,f.target.projectId]);
+      await expect(reader.snapshot({target:f.target,revision:1})).rejects.toMatchObject({code:'STORAGE_FAILED'});
+    }finally{await pool.query('UPDATE camery_versioning.projects SET package_id=$1 WHERE tenant_id=$2 AND project_id=$3',[f.baseline.package_id,f.target.tenantId,f.target.projectId]);}
+    expect((await reader.snapshot({target:f.target,revision:1}))!.snapshot).toEqual(f.baseline);expect(await f.persistenceCounts()).toEqual(before);expect(await outlineVersionCounts(pool,f.target)).toEqual(versionsBefore);
+  });
+});
