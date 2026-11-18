@@ -2,7 +2,7 @@
 
 ## T1.5 四本账核心
 
-新增独立`@camery/script/continuity/contracts`和浏览器安全`@camery/script/continuity`，以及Node专用`@camery/script/continuity/node`。它们实现事实、知情、人物状态和伏笔的结构化事件演算；当前属于[完整T1.5计划](../../docs/plan/continuity-phase1.md)的核心增量，持久审阅/正式采用应用、页面及T1.6定稿消费继续。
+新增独立`@camery/script/continuity/contracts`和浏览器安全`@camery/script/continuity`，以及Node专用`@camery/script/continuity/node`。它们实现事实、知情、人物状态和伏笔的结构化事件演算与不可变候选/人审存储；正式采用应用、页面及T1.6定稿消费继续按[完整T1.5计划](../../docs/plan/continuity-phase1.md)实施。
 
 - `captureContinuityContext`从完整已采用IR投影实际集序、节拍/台词、声音类型及物理引用；`validateContinuityDraft`核对精确版本、原文片段、角色与物件所属。不会从正文猜测事实。
 - `reduceEpisodeContinuity`只延续相邻前集，保留全部四账和来源。无来源告知/使用、错误伏笔配对产生定位问题；错误学习不赋知识。内心独白、旁白和有声台词分开处理。
@@ -10,6 +10,8 @@
 - `nativeEpisodeSnapshotPins`计算前集剧本及四账状态引用闭包；显式快照可作为第三参数加入物理/知情引用。`readAdoptedEpisodeHandoff`经受信VersionStore读取，核对真实采用历史、完整来源pins和相邻集；单凭`status=adopted`、候选预览或初始化行均不能继续。该Node只读port不做认证，宿主必须先授权，尚未接入公共API。
 
 上下文≤64MiB，单集事件≤512KiB，累计ledger≤2MiB，候选封套≤8MiB；数量上限不保证所有字段同时达限。超限失败，不截断。旧IR v05/v06/v07、四账字段和Method限额保持；旧native知情source文字作为已人工采用的声明携带，不冒充typed事件证据。
+
+`PostgresContinuityStore`提供真实版本来源、prepare/read/confirm/reject及同client `readForAdoption`；独立新schema保存原始候选和完整人改结果。首次确认在原生版本头锁内重验来源；原ID历史ACK先重新授权，再返回首次审计。安装、专用LOGIN与限额见[PostgreSQL说明](./CONTINUITY_POSTGRES.md)。未配置可信前集解析器时非首集失败闭合；当前没有新公共HTTP入口或自动正式写入。
 
 ## T1.3 原创开发
 

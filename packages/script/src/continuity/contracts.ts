@@ -56,5 +56,5 @@ export const ContinuityCandidateSchema=z.strictObject({version:z.literal(1),stat
 export type ContinuityCandidate=z.infer<typeof ContinuityCandidateSchema>;
 export class ContinuityError extends Error{
   override readonly name='ContinuityError';
-  constructor(readonly code:'INVALID_INPUT'|'INPUT_LIMIT'|'INVALID_REFERENCE'|'CONFLICT'|'INCOMPLETE'|'NOT_FOUND'|'UNADOPTED_SNAPSHOT'|'STORAGE_FAILED',readonly operation:string,readonly path:string){super(`Continuity ${operation} failed (${code}) at ${path}`);}
+  constructor(readonly code:'INVALID_INPUT'|'INPUT_LIMIT'|'INVALID_REFERENCE'|'CONFLICT'|'INCOMPLETE'|'FORBIDDEN'|'NOT_FOUND'|'UNADOPTED_SNAPSHOT'|'STORAGE_FAILED',readonly operation:string,readonly path:string){super(`Continuity ${operation} failed (${code}) at ${path}`);}
 }

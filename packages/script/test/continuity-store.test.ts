@@ -1,0 +1,12 @@
+import {expect,it,vi} from 'vitest';
+import type {Pool} from 'pg';
+import {PostgresContinuityStore} from '../src/continuity/node/store.js';
+import {continuityDigest} from '../src/continuity/node/digest.js';
+import {CONTINUITY_RECORD_BYTES} from '../src/continuity/node/persistence-contracts.js';
+import type {ContinuityPreparation} from '../src/continuity/node/persistence-contracts.js';
+import {ContinuityMemory,id} from './continuity-store-protocol-support.js';
+const key={tenantId:'tenant',projectId:'project',candidateId:'candidate'};
+const host={actor:{kind:'human' as const,id:'editor'},scope:{tenantId:'tenant',projectId:'project'},at:'2026-11-18T14:00:00.000Z',authorize:()=>true};
+it('authorizes a read before acquiring a database connection',async()=>{const connect=vi.fn();const store=new PostgresContinuityStore({connect} as unknown as Pool);await expect(store.read(key,{...host,authorize:()=>false})).rejects.toMatchObject({code:'FORBIDDEN'});expect(connect).not.toHaveBeenCalled();});
+it('keeps dependency exceptions out of public storage failures',async()=>{const store=new PostgresContinuityStore({connect:async()=>{throw new Error('postgres://private');}} as unknown as Pool);await expect(store.read(key,host)).rejects.toThrow('Continuity read connection failed (STORAGE_FAILED) at storage');});
+it('rejects a false source package identity even after its complete preparation digest is recomputed',async()=>{const f=new ContinuityMemory();await f.store.prepare(f.command(),f.host);const row=f.candidateRow(),record=structuredClone(row['record']) as ContinuityPreparation;record.source.packageId=id('forged-source-package');const {digest:_digest,...body}=record;record.digest=continuityDigest(body,CONTINUITY_RECORD_BYTES);row['record']=record;row['digest']=record.digest;await expect(f.store.read(f.key,f.host)).rejects.toMatchObject({code:'STORAGE_FAILED',operation:'stored candidate source'});});

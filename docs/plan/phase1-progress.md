@@ -1,5 +1,12 @@
 # 阶段 1 开发进展
 
+### T1.5 持久候选与人工审阅（2026-11-18）
+
+- 新`camery_continuity`两张追加表保存完整原始候选与独立人改/拒绝审计，固定真实formal package/snapshot和前集来源；显式安装、固定checksum/FK及匹配source索引，不改旧IR或自动部署。
+- 独立LOGIN只追加新表、读取版本元数据，并以唯一write_version列权限取得原生project行锁。首次人审同事务重验来源，原ID历史ACK先重新授权并保留原actor/time；constructor可信前集resolver不接受命令自报ledger，缺配置非首集失败闭合。
+- 新182普通反例及9真实PG用例通过，覆盖大审阅记录、8并发、COMMIT丢ACK、新pool、回滚、来源变更、真实锁阻挡及额外权限拒绝。完整script PG1675项、整仓5357项及95%门槛通过；复审与实际失败修复见[实施记录](continuity-phase1.md)，接口/安装见[存储说明](../../packages/script/CONTINUITY_POSTGRES.md)。
+- 当前仍是正式采用的持久人审前置，生产typed采用/回执、前集解析器、认证API/页面和定稿消费继续；本批远端镜像/私有组合以随后精确CI终态为准，完整T1.5/阶段1不提前判完成。
+
 ### T1.5 四本账核心与原生采用交接（2026-11-18）
 
 - 新独立continuity契约和纯域：事实、知情、人物状态、伏笔按真实beat/line精确版本与quote演算，延续相邻前集；保留四类声音，内心独白/旁白不使他人无来源知情。候选摘要完整重放，不自称已人审或正式采用。
