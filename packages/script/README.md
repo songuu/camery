@@ -1,5 +1,18 @@
 # @camery/script · 原创开发核心
 
+## T1.5 四本账核心
+
+新增独立`@camery/script/continuity/contracts`和浏览器安全`@camery/script/continuity`，以及Node专用`@camery/script/continuity/node`。它们实现事实、知情、人物状态和伏笔的结构化事件演算；当前属于[完整T1.5计划](../../docs/plan/continuity-phase1.md)的核心增量，持久审阅/正式采用应用、页面及T1.6定稿消费继续。
+
+- `captureContinuityContext`从完整已采用IR投影实际集序、节拍/台词、声音类型及物理引用；`validateContinuityDraft`核对精确版本、原文片段、角色与物件所属。不会从正文猜测事实。
+- `reduceEpisodeContinuity`只延续相邻前集，保留全部四账和来源。无来源告知/使用、错误伏笔配对产生定位问题；错误学习不赋知识。内心独白、旁白和有声台词分开处理。
+- `createContinuityCandidate`及`validateContinuityCandidate`记录并完整重放context/前集摘要。候选和digest只证明完整性，不能代替当前授权、人类决定或正式采用。
+- `nativeEpisodeSnapshotPins`计算前集剧本及四账状态引用闭包；显式快照可作为第三参数加入物理/知情引用。`readAdoptedEpisodeHandoff`经受信VersionStore读取，核对真实采用历史、完整来源pins和相邻集；单凭`status=adopted`、候选预览或初始化行均不能继续。该Node只读port不做认证，宿主必须先授权，尚未接入公共API。
+
+上下文≤64MiB，单集事件≤512KiB，累计ledger≤2MiB，候选封套≤8MiB；数量上限不保证所有字段同时达限。超限失败，不截断。旧IR v05/v06/v07、四账字段和Method限额保持；旧native知情source文字作为已人工采用的声明携带，不冒充typed事件证据。
+
+## T1.3 原创开发
+
 实现v2.1 T1.3的两阶段候选契约：创意brief→世界观/人物/主线foundation→用户显式编辑审阅→分集episodes。领域/方法、逐阶段PostgreSQL持久化、预算恢复、认证API、可编辑工作台和配置型常驻宿主已接入；正式开发IR采用与真实模型质量仍按[完整计划](../../docs/plan/original-development-phase1.md)继续。不能据库级测试判定完整T1.3或阶段1已完成。
 
 | API | 行为 |
