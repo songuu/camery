@@ -1,0 +1,11 @@
+import {z} from 'zod';
+import {Id,Hash,Integer} from '../../contracts.js';
+import {ScreenplayContextSchema,ScreenplayDraftSchema,ScreenplayRulesSchema} from '../contracts.js';
+import {ContinuityPreviousSchema,ContinuityTargetSchema} from '../../continuity/node/persistence-contracts.js';
+import {ScreenplayKeySchema,ScreenplayCandidateSchema,ScreenplayReviewSchema} from './contracts.js';
+import {ScreenplaySourceSchema} from './source.js';
+export const ScreenplayPrepareSchema=z.strictObject({key:ScreenplayKeySchema,target:ContinuityTargetSchema,expectedSnapshotRevision:Integer.min(1),expectedPackageDigest:Hash,rules:ScreenplayRulesSchema,draft:ScreenplayDraftSchema});
+export const ScreenplayPreparationSchema=z.strictObject({version:z.literal(1),key:ScreenplayKeySchema,source:ScreenplaySourceSchema,context:ScreenplayContextSchema,previous:ContinuityPreviousSchema.nullable(),candidate:ScreenplayCandidateSchema,authorId:Id,createdAt:z.iso.datetime({precision:3}),commandDigest:Hash,digest:Hash});
+export type ScreenplayPreparation=z.infer<typeof ScreenplayPreparationSchema>;
+export const ScreenplayProgressSchema=z.strictObject({preparation:ScreenplayPreparationSchema,review:ScreenplayReviewSchema.nullable(),current:z.boolean()});
+export type ScreenplayProgress=z.infer<typeof ScreenplayProgressSchema>;

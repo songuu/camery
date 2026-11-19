@@ -122,6 +122,12 @@ export class PostgresOutlineStore implements OutlineStore {
     });
   }
   async read(input:OutlineRunKey):Promise<OutlineProgress>{const key=capture(OutlineKeySchema,input,'run key',2048);return this.transaction(key,null,client=>this.progress(client,key));}
+  /** Historical integrity only on a caller-owned connection; no current-source claim or independent transaction. */
+  async readHistoricalForAdoption(client:PoolClient,input:unknown):Promise<OutlineProgress>{
+    const source=deepFreeze(capture(OutlineAdoptionSourceSchema,input,'historical adoption source',4096));
+    try{return captureOutlineAdoptionProgress(source,await this.progress(client,{tenantId:source.tenantId,projectId:source.projectId,runId:source.runId}));}
+    catch(error){let known=false;try{known=error instanceof OutlineError;}catch{/* Driver prototype traps cannot supply public diagnostics. */}if(known)throw error;return failed('historical adoption source');}
+  }
   /** Reuse the adopter's transaction: source locks must remain held until the same formal commit. */
   async readForAdoption(client:PoolClient,input:unknown):Promise<OutlineProgress>{
     const source=deepFreeze(capture(OutlineAdoptionSourceSchema,input,'adoption source',4096)),key={tenantId:source.tenantId,projectId:source.projectId,runId:source.runId};

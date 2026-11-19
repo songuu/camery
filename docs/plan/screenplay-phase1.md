@@ -1,6 +1,6 @@
 # 阶段1 T1.6 剧本定稿与四账约束消费
 
-## Revision 1 · 非认证领域与工作流
+## Revision 2 · 非认证定稿内核与实际四账交接
 
 2026-11-19 用户指定认证相关先后补，优先 T1.6；保留已有数据/版本访问边界，不新增登录或认证 HTTP 前置。接续[四账采用与前集证明](continuity-phase1.md)。现有旧 IR 已承载 scene/beat/line 及四类 line.kind，无需为正文修改 v05/v06/v07/v08。原生纯引擎探针已确认新增正文与 text 锁可同 ChangeSet 采用，首个 line revision 即 version1/locked=true；锁定既有未锁台词则提升版本。具体实现必须补对应冻结回归，不能把候选 ID 当作已采用事件。
 
@@ -39,7 +39,30 @@
 | 根：冻结契约、真实来源与约束读取 | screenplay/contracts/context/node/source；依赖已验证四账；L3 | AC-SC-1/2/6；真实 current/historical 区分、源版本/范围/引用/链反例 |
 | 独立纯检查 | screenplay/validate 与独立 test；依赖冻结契约；L2 | AC-SC-2/3；完整稿、四声音、模块/前三拍定位与明确问题 |
 | 独立估时/台词本 | screenplay/timing/line-book 与独立 test；依赖冻结契约；L2 | AC-SC-4；区间/Unicode/完整原文及导出往返；不冒称音频实测 |
-| 根：生成、不可变人审、durable/预算与原生定稿 | screenplay/node、显式新迁移/角色；依赖以上；L4 | AC-SC-5；真实 PG/并发/新pool/原任务恢复/回滚/丢ACK/原生 text 锁 |
+| 根：不可变人审与原生定稿 | screenplay/node、显式新迁移；依赖以上；L4 | AC-SC-5；真实 PG/并发/新pool/原意图恢复/回滚/丢ACK/原生 text 锁 |
 | 根：定稿与四账交接、交付 | 实际正式脚本/ledger组合、方法/Node入口、文档；L4 | AC-SC-6；实际两集正式来源与精确 CI；认证 UI 与真人质量按用户安排后补 |
 
 TDD→窄测/types/lint→code/TypeScript/security/DB按实际风险复审→根串行 PG/覆盖率/整仓→授权 commit/push 与精确远端 CI。只有文件不相交、契约已冻结、风险≤L2的实现任务可并行；SQL、来源/发布和总体验收由根负责。回滚撤新入口并保留任何已采用剧本、锁与四账历史；用户五份脏文档和无关文件保持。
+
+## 本轮实现与证据
+
+已实现[内部 Node 定稿入口及使用说明](../../packages/script/SCREENPLAY_POSTGRES.md)，输入完整人工/宿主候选稿。纯入口为 `@camery/script/screenplay`，Node 入口为 `@camery/script/screenplay/node`；没有新增认证 HTTP 或自动付费生成路径。
+
+| AC | 已实现的可观察行为 | 验证 |
+| --- | --- | --- |
+| AC-SC-1/6 | 实际 adopted 大纲与原文完整读取；非首集只从真实 typed native predecessor 链取得完整四账；current 与 historical 分开 | 源版本/范围/引文反例，实际上游 brief 更新后 current:false 且正式采用拒绝 |
+| AC-SC-2/3 | 完整 scene/beat/line 与独立 ID；四声音/角色/原文引用；前三拍开场钩子、末拍卡点、明确配置的首集五模块 | 可定位错误不可豁免；主观钩子、模块、四账完整性逐项人审，不给自动质量结论 |
+| AC-SC-4 | 显式四声音语速/停顿的估计区间、Unicode L/N 计数、安全整数；完整原文台词本与实际角色顺序 | 四声音/组合符号/emoji/边界/溢出及 8192 台词完整导出 |
+| AC-SC-5 | 原候选与人改稿追加留存；授权前捕获输入；固定 scene/beat/line/操作/锁 ID；同次采用正文和 text 锁 | 原生 line v1 即锁定；八并发一份采用；实际 proof INSERT 后失败全回滚；真实 COMMIT 丢ACK后新pool恢复；首次提交丢ACK可按候选key恢复原ID |
+| AC-SC-6 | 历史快照、原生请求、对象版本、正文/text 锁、实际人工审计交叉核对；当前完整写作依赖/场次事件流；实际四账正式采用后才 handoff_ready | 真实两集流程：ledger_pending→四账人审与native采用→handoff_ready→下一集完整继承与伏笔消费 |
+
+审查发现并修复：来源/同连接异常原型泄漏、current 只看原生 head 而忽略上游变化、宿主回调修改输入、历史 snapshot 正文与对象审计脱节、跨 Outline/剧本锁序反转、JSONB 物理预算、public advisory 函数精确重载遮蔽，以及继承 REPEATABLE READ 时等待源锁后仍读取旧快照。owned transaction 显式 RC，当前 handoff 拒绝非 RC 调用者事务，历史 ACK 不伪装 current。实际双会话屏障确认 Outline 宿主采用成功、竞争剧本读以精确源变化拒绝；另一屏障确认实际 brief INSERT 后提交的新版会被等待者看到，不能用单路径八并发或 mock 隔离字符串代替。
+
+- 冻结普通 script：92 文件、2268 项通过；覆盖率 statements 97.17%、branches 95.22%、functions 98.95%、lines 99.43%。
+- 冻结完整 script PG：110 文件、2397 项（2268 普通＋129 实际 PG）通过；覆盖率 97.42%/95.50%/99.33%/99.80%，402.51s，日志 `artifacts/delivery/screenplay-script-pg-frozen.log`，SHA256 `4314679b6d4ec50515a0af8a2586f379c1c8e3f15234ee552e0e087ed746ec60`。新增 T1.6 的 8 个实际隔离库场景均通过。
+- 冻结整仓 `pnpm check`：6137 项（20 工具＋6117 普通）通过，13 个 types 与13 个 coverage 均实际运行、0 缓存；978 个源文件政策0违规；6 方法/10 Agent 金标匹配。日志 `artifacts/delivery/screenplay-workspace-check-frozen.log`，SHA256 `6d678c51f1e1f4d86e932c901bc12347e7b4dd0da33a8318d4a6bf6b8ee81216`。新增公开 pure/Node 包入口导入 smoke 通过。
+- code/TypeScript/security/DB 分层复审及最终 delta 均已闭合 P0–P2；46 个冻结源码/配置文件与验收时一致，用户五份脏文档未改。随后执行已授权提交/推送，精确提交的远端 CI 仍须终态全绿；远端 proof 单独保留在 ignored delivery artifacts，避免文档补写再次触发同一轮 CI。
+
+## 后续边界
+
+本轮交付定稿及四账消费内核；编剧 Agent 的独立生成入口、Methods/Agent/Durable 调度和预算组合继续按已有 2MiB 调用边界接入，不把人工候选 API 冒称已完成文本生成或真人质量验收。首集五项生产语义仍由项目提供版本化配置；缺定义不会自动通过。认证 API/UI、编辑器、法务、设计伙伴及真实文本模型/真人评分按用户安排后补，现有访问保护保持。

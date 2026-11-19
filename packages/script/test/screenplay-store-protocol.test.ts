@@ -1,0 +1,40 @@
+import {EventEmitter} from 'node:events';
+import {beforeEach,expect,it,vi} from 'vitest';
+import type {Pool,PoolClient} from 'pg';
+import {PostgresScreenplayStore} from '../src/screenplay/node/store.js';
+import {ScreenplayError} from '../src/screenplay/contracts.js';
+import {screenplayNativeFixture} from './screenplay-native-support.js';
+const source=vi.hoisted(()=>({current:vi.fn(),history:vi.fn()}));
+vi.mock('../src/screenplay/node/source.js',async importOriginal=>({...await importOriginal<typeof import('../src/screenplay/node/source.js')>(),readScreenplaySource:source.current,readStoredScreenplaySource:source.history}));
+beforeEach(()=>vi.clearAllMocks());
+/** SQL protocol fixture only. Transaction durability and real immutable source replay have separate PostgreSQL tests. */
+async function fixture(){
+  const f=await screenplayNativeFixture(),p=f.progress.preparation,view={head:f.head,source:p.source,context:p.context,previous:null};source.current.mockResolvedValue(view);source.history.mockResolvedValue(view);
+  let candidate:Record<string,unknown>|undefined,review:Record<string,unknown>|undefined,headRevision=f.head.revision.number;
+  const query=vi.fn(async(sql:string,values:unknown[]=[]):Promise<{rows:Record<string,unknown>[]}>=>{
+    if(sql.startsWith('SELECT tenant_id')&&sql.includes('camery_screenplay.candidates'))return {rows:candidate?[candidate]:[]};
+    if(sql.startsWith('SELECT tenant_id')&&sql.includes('camery_screenplay.reviews'))return {rows:review?[review]:[]};
+    if(sql.startsWith('SELECT head_revision'))return {rows:[{head_revision:String(headRevision)}]};
+    if(sql.startsWith('INSERT INTO camery_screenplay.candidates'))candidate={tenant_id:values[0],project_id:values[1],candidate_id:values[2],formal_tenant_id:values[3],formal_project_id:values[4],source_revision:values[5],context_digest:values[6],command_digest:values[7],digest:values[8],record:JSON.parse(values[9] as string)};
+    if(sql.startsWith('INSERT INTO camery_screenplay.reviews'))review={tenant_id:values[0],project_id:values[1],candidate_id:values[2],request_digest:values[3],digest:values[4],record:JSON.parse(values[5] as string)};
+    return {rows:[]};
+  });
+  const client=Object.assign(new EventEmitter(),{query,release:vi.fn()}),pool={connect:vi.fn(async()=>client)} as unknown as Pool,outline={readForAdoption:vi.fn(),readHistoricalForAdoption:vi.fn()},store=new PostgresScreenplayStore(pool,outline),host={...f.host,authorize:vi.fn(()=>true)};
+  const command={key:f.key,target:f.target,expectedSnapshotRevision:f.head.revision.number,expectedPackageDigest:p.source.native.packageDigest,rules:f.context.rules,draft:f.draft},decision={candidateDigest:f.candidate.digest,draft:f.draft,waivers:f.candidate.issues.filter(row=>row.severity==='warning').map(row=>({issueId:row.id,reason:'逐条人工决定。'}))};
+  return {...f,host,client,pool,query,store,command,decision,rows:{candidate:()=>candidate!,review:()=>review!},advance:()=>{headRevision++;}};
+}
+it('captures current source before the candidate advisory lock, persists one preparation/review and replays their original identities',async()=>{
+  const f=await fixture(),first=await f.store.prepare(f.command,f.host);expect(first.current).toBe(true);expect(first.preparation.createdAt).toBe(f.host.at);
+  const reviewed=await f.store.review(f.key,f.decision,f.host);expect(reviewed.review?.output.draft).toEqual(f.draft);
+  const later={...f.host,at:'2026-11-19T06:00:00.000Z'};expect((await f.store.prepare(f.command,later)).preparation).toEqual(first.preparation);expect((await f.store.review(f.key,f.decision,later)).review).toEqual(reviewed.review);
+  expect(f.query.mock.calls.filter(row=>row[0].startsWith('INSERT INTO camery_screenplay.candidates'))).toHaveLength(1);expect(f.query.mock.calls.filter(row=>row[0].startsWith('INSERT INTO camery_screenplay.reviews'))).toHaveLength(1);
+  const sourceOrder=source.current.mock.invocationCallOrder[0]!,lock=f.query.mock.calls.findIndex(row=>row[0].includes('pg_advisory_xact_lock'));expect(sourceOrder).toBeLessThan(f.query.mock.invocationCallOrder[lock]!);
+});
+it.each(['revision','digest'] as const)('rejects stale source %s before inserting',async mode=>{const f=await fixture();if(mode==='revision')f.command.expectedSnapshotRevision++;else f.command.expectedPackageDigest='b'.repeat(64);await expect(f.store.prepare(f.command,f.host)).rejects.toMatchObject({code:'CONFLICT'});expect(f.query.mock.calls.some(row=>row[0].startsWith('INSERT'))).toBe(false);});
+it.each(['candidate','author','review'] as const)('refuses a changed immutable %s command',async mode=>{const f=await fixture();await f.store.prepare(f.command,f.host);if(mode==='candidate'){const command=structuredClone(f.command);command.draft.title+='改';await expect(f.store.prepare(command,f.host)).rejects.toMatchObject({code:'CONFLICT'});}else if(mode==='author')await expect(f.store.prepare(f.command,{...f.host,actor:{kind:'human',id:'other'}})).rejects.toMatchObject({code:'CONFLICT'});else{await f.store.review(f.key,f.decision,f.host);const decision=structuredClone(f.decision);decision.waivers[0]!.reason='不同人工决定';await expect(f.store.review(f.key,decision,f.host)).rejects.toMatchObject({code:'CONFLICT'});}});
+it.each(['CONFLICT','INCOMPLETE'] as const)('reports current:false for actual %s source refusal, retaining the complete historical body',async code=>{const f=await fixture();await f.store.prepare(f.command,f.host);source.current.mockRejectedValue(new ScreenplayError(code,'source','changed'));const progress=await f.store.read(f.key,f.host);expect(progress.current).toBe(false);expect(progress.preparation.candidate.draft).toEqual(f.draft);});
+it('does not misreport an unknown source outage as normal staleness',async()=>{const f=await fixture();await f.store.prepare(f.command,f.host);source.current.mockRejectedValue(new Error('private://failure'));await expect(f.store.read(f.key,f.host)).rejects.toMatchObject({code:'STORAGE_FAILED',message:expect.not.stringContaining('private')});});
+it('requires a real review for fresh adoption, while historical callback reads never claim freshness',async()=>{const f=await fixture();await f.store.prepare(f.command,f.host);const client=f.client as unknown as PoolClient;await expect(f.store.readForAdoption(client,f.key,f.host)).rejects.toMatchObject({code:'INCOMPLETE'});await f.store.review(f.key,f.decision,f.host);const calls=f.query.mock.calls.length;expect((await f.store.readForAdoption(client,f.key,f.host)).current).toBe(true);expect((await f.store.readHistorical(client,f.key,f.host)).current).toBe(false);expect(f.query.mock.calls.slice(calls).some(row=>['BEGIN','COMMIT','ROLLBACK'].includes(row[0]))).toBe(false);f.advance();expect((await f.store.read(f.key,f.host)).current).toBe(false);});
+it.each(['tenant_id','project_id','candidate_id','formal_tenant_id','formal_project_id','source_revision','context_digest','command_digest','digest'] as const)('refuses altered candidate SQL column %s',async column=>{const f=await fixture();await f.store.prepare(f.command,f.host);f.rows.candidate()[column]='wrong';await expect(f.store.read(f.key,f.host)).rejects.toMatchObject({code:'STORAGE_FAILED'});});
+it.each(['tenant_id','project_id','candidate_id','request_digest','digest'] as const)('refuses altered review SQL column %s',async column=>{const f=await fixture();await f.store.prepare(f.command,f.host);await f.store.review(f.key,f.decision,f.host);f.rows.review()[column]='wrong';await expect(f.store.read(f.key,f.host)).rejects.toMatchObject({code:'STORAGE_FAILED'});});
+it('authorizes source descriptions before connecting and returns the captured actual source',async()=>{const f=await fixture(),selection={scope:f.scope,target:f.target,episodeId:f.context.episode.id,rules:f.context.rules};expect((await f.store.describeSource(selection,f.host)).source).toEqual(f.progress.preparation.source);f.host.authorize.mockReturnValue(false);const calls=vi.mocked(f.pool.connect).mock.calls.length;await expect(f.store.describeSource(selection,f.host)).rejects.toMatchObject({code:'FORBIDDEN'});expect(vi.mocked(f.pool.connect)).toHaveBeenCalledTimes(calls);});
