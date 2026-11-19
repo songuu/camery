@@ -1,5 +1,21 @@
 # 阶段1 T1.5 四本账与集末状态快照
 
+## Revision 3 · 完整四账的正式版本承载（实施中）
+
+前批 `f00f8ed8ef59bb3f050b745d00c46c619193a9a8` 精确 CI https://github.com/songuu/camery/actions/runs/44327226492 completed/success，27 步全部通过。本批先打通正式版本的数据表达和兼容消费者，不将 schema 可写等同于完成受信采用、认证接口或页面。
+
+| 边界 | Before | After / 验证 |
+| --- | --- | --- |
+| 旧严格读者 | v05/v06/v07 | 冻结 v07 package/ChangeSet/集合及 JSON Schema 摘要，旧版本拒绝新集合；既有升级边保持 |
+| 完整四账 | script 独立 typed ledger；旧原生快照缺少 ID、学习来源和叙事状态 | IR v08 新增 `continuity_snapshots`，保存完整同形 ledger、精确 `based_on`；无自由 JSON、无伪造物理素材要求、无自报 adopted 字段 |
+| 版本升级 | 显式人类 project ChangeSet，05→06→07 | 只增加独立 07→08 边，禁止跳级/降级/混合/候选并行；不自动迁移既有项目 |
+| 消费者 | Workbench / 大纲 / 原创正式映射至 v07 | 显式识别 v08，沿用原授权与来源策略，v07 已存命令/草稿摘要保持；新四账集合禁止从通用 HTTP 手工写入 |
+| 可信采用 | reviewed 只表示人审 | 继续保持；后批才接同事务完整 ledger/回执和生产前集 resolver，不能以本批 native 测试冒充产品入口 |
+
+根 owner：IR 共享纯契约、v08 严格 schema/图与 freshness、版本引擎和整体串行 gate（L4）。冻结下列契约后允许两个独立 L2 任务并行：一组只改 server/web/script 映射与兼容测试；另一组只新增 v07 冻结和版本升级/对象/权限/回滚测试。共享纯 schema 仅依赖 zod 与 IR legacy primitives，script 继续 re-export，既有 v1 持久记录与摘要不变化。`StoryboardPackageV08`、`ChangeSetV08`、`upgradeV07Package` 和 `CONTINUITY_SCHEMA_VERSION='0.8.0-draft'` 是新边界；`OUTLINE_SCHEMA_VERSION` 仍为 v07，升级描述协议增加相邻 07→08，既有大纲页面仅在 05/06 提示升级至 v07。新 native 行为 `{id,version,episode_id,based_on,ledger}`，ledger 保留现有全部四账/证据字段；`based_on` 覆盖 ledger 引用及新鲜证据的 episode/scene/line 所属 beat；任一旧 pin 不从当前图重建历史归属/时序，过去 pin 可报告 stale，未来/缺失/跨域引用拒绝。
+
+先 RED 反例，再实现、窄测/types/lint、独立 code/TS/security 复审，根串行实际 PG/覆盖率/整仓，授权提交推送并等待精确 CI。回滚撤销新入口，保留已采用 v08 的历史与只读能力；禁止用降级丢弃新账本。旧迁移字节与数据库权限不变，五份用户脏文档和后补安排保持。
+
 Revision 2 · 2026-11-18。接续`b0ccfcd2ca792e5132fc6491241a64acd84cffb6`，精确CI https://github.com/songuu/camery/actions/runs/44312613153 已completed/success，27步骤全部成功。用户已授权提交/推送，编辑器、法务和设计伙伴确认后补；完整阶段1范围保持。
 
 <!-- design-authority:start -->
@@ -84,3 +100,13 @@ Gate：RED→窄测/types/lint→code/TS/security/DB审查→根串行真实PG�
 - 实际PG前集组合使用同client的显式可信测试resolver读取实际已存reviewed输出及真实native adoption：未采用或无resolver不能给下一集材料，采用后完整事实/知情/人物状态/伏笔继承且下一集真实回收。该fixture不是生产typed账本采用实现。原生head写/新两表UPDATE/DELETE被42501拒绝；额外列、native INSERT、列GRANT OPTION、sequence USAGE与role membership使verifier拒绝，逐项撤销后恢复。column-only write_version权限可取行锁，table-wide UPDATE/head权限为false。source FK实际拒绝孤儿snapshot（23503），索引valid/ready与三列顺序通过，关闭顺序扫描的自有事务EXPLAIN验证source lookup可用匹配索引，不承诺生产成本规划必选。重复migrate账本不变；随机租户/角色/临时对象已清理。
 - 最终PG日志`artifacts/delivery/continuity-persistence-pg-final.log` SHA-256=`6ffaf3f567ba494a4350d49e0557269fbe798f3e9c219c532029fefc67578e9c`。最终`pnpm check`终态0：5357项=20工具+5337普通，script1565普通覆盖97.90/96.08/99.21/99.50%，IR579/server1004保持；13包类型成功（10缓存/3执行），13包覆盖率全部实际执行、零coverage缓存，893文件策略零问题，方法6项/Agent10项基线匹配。整仓日志`artifacts/delivery/continuity-persistence-workspace-check.log` SHA-256=`df6e2771aaa6908273351447c105c94db9b6071bf21c26e64bd1f402322fcb40`。PG普通项不重复相加；精确提交的镜像/私有组合仍以随后远端CI实际终态为准。
 - 安装与接口边界见`packages/script/CONTINUITY_POSTGRES.md`。本批只交付候选与人审存储及同事务source接口，未启用生产HTTP/页面/新角色，未把reviewed当正式adopted；typed正式采用/回执、生产前集解析器及T1.6定稿消费继续，完整T1.5/阶段1尚未完成。五份用户脏文档与后补安排保持。
+
+## v0.8 原生四账承载验证（2026-11-19）
+
+- 新增 81 项普通反例：IR 56（49 个四账结构/证据/物理状态/历史 freshness，6 个 v07 冻结，1 个 8k 节拍/台词完整容量）、versioning 10、script 消费者 4、server 消费者/手工绕过 10、web 兼容 1。新升级先缺实现 RED；v07 reader/ChangeSet 四个改前摘要及原 script v1 draft/ledger 两个摘要逐一保持。新鲜证据必须固定所属场景、台词所属 beat；缺失父级引用被拒绝。
+- 三项 P2 已闭合：重复扫描改为按外键预分组/排序，空账本直接返回；源版本重排不再以当前顺序硬拒旧 ledger；`STALE_CONTINUITY_DEPENDENCY` 完整保留到 native 候选/采用/原 ID 重放。两个 freshness 反例实际先 RED（警告为空、合法重排 rejected）后 GREEN，日志 `artifacts/delivery/continuity-v08-freshness-red.log` SHA-256=`c44589ac1c5dca12b5e29abb2753a60ed25f9e5eb98c57dfb4326505216e7a32`。新 stale 历史仍不能豁免项目绑定、唯一性、缺失/未来引用或完整字节预算。独立 Code/TypeScript/security 最终无未闭合 P0–P2；独立复审的同形 2k/4k/8k 顺序构建由 34/140/515ms 降至 3/7/11ms，只是本机诊断样本，不是生产 SLA。根实际完整 8k 图验证保持全部账本字段。
+- 真实 versioning PostgreSQL 初轮 324 通过、1 失败（`INVALID_HEAD`）：rich 测试夹具尚缺新契约的 beat/scene 父级 pin。只补齐真实父级版本，没有放宽 validator；首轮日志 `artifacts/delivery/continuity-v08-versioning-pg.log` SHA-256=`cb8b54dc06cdaa841d0527b656321d123abd0c0759821f1402d00f78443d80ab`。最终 `pnpm test:versioning:local --coverage` 终态 0：325 项=268 普通+57 PG，25 文件，19.06 秒，覆盖 98.08/95.97/99.47/99.84%；日志 `artifacts/delivery/continuity-v08-versioning-pg-final.log` SHA-256=`9b1fb48f5f61d9f88f15befbfc7be03dd635e4997a807fc4649f7570dddf421d`。
+- 新三项 PG 真实保存 07→08 人类项目升级、集级快照及完整四账/证据，独立新 pool 恢复、异 tenant/错误集拒绝、撤权后原 ID ACK 拒绝；旧 v07 历史不改。真实 INSERT 后 receipt 故障使 native head/审计及 probe receipt 一起回滚，真正 COMMIT 后丢 ACK 由原 ID 恢复一份决定/回执。probe 是测试宿主的同事务回执，不冒称完整生产四账采用或人审来源绑定。随机项目/临时表按原生 FK 顺序清理；旧 SQL 迁移和运行权限没有改变。
+- 系统重启使旧 script PG handle 消失且无终态，未将它判通过。恢复 Docker 既有数据库健康，并以冻结锁文件执行显式离线 install 同步私有 IR 包版本元数据（锁文件无改动）；随后串行 `pnpm test:script:local --coverage` 终态 0：1679 项=1569 普通+110 PG，81 文件，231.94 秒，覆盖 98.20/96.45/99.86/99.86%。最终日志 `artifacts/delivery/continuity-v08-script-pg-restored.log` SHA-256=`849171834027b9a8569aaac6a6b685f8334db00c86442fc4265bec6f4b64f315`。没有因中断清空业务数据或修改测试门槛。
+- 最终 `pnpm check` 终态 0：5438 项=20 工具+5418 普通，IR 635、versioning 268、script 1569、server 1014、web 322；13 包类型成功（3 缓存/10 实际），13 包覆盖率全部实际执行、零 coverage 缓存，908 文件策略零问题，方法 6 项和 Agent 10 项基线匹配。IR 覆盖 98.82/97.03/98.76/99.73%，script 普通覆盖 97.96/96.09/99.60/99.49%。日志 `artifacts/delivery/continuity-v08-workspace-check.log` SHA-256=`a6fa116929bc8552a22a4529195c6ad701e9de3e5e15582ddd8d474fcff5e278`。PG 中重复的普通项不与整仓相加。镜像及私有流程仍以本批精确提交远端 CI 的实际终态为准。
+- 原创/大纲映射、SQL 协议存储与读取、页面兼容 v08 的普通组合保持完整非空 ledger；未将 SQL double 冒称实际浏览器/PG v08 产品采用。v07 草稿不注入新字段，v08 显式绑定 draft/request/NoChange 版本；通用 HTTP 四账 add/update/replace/remove/lock/unlock 均拒绝。专用四账采用/回执、生产前集 resolver、认证 API/分页页面和 T1.6 定稿消费仍需继续，完整 T1.5/阶段1不判完成。用户五份脏文档和后补安排保持。

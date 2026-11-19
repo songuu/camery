@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {ChangeSetV07,StableId,StoryboardPackageV07,validatePackage} from '@camery/ir';
+import {ChangeSetV07,ChangeSetV08,StableId,StoryboardPackageV07,StoryboardPackageV08,validatePackage} from '@camery/ir';
 import {OutlineError} from '../contracts.js';
 import {deepFreeze} from '../boundary.js';
 import type {OutlineProgress} from './persistence-contracts.js';
@@ -19,7 +19,7 @@ const children=['outline_beats','outline_episode_plans','asset_plans','outline_p
 function conflict(path:string):never{throw new OutlineError('CONFLICT','formal mapping',path);}
 function unique(values:readonly unknown[],path:string):void{if(new Set(values).size!==values.length)conflict(path);}
 function next(version:number):number{if(version>=Number.MAX_SAFE_INTEGER)throw new OutlineError('INPUT_LIMIT','formal revision','version');return version+1;}
-function objects(head:StoryboardPackageV07):Map<string,{collection:string;value:Row}>{
+function objects(head:StoryboardPackageV07|StoryboardPackageV08):Map<string,{collection:string;value:Row}>{
   const rows=new Map<string,{collection:string;value:Row}>();
   for(const [collection,values] of Object.entries(head))if(Array.isArray(values))for(const value of values)if(value&&typeof value==='object'&&'id' in value&&'version' in value)rows.set(value.id,{collection,value:value as Row});return rows;
 }
@@ -36,7 +36,7 @@ export function prepareOutlineMappingDraft(input:{progress:OutlineProgress;sourc
   const raw=captureOutlineFormal(Input,input,'formal mapping input'),{source,identities,reviewer}=raw;
   const progress=captureOutlineAdoptionProgress(source,raw.progress),{run,review}=progress;
   if(identities.tenantId!==run.tenantId||identities.projectId!==run.projectId||identities.owner.runId!==run.runId||identities.owner.runDigest!==run.digest||reviewer.key!==review.actorId)conflict('source identities');
-  const head=captureOutlineFormal(StoryboardPackageV07,raw.head,'formal v07 head');
+  const head=captureOutlineFormal(z.discriminatedUnion('schema_version',[StoryboardPackageV07,StoryboardPackageV08]),raw.head,'formal outline head');
   if(head.project.id!==identities.target.projectId||head.revision.status!=='adopted'||!validatePackage(head).valid)conflict('adopted head');
   const output=review.output;
   for(const key of ['characters','beats','assets','plotUnits'] as const)complete(identities[key],output[key],key);
@@ -88,11 +88,12 @@ export function prepareOutlineMappingDraft(input:{progress:OutlineProgress;sourc
   preview.project.scope.expected_scene_count=preview.scenes.length;
   preview.project.scope.expected_required_beat_count=preview.beats.filter(row=>row.required).length;
   if(!validatePackage(preview).valid)conflict('prospective formal graph');
-  return deepFreeze(captureOutlineFormal(OutlineMappingDraftSchema,{version:1,target:identities.target,source,baseRevision:head.revision.number,baseRevisions:[...bases].sort(([a],[b])=>a.localeCompare(b)).map(([id,version])=>({id,version})),operations,reservedIds:[...new Set([...protectedIds,...existing.keys(),...mappedIds,reviewer.id,identities.target.tenantId])]},'formal mapping draft'));
+  // Keep the stored v07 draft byte-for-byte compatible; only v08 introduces a discriminator.
+  return deepFreeze(captureOutlineFormal(OutlineMappingDraftSchema,{version:1,...(head.schema_version==='0.8.0-draft'?{schemaVersion:head.schema_version}:{}),target:identities.target,source,baseRevision:head.revision.number,baseRevisions:[...bases].sort(([a],[b])=>a.localeCompare(b)).map(([id,version])=>({id,version})),operations,reservedIds:[...new Set([...protectedIds,...existing.keys(),...mappedIds,reviewer.id,identities.target.tenantId])]},'formal mapping draft'));
 }
 
 /** Finalize a trusted prepared draft with application-intent IDs; this does not authorize a public request. */
-export function finalizeOutlineChangeSet(input:{draft:OutlineMappingDraft;changeSetId:string;author:{kind:'user';id:string};operationIds:readonly {slot:string;id:string}[]}):ChangeSetV07{
+export function finalizeOutlineChangeSet(input:{draft:OutlineMappingDraft;changeSetId:string;author:{kind:'user';id:string};operationIds:readonly {slot:string;id:string}[]}):ChangeSetV07|ChangeSetV08{
   const {draft,changeSetId,author,operationIds}=captureOutlineFormal(Final,input,'formal change finalization');
   if(!draft.operations.length)throw new OutlineError('INCOMPLETE','unchanged formal draft','operations');
   unique(draft.operations.map(row=>row.slot),'operation slots');unique(draft.baseRevisions.map(row=>row.id),'base revisions');unique(operationIds.map(row=>row.slot),'fixed slots');unique(operationIds.map(row=>row.id),'fixed identities');
@@ -105,5 +106,5 @@ export function finalizeOutlineChangeSet(input:{draft:OutlineMappingDraft;change
     if(op.op==='add'?bases.has(id)||op.value['version']!==1:!bases.has(id)||op.op==='replace'&&(op.value['id']!==id||op.value['version']!==bases.get(id)))conflict('operation base');
     if(!reserved.has(id))conflict('unreserved operation target');return {...op,op_id:fixed.get(slot)!};
   });unique(targets,'operation targets');
-  return deepFreeze(captureOutlineFormal(ChangeSetV07,{schema_version:'0.7.0-draft',id:changeSetId,base_revision:draft.baseRevision,author,status:'candidate',base_revisions:draft.baseRevisions,ops},'formal outline ChangeSet',OUTLINE_MAPPING_CHANGE_BYTES));
+  return deepFreeze(captureOutlineFormal(z.discriminatedUnion('schema_version',[ChangeSetV07,ChangeSetV08]),{schema_version:draft.schemaVersion??'0.7.0-draft',id:changeSetId,base_revision:draft.baseRevision,author,status:'candidate',base_revisions:draft.baseRevisions,ops},'formal outline ChangeSet',OUTLINE_MAPPING_CHANGE_BYTES));
 }

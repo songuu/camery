@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {StoryboardPackage,StoryboardPackageV06,SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION,ChangeSetV07,upgradeV05Package,upgradeV06Package,validatePackage,OUTLINE_FORMAL_BYTES,toChangeSetJsonSchema} from '../src/index';
+import {StoryboardPackage,StoryboardPackageV06,OUTLINE_SCHEMA_VERSION as SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION,ChangeSetV07,upgradeV05Package,upgradeV06Package,validatePackage,OUTLINE_FORMAL_BYTES,toChangeSetJsonSchema} from '../src/index';
 import {makePackage,fixtureId as id} from './fixtures';
 import {makeOutlinePackage,outlineRef as ref} from './outline-formal-fixture';
 import {makeCapacityOutlinePackage} from './outline-formal-capacity-fixture';

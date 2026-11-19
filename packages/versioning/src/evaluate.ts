@@ -1,4 +1,4 @@
-import { ChangeSet, EditableCollection, StableId, StoryboardPackage, validatePackage,upgradeV05Package,upgradeV06Package,LEGACY_SCHEMA_VERSION } from '@camery/ir';
+import { ChangeSet, EditableCollection, StableId, StoryboardPackage, validatePackage,upgradeV05Package,upgradeV06Package,upgradeV07Package,LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION } from '@camery/ir';
 import { moveClip, TimelineError } from '@camery/timeline';
 import { applyShotEdit, ShotEditError } from './shot-edits';
 import { VersioningError } from './errors';
@@ -91,7 +91,7 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
       if(op.op==='upgrade_schema'){
         humanRequest(request);
         if(draft.schema_version!==op.from)throw new VersioningError('SCHEMA_VERSION',`/ops/${index}`,'Only a legacy head may be upgraded');
-        draft=op.from===LEGACY_SCHEMA_VERSION?upgradeV05Package(draft):upgradeV06Package(draft);
+        draft=op.from===LEGACY_SCHEMA_VERSION?upgradeV05Package(draft):op.from===DEVELOPMENT_SCHEMA_VERSION?upgradeV06Package(draft):upgradeV07Package(draft);
       }else if (op.op === 'update' || op.op === 'replace' || op.op === 'remove') {
         const original = requireObject(draft, op.target, op.collection);
         directBefore={id:op.target,collection:op.collection,value:original};
@@ -189,7 +189,7 @@ export function evaluate(state: VersionState, request: ChangeSet, options: Submi
     }
     const report = validatePackage(parsed.data);
     if (!report.valid) return fail('rejected', report.errors);
-    warnings.push(...report.warnings.filter(issue=>issue.code==='STALE_DEVELOPMENT_DEPENDENCY'||issue.code==='STALE_OUTLINE_DEPENDENCY'));
+    warnings.push(...report.warnings.filter(issue=>issue.code==='STALE_DEVELOPMENT_DEPENDENCY'||issue.code==='STALE_OUTLINE_DEPENDENCY'||issue.code==='STALE_CONTINUITY_DEPENDENCY'));
     const final = objects(parsed.data);
     const affected = [...new Set([...initial.keys(), ...final.keys()])].filter(id => {
       const before = initial.get(id);

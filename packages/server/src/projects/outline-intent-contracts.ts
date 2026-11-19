@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {ChangeSetV07,StableId} from '@camery/ir';
+import {ChangeSetV07,ChangeSetV08,StableId} from '@camery/ir';
 import {WorkbenchActionReceiptSchema,WorkbenchIssueSchema} from '@camery/ir/workbench';
 import {Hash,Id,Text} from '@camery/script/contracts';
 import {OutlineAdoptionSourceSchema,OutlineFormalIdentitiesSchema,OutlineMappingDraftSchema,OutlineReviewerBindingSchema,OutlineVersionKeySchema,OUTLINE_MAPPING_MAX_OPERATIONS} from '@camery/script/outline/node';
@@ -35,11 +35,11 @@ export const OutlineCandidateIntentBodySchema=OutlineCandidateIntentKeySchema.ex
   if(value.operationIds.length!==draft.operations.length)context.addIssue({code:'custom',message:'Outline fixed operation count binding'});
 });
 export type OutlineCandidateIntentBody=z.infer<typeof OutlineCandidateIntentBodySchema>;
-export interface OutlineCandidateIntent extends OutlineCandidateIntentBody{readonly digest:string;readonly businessDigest:string;readonly createdAt:string;readonly request:ChangeSetV07|null}
-export const OutlineCandidateIntentSchema=OutlineCandidateIntentBodySchema.safeExtend({digest:Hash,businessDigest:Hash,createdAt:z.iso.datetime({precision:3}),request:ChangeSetV07.nullable()}).superRefine((value,context)=>{
+export interface OutlineCandidateIntent extends OutlineCandidateIntentBody{readonly digest:string;readonly businessDigest:string;readonly createdAt:string;readonly request:ChangeSetV07|ChangeSetV08|null}
+export const OutlineCandidateIntentSchema=OutlineCandidateIntentBodySchema.safeExtend({digest:Hash,businessDigest:Hash,createdAt:z.iso.datetime({precision:3}),request:z.discriminatedUnion('schema_version',[ChangeSetV07,ChangeSetV08]).nullable()}).superRefine((value,context)=>{
   const request=value.request;
   if(request===null?value.draft.operations.length!==0:value.draft.operations.length===0||request.id!==value.changeId||request.author.kind!==value.actor.kind||request.author.id!==value.actor.id
-    ||request.base_revision!==value.expectation.expectedSnapshotRevision||request.status!=='candidate'||request.ops.length!==value.draft.operations.length)context.addIssue({code:'custom',message:'Outline derived request binding'});
+    ||request.base_revision!==value.expectation.expectedSnapshotRevision||request.schema_version!==(value.draft.schemaVersion??'0.7.0-draft')||request.status!=='candidate'||request.ops.length!==value.draft.operations.length)context.addIssue({code:'custom',message:'Outline derived request binding'});
 });
 export const OutlineDecisionIntentBodySchema=z.strictObject({
   version:z.literal(1),scope:ProjectIdentityScopeSchema,requestId:Id,actor:OutlineApplicationActorSchema,changeId:stable,action:z.enum(['adopt','reject']),

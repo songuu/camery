@@ -1,6 +1,6 @@
 import {freeze} from '@camery/methods';
 import {finalizeOutlineChangeSet} from '@camery/script/outline/node';
-import type {ChangeSetV07} from '@camery/ir';
+import type {ChangeSetV07,ChangeSetV08} from '@camery/ir';
 import {ProjectApplicationError} from './intent-contracts.js';
 import {OutlineCandidateIntentBodySchema,OutlineCandidateIntentSchema,OutlineDecisionIntentBodySchema,OutlineDecisionIntentSchema,OutlineActionReceiptSchema,OUTLINE_INTENT_ENVELOPE_BYTES} from './outline-intent-contracts.js';
 import type {OutlineCandidateIntentBody,OutlineCandidateIntent,OutlineDecisionIntentBody,OutlineDecisionIntent,OutlineActionReceipt} from './outline-intent-contracts.js';
@@ -16,7 +16,7 @@ export const outlineCandidateBusiness=(body:OutlineCandidateIntentBody)=>outline
 export const outlineDecisionBusiness=(body:OutlineDecisionIntentBody)=>outlineIntentDigest(omitOutlineIntent(body,['at']));
 function timestamp(input:Date|string):string{const at=input instanceof Date?input.toISOString():input;if(new Date(at).toISOString()!==at)throw new Error();return at;}
 /** Fixed mappings and intent IDs determine exactly one immutable native request, never caller-supplied free JSON. */
-export function deriveOutlineIntentRequest(body:OutlineCandidateIntentBody):ChangeSetV07|null{
+export function deriveOutlineIntentRequest(body:OutlineCandidateIntentBody):ChangeSetV07|ChangeSetV08|null{
   if(body.draft.reservedIds.includes(body.changeId)||body.actor.id===body.changeId)throw new ProjectApplicationError('CONFLICT','outline change identity alias');
   if(!body.draft.operations.length)return null;
   try{return finalizeOutlineChangeSet({draft:body.draft,changeSetId:body.changeId,author:{kind:'user',id:body.actor.id},operationIds:body.operationIds});}

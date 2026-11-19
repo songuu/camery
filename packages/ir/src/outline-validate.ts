@@ -3,10 +3,11 @@ import type {AdaptationPlan,OutlineOrigin} from './outline-schema';
 import type {StoryboardPackageV07} from './schema';
 import type {Issue} from './legacy/v05-validate';
 type Ref={id:string;version:number};
+type OutlineGraph=Omit<StoryboardPackageV07,'schema_version'>;
 type ChildCollection='outline_beats'|'outline_episode_plans'|'asset_plans'|'outline_plot_units'|'outline_adaptation_decisions';
 const bindings={beats:'outline_beats',episodes:'outline_episode_plans',assets:'asset_plans',plot_units:'outline_plot_units',decisions:'outline_adaptation_decisions'} as const;
 export interface OutlineDependencyIssue{readonly objectId:string;readonly referenceId:string;readonly expectedVersion:number;readonly actualVersion:number|null}
-function references(p:StoryboardPackageV07):{objectId:string;ref:Ref}[]{
+function references(p:OutlineGraph):{objectId:string;ref:Ref}[]{
   const result:{objectId:string;ref:Ref}[]=[];const add=(objectId:string,refs:readonly Ref[])=>{for(const ref of refs)result.push({objectId,ref});};
   for(const plan of p.adaptation_plans){add(plan.id,[...plan.characters.map(row=>row.character),...plan.beats,...plan.episodes,...plan.assets,...plan.plot_units,...plan.decisions,...plan.season_engine.characters,...plan.season_engine.plot_units,...plan.recipe.signature_scenes.flatMap(row=>row.beats),...plan.recipe.ablations.flatMap(row=>row.affected_beats)]);}
   for(const row of p.outline_beats)add(row.id,[row.adaptation_plan,...row.characters]);
@@ -16,11 +17,11 @@ function references(p:StoryboardPackageV07):{objectId:string;ref:Ref}[]{
   for(const row of p.outline_adaptation_decisions)add(row.id,[row.adaptation_plan]);return result;
 }
 /** Freshness is derived from pinned revisions; changing a parent never silently rebinds its old consumers. */
-export function outlineDependencyIssues(p:StoryboardPackageV07):readonly OutlineDependencyIssue[]{
+export function outlineDependencyIssues(p:OutlineGraph):readonly OutlineDependencyIssue[]{
   const versions=new Map<string,number>();for(const rows of Object.values(p))if(Array.isArray(rows))for(const row of rows)if(row&&typeof row==='object'&&'id' in row&&'version' in row)versions.set(row.id,row.version);
   return references(p).filter(({ref})=>versions.get(ref.id)!==ref.version).map(({objectId,ref})=>({objectId,referenceId:ref.id,expectedVersion:ref.version,actualVersion:versions.get(ref.id)??null}));
 }
-export function validateOutlineGraph(p:StoryboardPackageV07):{errors:Issue[];warnings:Issue[]}{
+export function validateOutlineGraph(p:OutlineGraph):{errors:Issue[];warnings:Issue[]}{
   const errors:Issue[]=[],warnings:Issue[]=[];const error=(code:string,where:string,message:string)=>{errors.push({code,where,message});};
   const unique=(values:readonly unknown[],where:string)=>{if(new Set(values).size!==values.length)error('DUPLICATE_REFERENCE',where,'References and local keys must be unique in their namespace');};
   function check<T extends Ref>(ref:Ref,rows:readonly T[],path:string):T|undefined{const row=rows.find(row=>row.id===ref.id);if(!row)error('MISSING_REFERENCE',path,'Referenced outline object is absent from its typed collection');return row?.version===ref.version?row:undefined;}

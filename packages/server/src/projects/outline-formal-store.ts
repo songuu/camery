@@ -1,7 +1,7 @@
 import type {Pool} from 'pg';
 import {z} from 'zod';
 import {StableId,StoryboardPackage,validatePackage} from '@camery/ir';
-import type {StoryboardPackageV07} from '@camery/ir';
+import type {StoryboardPackageV07,StoryboardPackageV08} from '@camery/ir';
 import {freeze} from '@camery/methods';
 import {snapshotJson} from '@camery/methods/json';
 import type {VersionProjectKey} from '@camery/versioning/node';
@@ -14,9 +14,9 @@ const SNAPSHOT_BYTES=67108864;
 const Key=z.strictObject({tenantId:stable,projectId:stable});
 const Input=z.strictObject({target:Key,revision:positive.optional()});
 const Row=z.strictObject({tenant_id:stable,project_id:stable,package_id:stable,head_revision:positive,write_version:positive,snapshot_revision:positive.nullable(),package_digest:z.string().regex(/^[a-f0-9]{64}$(?![\s\S])/).nullable(),package_unchanged:z.boolean(),package:z.unknown()});
-export interface OutlineFormalSnapshot{readonly target:Readonly<VersionProjectKey>;readonly packageId:string;readonly headRevision:number;readonly writeVersion:number;readonly revision:number;readonly snapshot:StoryboardPackageV07}
+export interface OutlineFormalSnapshot{readonly target:Readonly<VersionProjectKey>;readonly packageId:string;readonly headRevision:number;readonly writeVersion:number;readonly revision:number;readonly snapshot:StoryboardPackageV07|StoryboardPackageV08}
 export interface OutlineFormalSnapshotInput{readonly target:VersionProjectKey;readonly revision?:number}
-interface ValidatedSnapshot{readonly target:Readonly<VersionProjectKey>;readonly packageId:string;readonly revision:number;readonly digest:string;readonly snapshot:StoryboardPackageV07}
+interface ValidatedSnapshot{readonly target:Readonly<VersionProjectKey>;readonly packageId:string;readonly revision:number;readonly digest:string;readonly snapshot:StoryboardPackageV07|StoryboardPackageV08}
 
 /** One MVCC statement pairs an immutable selected snapshot with its current project header; reads never create or lock projects. */
 export class PostgresOutlineFormalReadStore{
@@ -46,7 +46,7 @@ export class PostgresOutlineFormalReadStore{
       // The entire row was already captured above; do not copy its potentially large package twice.
       const selected=StoryboardPackage.parse(row.package);
       if(selected.package_id!==row.package_id||selected.project.id!==command.target.projectId||selected.revision.number!==row.snapshot_revision||selected.revision.status!=='adopted'||!validatePackage(selected).valid)throw new Error();
-      if(selected.schema_version!=='0.7.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','formal outline schema');
+      if(selected.schema_version!=='0.7.0-draft'&&selected.schema_version!=='0.8.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','formal outline schema');
       // One bounded entry avoids unbounded project retention; every reuse still requires a new database fingerprint and header.
       const snapshot=freeze(selected);this.cached=Object.freeze({target:command.target,packageId:row.package_id,revision:row.snapshot_revision,digest:row.package_digest,snapshot});
       return Object.freeze({target:command.target,packageId:row.package_id,headRevision:row.head_revision,writeVersion:row.write_version,revision:row.snapshot_revision,snapshot});

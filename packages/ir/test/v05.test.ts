@@ -6,7 +6,7 @@ import { errorCodes, fixtureId as id, makePackage, makeSegment, mutate, row } fr
 describe('IR v0.5 canonical contract', () => {
   it('exports a strict, versioned JSON Schema', () => {
     const schema = toJsonSchema();
-    expect(schema).toMatchObject({oneOf:[{type:'object',additionalProperties:false,properties:{schema_version:{const:'0.5.0-draft'}}},{type:'object',additionalProperties:false,properties:{schema_version:{const:'0.6.0-draft'}}},{type:'object',additionalProperties:false,properties:{schema_version:{const:'0.7.0-draft'}}}]});
+    expect(schema).toMatchObject({oneOf:[{type:'object',additionalProperties:false,properties:{schema_version:{const:'0.5.0-draft'}}},{type:'object',additionalProperties:false,properties:{schema_version:{const:'0.6.0-draft'}}},{type:'object',additionalProperties:false,properties:{schema_version:{const:'0.7.0-draft'}}},{type:'object',additionalProperties:false,properties:{schema_version:{const:'0.8.0-draft'}}}]});
     expect(JSON.stringify(schema)).toContain('0.5.0-draft');
     expect(StoryboardPackage.safeParse(makePackage()).success).toBe(true);
   });

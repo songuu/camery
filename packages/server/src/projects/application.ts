@@ -135,6 +135,10 @@ export class ProjectApplication{
     for(const op of request.ops){
       // Outline evidence needs its own transactional source guard; the generic manual path must remain closed until then.
       if('collection' in op&&(OUTLINE_COLLECTIONS as readonly string[]).includes(op.collection))throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual outline source');
+      // Four-ledger writes require their own complete reviewed source; the generic path cannot grant that authority.
+      if('collection' in op&&op.collection==='continuity_snapshots')throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual continuity source');
+      const targetId=op.op==='lock'?op.target:op.op==='unlock'?(head['locks'] as {id:string;target:string}[]).find(lock=>lock.id===op.lock_id)?.target:undefined;
+      if(targetId&&((head['continuity_snapshots']??[]) as {id:string}[]).some(row=>row.id===targetId))throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual continuity source');
       if(!('collection' in op)||!['development_plans','episode_plans'].includes(op.collection))continue;
       if(op.op==='add')throw new ProjectApplicationError('SOURCE_POLICY_MISSING','manual development source');
       if(op.op!=='replace'&&op.op!=='update')continue;
@@ -194,8 +198,8 @@ export class ProjectApplication{
     const command=capture(WorkbenchUpgradeSchema,input.command);const authority=await this.authority(input,'candidate:write');
     const context={subject:authority.subject,projectId:authority.scope.projectId};
     const digest=this.digest(authority,'schema-upgrade',command);const existing=await this.existing(authority,command.applicationId,digest);if(existing)return this.finishCandidate(context,existing);
-    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version==='0.7.0-draft')throw new ProjectApplicationError('CONFLICT','schema already upgraded');
-    const from=stored.state.head.schema_version,to=from==='0.5.0-draft'?'0.6.0-draft':'0.7.0-draft';
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);if(stored.state.head.schema_version==='0.8.0-draft')throw new ProjectApplicationError('CONFLICT','schema already upgraded');
+    const from=stored.state.head.schema_version,to=from==='0.5.0-draft'?'0.6.0-draft':from==='0.6.0-draft'?'0.7.0-draft':'0.8.0-draft';
     const request=ChangeSet.parse({schema_version:to,id:this.options.newId(),author:{kind:'user',id:authority.actor.id},base_revision:stored.state.head.revision.number,base_revisions:[],status:'candidate',ops:[{op_id:this.options.newId(),op:'upgrade_schema',from,to}]});
     const result=submitChangeSet(stored.state,request);if(result.status!=='candidate')throw new ProjectApplicationError('CONFLICT','pending changes block schema upgrade');
     const saved=await this.options.intents.putCandidate({version:1,scope:authority.scope,applicationId:command.applicationId,actor:authority.actor,target:authority.versionKey,commandDigest:digest,source:{kind:'manual'},expectation:expectation(command),changeId:request.id,request});return this.finishCandidate(context,saved);

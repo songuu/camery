@@ -72,7 +72,7 @@ function location(row: LocatedObject, pkg: StoryboardPackage): { scene: string |
   else if (row.collection === 'shots' || row.collection === 'beats') scene = value.scene_id as string;
   else if (row.collection === 'lines') scene = pkg.beats.find(b => b.id === value.beat_id)?.scene_id;
   else if (row.collection === 'panels' || row.collection === 'shot_takes') scene = pkg.shots.find(s => s.id === value.shot_id)?.scene_id;
-  else if (row.collection === 'episode_state_snapshots') episode = value.episode_id as string;
+  else if (row.collection === 'episode_state_snapshots' || row.collection === 'continuity_snapshots') episode = value.episode_id as string;
   else if (row.collection === 'audio_cues') {
     episode = value.episode_id as string;
     if (typeof value.scene_id === 'string') scene = value.scene_id;

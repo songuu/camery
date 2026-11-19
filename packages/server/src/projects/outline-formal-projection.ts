@@ -15,7 +15,7 @@ export const compareFormal=(a:FormalRow,b:FormalRow)=>a.ref.collection<b.ref.col
 export function formalRows(data:OutlineFormalSnapshot):FormalRow[]{
   return OUTLINE_COLLECTIONS.flatMap(collection=>data.snapshot[collection].map(value=>({ref:{collection,id:value.id,version:value.version},plan:'adaptation_plan' in value?value.adaptation_plan:{id:value.id,version:value.version},value:value as unknown as Record<string,unknown>}))).sort(compareFormal);
 }
-export function formalBase(projectKey:string,data:OutlineFormalSnapshot){return {contractVersion:1 as const,projectKey,projectId:data.target.projectId,schemaVersion:'0.7.0-draft' as const,snapshotRevision:data.revision,headRevision:data.headRevision,writeVersion:data.writeVersion};}
+export function formalBase(projectKey:string,data:OutlineFormalSnapshot){return {contractVersion:1 as const,projectKey,projectId:data.target.projectId,schemaVersion:data.snapshot.schema_version,snapshotRevision:data.revision,headRevision:data.headRevision,writeVersion:data.writeVersion};}
 export function formalSections(row:FormalRow){return (Object.entries(OUTLINE_FORMAL_SECTIONS) as [OutlineFormalSection,(typeof OUTLINE_FORMAL_SECTIONS)[OutlineFormalSection]][]).filter(([,definition])=>definition.collection===row.ref.collection);}
 export function formalArray(row:FormalRow,section:OutlineFormalSection):unknown[]{
   const definition=OUTLINE_FORMAL_SECTIONS[section];if(definition.collection!==row.ref.collection)throw new ProjectApplicationError('INVALID_INPUT','formal section collection');

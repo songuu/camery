@@ -37,7 +37,9 @@ Node写入口可选传入`expectation={expectedSnapshotRevision,expectedWriteVer
 
 IR 提供 `add / update / replace / remove / move / split / merge / lock / unlock / unlock_line`，v0.6 另有独立 `upgrade_schema`。`update` 是受校验的字段替换；`replace` 要提供完整对象并保留原身份/版本；版本由引擎统一递增。`move.before_id` 是同场/同版本中的稳定镜头 ID，null 表示末尾。
 
-`upgrade_schema` 只允许相邻的 v0.5→v0.6 或 v0.6→v0.7，要求独占 ChangeSet、精确当前快照基版本及人类项目采用范围；其他 live candidate 存在时不新增升级候选，升级待审时也不接纳其他新候选。升级只加空新集合，复用原有快照/审计事务；旧对象版本、旧请求和已采用决定不重写。旧项目仍能先审核旧版本候选；升级后旧schema的新写请求被拒绝，既有已采用请求仍可重新授权恢复。新增 `STALE_OUTLINE_DEPENDENCY` 与既有开发依赖警告一同进入候选和采用回执，不静默重绑旧pin。
+`upgrade_schema` 只允许相邻的 v0.5→v0.6、v0.6→v0.7 或 v0.7→v0.8，要求独占 ChangeSet、精确当前快照基版本及人类项目采用范围；其他 live candidate 存在时不新增升级候选，升级待审时也不接纳其他新候选。升级只加空新集合，复用原有快照/审计事务；旧对象版本、旧请求和已采用决定不重写。旧项目仍能先审核旧版本候选；升级后旧schema的新写请求被拒绝，既有已采用请求仍可重新授权恢复。`STALE_CONTINUITY_DEPENDENCY`、`STALE_OUTLINE_DEPENDENCY` 与既有开发依赖警告一同进入候选和采用回执，不静默重绑旧pin。
+
+v0.8 的完整 typed `continuity_snapshots` 参与原生版本、锁、历史身份及集级采用范围。结构有效且声明在 adopted head 中，不等于通过受信四账审阅/来源重放；生产专用采用和前集 resolver 继续接入。脚本证据或其排序父级版本变化后，旧账本保持原字段并报告 stale，不能用当前顺序重新解释旧证据。回滚保留新格式历史，禁止通过降级丢弃四账。
 
 新开发集合沿用对象基版本、字段锁与范围权威。World、CharacterRelationship、DevelopmentPlan 属于项目；EpisodePlan 属于它引用的正式 Episode。上游对象变化引起的开发依赖过期会进入预览 warnings，原依赖版本不会悄悄替换。
 

@@ -85,7 +85,7 @@ function AdoptionSession({client,generation,projectId,identity,run,permissions,o
     }}finally{writing.current=false;if(lifetime.current.current(ticket))setBusy(false);}
   }
   const source=run?outlineAdoptionSource(run):null,blocked=busy||pending!==null||needsRefresh||!journalReady,canWrite=permissions.includes('candidate:write')&&state?.canWrite===true,canReview=permissions.includes('candidate:review')&&state?.canReview===true;
-  const legacy=state&&state.schemaVersion!=='0.7.0-draft';
+  const legacy=state&&!['0.7.0-draft','0.8.0-draft'].includes(state.schemaVersion);
   const selectedRevision=/^[1-9][0-9]*$/.test(historyRevision)?Number(historyRevision):NaN,validHistory=Number.isSafeInteger(selectedRevision)&&!!state&&selectedRevision<=state.snapshotRevision;
   function showFormal(revision?:number){setFormalRevision(revision);setFormalEpoch(value=>value+1);setFormal(true);}
   function prepare(){if(!blocked&&canWrite&&state&&source&&run&&!legacy)void execute({kind:'prepare',runId:run.runId,command:{applicationId:'outline-adopt-'+crypto.randomUUID(),...source,expectedSnapshotRevision:state.snapshotRevision,expectedWriteVersion:state.writeVersion}});}

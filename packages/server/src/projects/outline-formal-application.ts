@@ -29,7 +29,7 @@ export class OutlineFormalReadApplication{
   private async load(target:VersionProjectKey,revision?:number):Promise<OutlineFormalSnapshot>{
     const data=await this.options.store.snapshot({target,...(revision===undefined?{}:{revision})});if(!data)throw new ProjectApplicationError('NOT_FOUND','formal project');
     if(data.target.tenantId!==target.tenantId||data.target.projectId!==target.projectId||data.snapshot.project.id!==target.projectId||data.packageId!==data.snapshot.package_id||data.revision!==data.snapshot.revision.number||data.snapshot.revision.status!=='adopted'||!positive.safeParse(data.revision).success||!positive.safeParse(data.headRevision).success||!positive.safeParse(data.writeVersion).success||data.revision>data.headRevision||revision!==undefined&&revision!==data.revision)throw new ProjectApplicationError('STORAGE_FAILED','formal snapshot binding');
-    if(data.snapshot.schema_version!=='0.7.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','formal outline schema');return data;
+    if(data.snapshot.schema_version!=='0.7.0-draft'&&data.snapshot.schema_version!=='0.8.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','formal outline schema');return data;
   }
   async list(input:Context&{command:unknown}){return this.readList(input,false);}
   async rows(input:Context&{command:unknown}){return this.readList(input,true);}

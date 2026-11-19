@@ -82,7 +82,7 @@ export const OutlineFormalRecordSchema=z.discriminatedUnion('collection',[
   z.strictObject({collection:z.literal('outline_adaptation_decisions'),value:OutlineAdaptationDecision}),
 ]);
 export type OutlineFormalRecord=z.infer<typeof OutlineFormalRecordSchema>;
-const base=z.strictObject({contractVersion:z.literal(1),projectKey:ordinaryId,projectId:stable,schemaVersion:z.literal('0.7.0-draft'),snapshotRevision:revision,headRevision:revision,writeVersion:revision});
+const base=z.strictObject({contractVersion:z.literal(1),projectKey:ordinaryId,projectId:stable,schemaVersion:z.enum(['0.7.0-draft','0.8.0-draft']),snapshotRevision:revision,headRevision:revision,writeVersion:revision});
 function snapshotBinding(value:{snapshotRevision:number;headRevision:number},context:z.RefinementCtx){if(value.snapshotRevision>value.headRevision)context.addIssue({code:'custom',message:'Selected snapshot must already belong to project history'});}
 function planBinding(ref:OutlineFormalRef,plan:z.infer<typeof RevisionRef>,context:z.RefinementCtx){if(ref.collection==='adaptation_plans'&&(ref.id!==plan.id||ref.version!==plan.version))context.addIssue({code:'custom',message:'Plan object must identify itself'});}
 const header=z.strictObject({ref:OutlineFormalRefSchema,plan:planRef});

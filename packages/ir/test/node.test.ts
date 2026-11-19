@@ -261,9 +261,9 @@ it('writes the schema from the canonical source into an explicit output director
   const output = path.join(directory, 'schemas');
   const generated = await generateSchemas(output);
   expect(generated).toEqual([path.join(output, 'storyboard-package.schema.json'), path.join(output, 'changeset.schema.json')]);
-  expect(JSON.parse(await readFile(generated[0]!, 'utf8'))).toMatchObject({oneOf:[{type:'object',additionalProperties:false},{type:'object',additionalProperties:false},{type:'object',additionalProperties:false}]});
+  expect(JSON.parse(await readFile(generated[0]!, 'utf8'))).toMatchObject({oneOf:[{type:'object',additionalProperties:false},{type:'object',additionalProperties:false},{type:'object',additionalProperties:false},{type:'object',additionalProperties:false}]});
   const changeSchema = JSON.parse(await readFile(generated[1]!, 'utf8'));
-  expect(changeSchema.oneOf).toHaveLength(3);
+  expect(changeSchema.oneOf).toHaveLength(4);
   for(const branch of changeSchema.oneOf){expect(branch.required).toContain('base_revisions');expect(branch.additionalProperties).toBe(false);}
   const cwd = fileURLToPath(new URL('..', import.meta.url));
   const result = await promisify(execFile)(process.execPath, ['--import', 'tsx', 'scripts/generate-schemas.ts', output], { cwd });

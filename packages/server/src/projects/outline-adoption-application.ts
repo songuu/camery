@@ -64,7 +64,7 @@ export class OutlineAdoptionApplication{
     const stored=await this.read(authority.versionKey);
     if(stored.state.head.revision.number!==command.expectedSnapshotRevision)throw new ProjectApplicationError('SNAPSHOT_STALE','outline mapping base');
     if(stored.writeVersion!==command.expectedWriteVersion)throw new ProjectApplicationError('WRITE_VERSION_CONFLICT','outline mapping base');
-    if(stored.state.head.schema_version!=='0.7.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','outline formal mapping');
+    if(stored.state.head.schema_version!=='0.7.0-draft'&&stored.state.head.schema_version!=='0.8.0-draft')throw new ProjectApplicationError('SCHEMA_UPGRADE_REQUIRED','outline formal mapping');
     const prepared=await this.options.outline.identities.prepare({source,target:authority.versionKey}),progress=captureOutlineAdoptionProgress(source,prepared.progress),reviewer=await this.reviewer(authority.scope.tenantId,progress.review.actorId);
     const draft=prepareOutlineMappingDraft({progress,source,identities:prepared.identities,reviewer,head:stored.state.head}),changeId=this.options.newId();
     const saved=await this.options.intents.putCandidate({version:1,scope:authority.scope,applicationId:command.applicationId,actor:authority.actor,target:authority.versionKey,commandDigest,source:{kind:'outline',mapperVersion:1,source,identities:prepared.identities,reviewer},expectation:expected(command),changeId,draft,operationIds:draft.operations.map(row=>({slot:row.slot,id:this.options.newId()}))});

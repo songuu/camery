@@ -42,7 +42,7 @@ export const OutlineMappingOperationSchema=z.discriminatedUnion('op',[
 export type OutlineMappingOperation=z.infer<typeof OutlineMappingOperationSchema>;
 // The host snapshots JSON before parsing and separately verifies complete mappings and immutable evidence.
 export const OutlineMappingDraftSchema=z.strictObject({
-  version:z.literal(1),target:OutlineVersionKeySchema,source:OutlineAdoptionSourceSchema,baseRevision:revision,
+  version:z.literal(1),schemaVersion:z.literal('0.8.0-draft').optional(),target:OutlineVersionKeySchema,source:OutlineAdoptionSourceSchema,baseRevision:revision,
   baseRevisions:z.array(z.strictObject({id:stable,version:revision})).max(OUTLINE_MAPPING_MAX_IDS),
   operations:z.array(z.strictObject({slot:Text(160),op:OutlineMappingOperationSchema})).max(OUTLINE_MAPPING_MAX_OPERATIONS),
   reservedIds:z.array(stable).max(OUTLINE_MAPPING_MAX_IDS),

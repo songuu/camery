@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {ChangeSet,StableId,EditableCollection,SCHEMA_VERSION,LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION} from './schema';
+import {ChangeSet,StableId,EditableCollection,SCHEMA_VERSION,OUTLINE_SCHEMA_VERSION,LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION} from './schema';
 
 const integer=z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const revision=integer.min(1);
@@ -15,7 +15,7 @@ export const WorkbenchActionReceiptSchema=z.strictObject({version:z.literal(1),c
   rejection:z.strictObject({actor_id:StableId,reason:text(500),at:z.iso.datetime({precision:3})}).nullable(),
 });
 export type WorkbenchActionReceipt=z.infer<typeof WorkbenchActionReceiptSchema>;
-export const WorkbenchStateSchema=z.strictObject({contractVersion:z.literal(1),projectKey:id,projectId:StableId,schemaVersion:z.enum([LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION,SCHEMA_VERSION]),snapshotRevision:revision,writeVersion:revision,
+export const WorkbenchStateSchema=z.strictObject({contractVersion:z.literal(1),projectKey:id,projectId:StableId,schemaVersion:z.enum([LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION,OUTLINE_SCHEMA_VERSION,SCHEMA_VERSION]),snapshotRevision:revision,writeVersion:revision,
   actorId:StableId.nullable(),canWrite:z.boolean(),canReview:z.boolean(),nativePending:integer,counts:z.array(z.strictObject({collection:text(64),count:integer})).max(64),
 });
 export type WorkbenchState=z.infer<typeof WorkbenchStateSchema>;
@@ -64,7 +64,7 @@ export type WorkbenchReadQuery=z.infer<typeof WorkbenchReadQuerySchema>;
 export const WorkbenchObjectRowSchema=z.strictObject({ref:WorkbenchObjectRefSchema,role:z.enum(['owned','context']),value:z.record(z.string(),z.unknown())})
   .refine(row=>row.value['id']===row.ref.id&&row.value['version']===row.ref.version,{message:'Object value must match its revision reference'});
 export const WorkbenchRelationSchema=z.strictObject({kind:z.enum(['ownership','reference','provenance','shot_take','continuity']),from:WorkbenchObjectRefSchema,to:WorkbenchObjectRefSchema,field:text(512),pin:z.enum(['explicit','snapshot']),currentVersion:revision,stale:z.boolean()});
-export const WorkbenchSnapshotSchema=z.strictObject({contractVersion:z.literal(1),projectKey:id,projectId:StableId,schemaVersion:z.enum([LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION,SCHEMA_VERSION]),snapshotRevision:revision,writeVersion:revision,
+export const WorkbenchSnapshotSchema=z.strictObject({contractVersion:z.literal(1),projectKey:id,projectId:StableId,schemaVersion:z.enum([LEGACY_SCHEMA_VERSION,DEVELOPMENT_SCHEMA_VERSION,OUTLINE_SCHEMA_VERSION,SCHEMA_VERSION]),snapshotRevision:revision,writeVersion:revision,
   scope:WorkbenchScopeSchema,renditionId:StableId.nullable(),nextCursor:z.string().max(4096).nullable(),counts:z.array(z.strictObject({collection:WorkbenchCollectionSchema,count:integer})).max(64),
   capabilities:z.strictObject({canWrite:z.boolean(),canReview:z.boolean(),canReadMedia:z.literal(false)}),
   rows:z.array(WorkbenchObjectRowSchema).max(200),relations:z.array(WorkbenchRelationSchema).max(10000),

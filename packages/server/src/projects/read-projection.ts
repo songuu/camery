@@ -69,7 +69,7 @@ function scopeFor(head:StoryboardPackage,query:WorkbenchReadQuery):Scope{
 function owner(row:ObjectRow,all:Map<string,ObjectRow>):{scene?:string;episode?:string}{
   const value=row.value;let scene:string|undefined;let episode:string|undefined;
   if(row.ref.collection==='episodes')episode=row.ref.id;
-  else if(['scenes','episode_plans','outline_episode_plans','episode_state_snapshots','audio_cues'].includes(row.ref.collection)&&typeof value['episode_id']==='string')episode=value['episode_id'];
+  else if(['scenes','episode_plans','outline_episode_plans','episode_state_snapshots','continuity_snapshots','audio_cues'].includes(row.ref.collection)&&typeof value['episode_id']==='string')episode=value['episode_id'];
   if(row.ref.collection==='scenes')scene=row.ref.id;
   else if(typeof value['scene_id']==='string')scene=value['scene_id'];
   else if(typeof value['shot_id']==='string')scene=all.get(value['shot_id'])?.value['scene_id'] as string|undefined;
@@ -94,7 +94,7 @@ function inRendition(row:ObjectRow,renditionId:string|undefined,all:Map<string,O
 function select(head:StoryboardPackage,all:Map<string,ObjectRow>,relations:Map<string,Relation[]>,scope:Scope,query:WorkbenchReadQuery):Map<string,'owned'|'context'>{
   const selected=new Map<string,'owned'|'context'>();
   const outlineEpisodes=new Set<string>(),outlineBeats=new Set<string>();
-  if(scope.kind==='episode'&&head.schema_version==='0.7.0-draft'){
+  if(scope.kind==='episode'&&(head.schema_version==='0.7.0-draft'||head.schema_version==='0.8.0-draft')){
     for(const episode of head.outline_episode_plans)if(episode.episode_id===scope.id){outlineEpisodes.add(episode.id);for(const beat of episode.beats)outlineBeats.add(beat.id);}
   }
   for(const row of all.values()){
