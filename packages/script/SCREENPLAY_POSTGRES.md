@@ -22,13 +22,27 @@
 6. 首次提交 ACK 不明时，用 `readScreenplayNativeIntent(client,key,host)` 取回已提交的原 ChangeSet、对象、操作和锁 ID。`readScreenplayNativeAdoption` 验证历史采用；已采用 ACK 可在新连接恢复，并保留原 actor/time。缺原提交/采用证明不会后补成成功；不得以新 ID 或模型重发来推断旧任务失败。
 7. 在宿主拥有的事务内调用 `readScreenplayHandoff(client,{scope,target,changeId},store,outlineStore,host)`。它核对正式快照、原生请求、对象版本、实际人工审计、完整正文/text 锁及当前写作依赖，重新把本稿四账声明映射到实际正式 beat/line 版本。`ledger_pending` 只代表剧本已锁、四账尚未采用；将返回的实际 `draft` 交给既有 `PostgresContinuityStore.prepare/confirm` 和原生采用流程。只有真实 typed ledger 证明与完整重算结果一致，才返回 `handoff_ready`，下一集随后消费这份完整账本。
 
-当前输入支持人工创作及宿主已有的完整候选稿。本轮定稿 API 不新增付费模型调用、自动修稿重试或模型质量签发；编剧 Agent 的独立生成入口、Durable 调度与预算组合仍是后续接入项，不用此轮协议夹具冒充真实文本模型验收。
+定稿 API 支持人工创作及宿主已有的完整候选稿。模型生成使用下面的独立入口，不代替人工逐项审阅，也不自动修稿重试或签发质量结论。
+
+## 编剧生成与原任务恢复
+
+在已安装定稿内核后显式调用 `migrateScreenplayGeneration(pool)`，独立 generation migration ledger 不改已发布的定稿 SQL。`PostgresScreenplayGenerationStore(pool,outlineStore)` 保存不可变 run、原模型输出与派生候选、交付凭据，仍要求可信 `ScreenplayHost`。同一 run 固定作者、候选 ID、源版本、写作备注、Method PIN 和执行 profile；不同命令必须新建 run，不能覆盖原收据。
+
+1. 用定稿 store 的 `describeSource` 取得实际 source CAS。生成 store 的 `start({key,candidateId,target,episodeId,expectedSnapshotRevision,expectedPackageDigest,rules,notes,execution},host)` 会重新读取真实采用源、完整前账及原文审阅，提前检查完整模型请求大小。`key` 为应用 tenant/project/runId；`execution` 使用既有单阶段预算契约，固定 balanced、实际连接/模式/模型身份、evidence、currency、reservation、limits 和必要的 pricing。首集没有真实五模块配置时生成明确失败。
+2. 宿主先配置实际 `BudgetLedger` 项目预算，再向既有 Durable worker 注册 `createScreenplayWorkflow({store,ledger,hostFor,sessionFor})`。`hostFor(key)` 返回该作者的当前可信授权；`sessionFor(binding,task)` 惰性创建与 run profile 完全一致的 `ModelSession`，缓存恢复不需要凭据或会话。预算分配前核对 prepare 权限及原作者，等待 session/source 期间再次核对；read 权限不能触发付费调用。
+3. 调用 `enqueueScreenplayTask(store,durable,key,host)`；固定 task/call 身份和 Method `screenplay.write@1.0.0` 绑定原 run，输入/最终输出仅包含小引用。Agent 没有写工具、没有批准/发布权，只执行一次 pinned method。原始 provider DTO 和 ModelReceipt 原样绑定，不能用归一后的领域稿重新标注 receipt 摘要。
+4. workflow 先通过 `screenplay.persist-generated` 保存原输出和确定性派生候选，再通过 `screenplay.deliver-candidate` 将旧定稿 preparation 与 generation delivery 在同一 READ COMMITTED 事务提交。交付只得到 `awaiting_review`；人工 `review`、原生采用和 text 锁仍按上面步骤进行。来源变化时已完成输出继续留存，首次交付返回阻止状态，不生成替代稿。
+5. 崩溃或保存/交付丢 ACK 沿同一个 task/journal 恢复；实际已提交候选/交付保留原作者、时间和 ID。原 task 为 waiting/reconciling 或 terminal 且交付未完时不会创建新任务。外部调用结果未知进入既有 Durable 人工对账，不能自动重发；对账恢复使用原 DTO 和收据。交付缓存与原 run、原生成结果及数据库内真实 preparation 凭据重新交叉校验，不能靠缓存自报成功。
+
+模型输入完整保留目标集大纲/原文目录、人物、物理引用、分集 ID 及前账四列；仅排除无关 native 历史事件，完整上下文仍由摘要绑定并在实际数据库重放。模型请求包含指令、schema、messages 后总量≤2MiB，超限明确失败，不能裁账。原 DTO≤512KiB，保留在既有≤1MiB decision journal；7类四账声明按全局连续 order 严格转换，空值、引用或顺序矛盾不会被猜测修正。生成 run≤64MiB、生成结果≤16MiB，各自校验后 progress 聚合允许两者加小凭据；手工稿件1MiB及已发布定稿表上限保持不变。
+
+`prepareScreenplayGeneration` / `generateScreenplay` / `createScreenplayGeneratedCandidate` 是宿主组合与纯协议入口，不能凭其 hash 自称源已采用、当前、预算已分配或人工已审。正式使用由上述 store/workflow 解析实际来源与预算。测试 provider 明确为合成协议，没有真实文本模型质量或真实账单验收结论。
 
 ## 一致性与失败
 
 领域存储的 owned transaction 显式使用 `READ COMMITTED`，不能继承连接的可重复读旧快照。调用公开 `readScreenplayHandoff` 时，宿主同样须拥有 READ COMMITTED 事务；入口会核对隔离级别，不把等待源锁后仍停在旧快照的结果称作当前交接。历史 `readScreenplayNativeAdoption` 不声明 current，可在其它隔离级别读取原事实。
 
-当前源的全局锁序为：无锁发现→实际 Outline brief/run 及上游源锁→native project 行锁→screenplay candidate advisory lock。拿到 project 锁后须重读并精确核对源，变化即拒绝；禁止持 project 锁再去申请新的 Outline 源锁。原生提交回调已持 project，因此只读不可变历史；采用 guard 在 native project 锁前完成当前源检查。当前源 helper 先 `SET LOCAL search_path = pg_catalog`，防止旧来源存储中的 advisory 函数被 public 同名精确重载遮蔽；事务结束恢复会话配置。所有同连接 helper 均不拥有 BEGIN/COMMIT/release；调用者负责事务。
+当前源的全局锁序为：无锁发现→实际 Outline brief/run 及上游源锁→native project 行锁→screenplay candidate advisory lock；生成交付在 project 与 candidate 之间先取得 generation advisory lock。拿到 project 锁后须重读并精确核对源，变化即拒绝；禁止持 project 锁再去申请新的 Outline 源锁。原生提交回调已持 project，因此只读不可变历史；采用 guard 在 native project 锁前完成当前源检查。当前源 helper 先 `SET LOCAL search_path = pg_catalog`，防止旧来源存储中的 advisory 函数被 public 同名精确重载遮蔽；事务结束恢复会话配置。所有同连接 helper 均不拥有 BEGIN/COMMIT/release；调用者负责事务。
 
 候选四账的 disposable refs 明确为 `candidate_projection`，不具备采用权威。正式交接逐项匹配实际 post-lock 对象；前账版本变化使后续稿件/交接过期，而历史 ACK 仍保留原事实。未知数据库错误、原型 trap、连接异步断开都归一成安全领域错误，不把连接或密码交给调用者。
 

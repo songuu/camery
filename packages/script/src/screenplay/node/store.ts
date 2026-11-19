@@ -63,7 +63,14 @@ export class PostgresScreenplayStore{
   }
   async prepare(input:unknown,hostInput:unknown):Promise<ScreenplayProgress>{
     const command=freezeScreenplay(captureScreenplay(ScreenplayPrepareSchema,input,'screenplay preparation command',SCREENPLAY_CANDIDATE_BYTES)),host=authorizeScreenplayHost(hostInput,'screenplay:prepare',scopeFor(command.key)),commandDigest=digest({...command,authorId:host.actor.id});
-    return this.transaction(async client=>{
+    return this.transaction(client=>this.prepareCaptured(client,command,host,commandDigest));
+  }
+  /** Atomic generation delivery; caller owns the READ COMMITTED transaction and its commit/rollback. */
+  async prepareOnClient(client:PoolClient,input:unknown,hostInput:unknown):Promise<ScreenplayProgress>{
+    const command=freezeScreenplay(captureScreenplay(ScreenplayPrepareSchema,input,'screenplay preparation command',SCREENPLAY_CANDIDATE_BYTES)),host=authorizeScreenplayHost(hostInput,'screenplay:prepare',scopeFor(command.key)),commandDigest=digest({...command,authorId:host.actor.id});
+    try{const isolation=await client.query('SHOW transaction_isolation');if(isolation.rows.length!==1||isolation.rows[0].transaction_isolation!=='read committed')fail('CONFLICT','transaction_isolation');return await this.prepareCaptured(client,command,host,commandDigest);}catch(error){return safe(error);}
+  }
+  private async prepareCaptured(client:PoolClient,command:ReturnType<typeof ScreenplayPrepareSchema.parse>,host:ReturnType<typeof authorizeScreenplayHost>,commandDigest:string):Promise<ScreenplayProgress>{
       const prior=await this.preparation(client,command.key);if(prior){if(prior.commandDigest!==commandDigest)fail('CONFLICT','immutable candidate');return this.progress(client,command.key);}
       const {context,source,previous}=await readScreenplaySource(client,{scope:host.scope,target:command.target,episodeId:command.draft.episodeId,rules:command.rules},this.outline);
       if(source.native.snapshotRevision!==command.expectedSnapshotRevision||source.native.packageDigest!==command.expectedPackageDigest)fail('CONFLICT','current source');
@@ -71,7 +78,6 @@ export class PostgresScreenplayStore{
       const candidate=createScreenplayCandidate(host.scope,context,command.draft),body={version:1 as const,key:command.key,source,context,previous,candidate,authorId:host.actor.id,createdAt:host.at,commandDigest},preparation=captureScreenplay(ScreenplayPreparationSchema,{...body,digest:digest(body)},'screenplay preparation',SCREENPLAY_CONTEXT_BYTES);
       await client.query('INSERT INTO camery_screenplay.candidates(tenant_id,project_id,candidate_id,formal_tenant_id,formal_project_id,source_revision,context_digest,command_digest,digest,record) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)',[...keys(command.key),source.native.target.tenantId,source.native.target.projectId,source.native.snapshotRevision,source.contextDigest,commandDigest,preparation.digest,canonicalContinuity(preparation,SCREENPLAY_CONTEXT_BYTES)]);
       return this.progress(client,command.key);
-    });
   }
   async read(input:unknown,host:unknown):Promise<ScreenplayProgress>{const key=freezeScreenplay(captureScreenplay(ScreenplayKeySchema,input,'screenplay key',2048));authorizeScreenplayHost(host,'screenplay:read',scopeFor(key));return this.transaction(client=>this.progress(client,key));}
   async review(input:unknown,decisionInput:unknown,hostInput:unknown):Promise<ScreenplayProgress>{
