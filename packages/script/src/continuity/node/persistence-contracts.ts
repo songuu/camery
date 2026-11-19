@@ -25,8 +25,10 @@ export type ContinuityReview=z.infer<typeof ContinuityReviewSchema>;
 export type ContinuityAction='continuity:read'|'continuity:prepare'|'continuity:review'|'continuity:reject';
 /** This host is deployment authority, never an HTTP request DTO. */
 export interface ContinuityReviewHost{readonly actor:{readonly kind:'human';readonly id:string};readonly scope:{readonly tenantId:string;readonly projectId:string};readonly at:string;readonly authorize:(request:{readonly action:ContinuityAction;readonly scope:{readonly tenantId:string;readonly projectId:string}})=>boolean}
-export const ContinuityPreviousSchema=z.strictObject({version:z.literal(1),id:Id,digest:Hash,scope:ContinuityScopeSchema,target:ContinuityTargetSchema,
+export const ContinuityPreviousV1Schema=z.strictObject({version:z.literal(1),id:Id,digest:Hash,scope:ContinuityScopeSchema,target:ContinuityTargetSchema,
   snapshot:z.strictObject({id:StableId,version:Integer.min(1)}),changeId:StableId,adoptedRevision:Integer.min(1),ledger:ContinuityLedgerSchema});
+export const ContinuityPreviousV2Schema=ContinuityPreviousV1Schema.extend({version:z.literal(2),origin:z.strictObject({reviewDigest:Hash,bindingDigest:Hash})});
+export const ContinuityPreviousSchema=z.discriminatedUnion('version',[ContinuityPreviousV1Schema,ContinuityPreviousV2Schema]);
 export type ContinuityPrevious=z.infer<typeof ContinuityPreviousSchema>;
 /** Trusted adopted-ledger authority. episodeId names the required previous episode. No implementation means later episodes fail closed; no command may supply a previous ledger. */
 export type ContinuityPredecessorResolver=(client:PoolClient,input:Readonly<{scope:z.infer<typeof ContinuityScopeSchema>;target:ContinuityTarget;episodeId:string}>)=>Promise<ContinuityPrevious|null>;

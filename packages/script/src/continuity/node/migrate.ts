@@ -11,7 +11,7 @@ export async function migrateContinuity(pool:Pool):Promise<void>{
   try{
     const sql=await readFile(new URL('./migrations/0001-continuity.sql',import.meta.url),'utf8'),checksum=createHash('sha256').update(sql,'utf8').digest('hex');
     if(sql.includes('\r'))refuse('CONFLICT','migration bytes');
-    await client.query('BEGIN');await client.query("SELECT pg_advisory_xact_lock(hashtextextended('camery_continuity:migrations',0))");
+    await client.query('BEGIN');await client.query('SET LOCAL search_path = pg_catalog');await client.query("SELECT pg_advisory_xact_lock(hashtextextended('camery_continuity:migrations',0))");
     const prerequisites=await client.query<{snapshots_ready:boolean;projects_ready:boolean}>("SELECT to_regclass('camery_versioning.snapshots') IS NOT NULL AS snapshots_ready,to_regclass('camery_versioning.projects') IS NOT NULL AS projects_ready");
     if(prerequisites.rows.length!==1||prerequisites.rows[0]?.snapshots_ready!==true||prerequisites.rows[0]?.projects_ready!==true)refuse('INCOMPLETE','native versioning prerequisite');
     await client.query('CREATE SCHEMA IF NOT EXISTS camery_continuity');await client.query('CREATE TABLE IF NOT EXISTS camery_continuity.migrations(version integer PRIMARY KEY,checksum text NOT NULL)');

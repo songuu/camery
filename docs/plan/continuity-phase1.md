@@ -1,5 +1,33 @@
 # 阶段1 T1.5 四本账与集末状态快照
 
+## Revision 4 · 人审、原生采用与前集证明（实施中）
+
+基线 `308d2ab10e7b3db95faea601221addb83f2f7cb0` 的[精确 CI](https://github.com/songuu/camery/actions/runs/44445618432) completed/success，27/27 步成功。继续 AC-CT-3/4：复用原生 `submitWithReceipt` / `adoptGuarded` 的同一 client 和事务，新增四账请求绑定与采用证明，再交给后续认证应用的独立操作 intent；不另造版本引擎、不把组件端口当作 AC-CT-5 页面完成。完整 T1.5、T1.6 和阶段1范围保持。
+
+2026-11-19 用户进一步指定：认证相关先后补，当前优先 T1.6 剧本定稿流程和四账约束消费。已实现的权限/前账依赖修复完成必要回归后直接提交推送并确认精确 CI；新增认证 API、登录页及其验收不再作为开始 T1.6 的前置，现有访问边界继续生效。
+
+| 边界 | Before | 本批 After / 完成证据 |
+| --- | --- | --- |
+| 已持久化 v1 | legacy 前集封套、候选/人审及 SQL v1 | 保留独立 `ContinuityPreviousV1Schema`、旧记录/摘要及迁移字节；新增严格 v2 封套和新原生绑定/采用证明表 |
+| 映射 | typed ledger 已可原生承载 | 人审完整重放后只 add/update 本集一个 snapshot，锁/身份/全部来源 pin 保持；固定 change/snapshot/op ID，无截断/自动 unlock/别集写入 |
+| 采用 | 通用手工 HTTP 拒绝新账本，原生调用尚未绑定人审 | 同事务 source guard 核对真实 native request、不可变 reviewed 输出与当前 source；callback 从实际 object/adoption 生成不可变证明，失败全回滚；已采用 ACK 重新授权且只能恢复已有证明 |
+| 前集 | 仅显式可信测试 resolver | 生产 resolver 读取当前 typed snapshot、精确 native object/adoption/change、请求绑定与历史人审重放；显式拒绝 stale pins、缺证明、错 scope/集、摘要或账本不等；历史重放不另开连接/事务 |
+| 认证应用 | 现有原创/大纲独立 intent 与页面 | 本批先交付可复用后端端口和最小安装/角色验证；四账认证 API、完整操作 intent/失败回执、分页页面随后接入，不扩旧 LOGIN 白名单冒充最小权限 |
+
+根 owner：新契约、v2 source/生产 resolver、same-client 历史接线、显式追加迁移/角色、native guard/callback、实际 PG/整仓/CI（L4）。契约冻结后两个独立 L2 子任务可并行：`native-mapping.ts` 及其定向测试；`history.ts` 的旧栏位/摘要/完整重放提取及其定向测试。其余新认证/SQL/跨模块安全边界留根处理。新 binding 固定普通 key、正式 target、原候选/人审摘要、source revision/package digest、episode、change/snapshot/op ID、真实人类 author 与实际 request digest；采用证明另固定真实 native from/to revision、actor/scope/time、完整 ledger digest，既有 v1 previous body 无新字段。前集 v2 通过独立 origin `{reviewDigest,bindingDigest}` 绑定上述不可变事实，不允许请求自带 authority。
+
+有序 gate：真实失败反例→纯映射/历史窄测→类型/lint→code/TS/security/DB 复审→根串行实际 PG（新 pool、受限 LOGIN、并发、INSERT 后回滚、COMMIT 后丢 ACK、撤权、过期父级 pin、完整两集继承）→覆盖率/整仓→授权提交推送及精确 CI。历史证明链必须严格前集/修订递减、有界且显式超限，不能递归信任自报 digest。回滚撤新端口/开关，保留已保存的原生历史与追加证明；不降级删除账本或改旧迁移。用户五份脏文档、无关文件及后补安排保持。
+
+### Revision 4 验证证据（2026-11-19）
+
+- 新增233项普通测试：完整映射53、历史重放46、显式安装15、不可变记录28、typed前集7、采用工厂45、最小角色9、证明边界26、legacy混合链4。先缺实现 RED 后完成；mapping 保留完整人改四账/来源 pin、显式固定身份；历史重放不另开事务。v1 Previous schema/记录摘要与旧 SQL 字节保持，独立 native-proof v1 SHA-256=`4a60386f036990b5753e7dedaca1581140d0cf0144e5ce4343c369216a1f500a`。
+- 复审发现并实证关闭三类 P2：签出安装连接异步 error 未监听；前账已变但后账仍被当作 fresh（含 typed、legacy/typed 混合及同集多个 adopted legacy）；catalog 查询受公共函数/运算符重载影响。安装器现在监听并销毁异常连接；fresh walk 核对当前 typed/legacy 的精确版本、完整正文及唯一 adopted owner，历史 ACK 不绑定当前 head；验证 SQL 的 catalog 函数/关系/类型/所有运算符显式限定，安装/授权自有事务固定本地 search_path。code/TypeScript/security/DB 最终均无未闭合 P0–P2。
+- 实际隔离 PG 先复现普通同名 ACL 函数与运算符遮蔽，再复现即使 catalog 首位仍可命中更精确的 `public.=(regclass,oid)` 与 `public.!~(name,name)`；后两项修复前7通过/2失败、错误返回 verifier 成功，日志`artifacts/delivery/continuity-native-pg-exact-operators-red.log` SHA-256=`5ba2b816da279813a2050d98f08a5bfef7e708b1ca73dd5da4d40d1a6008f775`。统一限定运算符后9/9通过，日志`artifacts/delivery/continuity-native-pg-exact-operators-fixed.log` SHA-256=`35f95caa545d6baaa55f71195a3767106159b094796c7f2739662b839fcf221f`；最终另加入真实 installer hash 重载/连接配置恢复、sequence 转授权、角色成员及 SECURITY DEFINER 能力探针，共11项 PG。全部只在随机自有库/LOGIN执行并清理，不部署或扩大生产角色。
+- 两个 typed 人审采用后的来源链测试与4个 legacy 混合链反例均以实际纯 native engine 保存候选/采用/对象历史，证明当前过期与历史确认分离；有界计数反例只检查真实 task 的100项边界，不冒称完成100集验收。中途整包新增含混 legacy 反例正确暴露失败（1925通过/1失败），日志`artifacts/delivery/continuity-native-script-pg-verified.log` SHA-256=`5231185963ba5a248af30429329dc65e3578f964fc98f2c3f3c1b3be9ef2ce68`，未把该轮判通过。
+- 生产代码冻结及复审完成后，串行完整 `pnpm test:script:local --coverage` 终态0：92文件、1926项=1805普通+121真实PG，262.57秒；覆盖97.76/95.90/99.88/99.83%，95%门槛保持。新增11项真实PG覆盖完整两集人改账本、独立最小LOGIN、8路并发、实际 proof INSERT 后失败全回滚、真正 COMMIT 后丢ACK且独立新Pool恢复、撤权后ACK拒绝及上述权限探针。日志`artifacts/delivery/continuity-native-script-pg-frozen.log` SHA-256=`64f22054947a42be8c54cf77ea1f625b66e3a0a9db432a97ed4ef98c085fdd15`。
+- 最终 `pnpm check` 终态0：5674项=20工具+5654普通，script1805、IR635、versioning268、server1014、web322；13包类型与13包覆盖率全部实际执行、零缓存，931文件策略零问题，方法6项/Agent10项基线匹配。script普通覆盖97.55/95.71/99.65/99.51%。日志`artifacts/delivery/continuity-native-workspace-check.log` SHA-256=`75a2e1da47036c948e43bae1d571f846a785599ebd41f88a47eab5c2bc774fa0`。PG重复普通项不再累加；完整镜像/私有组合与远端CI仍以随后精确提交的实际终态为准。
+- 交付为完整后端采用/来源端口，未启用新认证HTTP/登录页，也不将SQL double或合成模型当作实际作品质量。认证相关依用户安排后补；接下来按[T1.6剧本定稿与四账消费](screenplay-phase1.md)推进，完整阶段1未判完成，五份用户脏文档和无关文件保持。
+
 ## Revision 3 · 完整四账的正式版本承载（实施中）
 
 前批 `f00f8ed8ef59bb3f050b745d00c46c619193a9a8` 精确 CI https://github.com/songuu/camery/actions/runs/44327226492 completed/success，27 步全部通过。本批先打通正式版本的数据表达和兼容消费者，不将 schema 可写等同于完成受信采用、认证接口或页面。

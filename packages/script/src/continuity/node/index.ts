@@ -6,3 +6,8 @@ export * from './source.js';
 export * from './store.js';
 export * from './migrate.js';
 export * from './runtime-role.js';
+export * from './native-contracts.js';
+export * from './native-mapping.js';
+export * from './native-adoption.js';
+export * from './native-migrate.js';
+export {grantContinuityAdoptionRole,verifyContinuityAdoptionRole} from './native-role.js';
