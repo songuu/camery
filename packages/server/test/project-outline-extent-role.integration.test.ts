@@ -9,6 +9,7 @@ import {migrateIngest} from '../../ingest/src/node/index.js';
 import {fixtureId as id} from '../../ir/test/fixtures.js';
 import {outlineIdentityPgFixture} from '../../script/test/outline-ir-identities-pg-support.js';
 import {createDevelopmentSourceFixture} from '../../script/test/outline-source-pg-support.js';
+import {testDatabaseConnections} from '../../script/test/postgres-disconnect-support.js';
 import {migrateProjectIdentities} from '../src/projects/migrate.js';
 import {grantProjectAdoptionRole,verifyProjectAdoptionRole} from '../src/projects/adoption-role.js';
 const databaseUrl=process.env['CAMERY_TEST_DATABASE_URL'];if(!databaseUrl)throw new Error('CAMERY_TEST_DATABASE_URL required for shared identity extent LOGIN tests');
@@ -43,11 +44,12 @@ it('keeps the original adopter operational with a base Outline schema but no ide
   const suffix=randomBytes(8).toString('hex'),database='camery_legacy_adopter_'+suffix,legacyRole='project_legacy_extent_'+suffix;
   if(!/^camery_legacy_adopter_[a-f0-9]{16}$/.test(database))throw new Error('Unowned legacy test database');
   await admin.query(`CREATE DATABASE "${database}"`);const address=new URL(databaseUrl!);address.pathname='/'+database;
-  const installer=new Pool({connectionString:address.toString(),max:2,connectionTimeoutMillis:5000});let reader:Pool|undefined,createdRole=false;
+  const {createPool,waitForDisconnects}=testDatabaseConnections();
+  const installer=createPool({connectionString:address.toString(),max:2,connectionTimeoutMillis:5000});let reader:Pool|undefined,createdRole=false;
   try{
     await migrateIngest(installer);await migrateBible(installer);await migrateDevelopment(installer);await migrateOutline(installer);await migrateVersioning(installer);await migrateProjectIdentities(installer);
     const password=randomBytes(24).toString('hex');await installer.query(`CREATE ROLE ${legacyRole} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB NOINHERIT NOREPLICATION`);createdRole=true;await grantProjectAdoptionRole(installer,legacyRole);
-    const login=new URL(address);login.username=legacyRole;login.password=password;reader=new Pool({connectionString:login.toString(),max:2,connectionTimeoutMillis:5000});
+    const login=new URL(address);login.username=legacyRole;login.password=password;reader=createPool({connectionString:login.toString(),max:2,connectionTimeoutMillis:5000});
     expect((await reader.query("SELECT has_schema_privilege('camery_outline','USAGE') AS allowed")).rows).toEqual([{allowed:false}]);
     // Name resolution required schema USAGE even for an absent optional table; catalog discovery preserves legacy operation.
     await expect(reader.query("SELECT to_regclass('camery_outline.identity_preparations')")).rejects.toMatchObject({code:'42501'});await verifyProjectAdoptionRole(reader);
@@ -55,5 +57,5 @@ it('keeps the original adopter operational with a base Outline schema but no ide
     const target={tenantId:id('legacy-extent-tenant'),projectId:id('legacy-extent-project')};
     const prepared=await new PostgresDevelopmentIrIdentities(reader,new PostgresDevelopmentStore(reader),()=>id(randomUUID())).prepare({source,target});expect(prepared.identities.episodes).toHaveLength(3);await verifyProjectAdoptionRole(reader);
     expect((await installer.query("SELECT to_regclass('camery_outline.identity_preparations') AS relation")).rows).toEqual([{relation:null}]);
-  }finally{await reader?.end();try{if(createdRole){await installer.query(`DROP OWNED BY ${legacyRole}`);await installer.query(`DROP ROLE ${legacyRole}`);}}finally{await installer.end();await admin.query(`DROP DATABASE "${database}" WITH (FORCE)`);}}
+  }finally{await reader?.end();try{if(createdRole){await installer.query(`DROP OWNED BY ${legacyRole}`);await installer.query(`DROP ROLE ${legacyRole}`);}}finally{await installer.end();await waitForDisconnects();await admin.query(`DROP DATABASE "${database}"`);}}
 });
