@@ -28,6 +28,7 @@
     "test:ingest:local": "node scripts/postgres-integration.mjs ingest",
     "test:bible:local": "node scripts/postgres-integration.mjs bible",
     "test:script:local": "node scripts/postgres-integration.mjs script",
+    "test:compliance:local": "node scripts/postgres-integration.mjs compliance",
     "test:private-api:local": "node scripts/postgres-integration.mjs private-api",
     "test:private-worker:local": "node scripts/postgres-integration.mjs private-worker",
     "test:private-development:local": "node scripts/postgres-integration.mjs private-development",

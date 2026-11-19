@@ -1,0 +1,5 @@
+import {scanManifest,scanCommand} from '../src/node/state.js';
+import {checkLiteralRules} from '../src/rules.js';
+import {hash} from '../src/node/data.js';
+import {generationFixture} from './generation-support.js';
+export function scanFixture(){const f=generationFixture(),key={...f.scope,runId:'precheck-run'},manifest=scanManifest(f.policy,f.source.corpus),execution={connectionId:f.session.profile.connectionId,modeDigest:f.session.profile.modeDigest,modelIdentity:f.session.profile.modelIdentity,evidence:f.session.profile.evidence,modelTier:'balanced' as const,currency:'USD',reservation:{tokens:1000,costMicros:10},limits:{steps:manifest.length,tokens:manifest.length*1000,costMicros:manifest.length*10}},body={version:1 as const,...key,source:f.source,policy:f.policy,literal:checkLiteralRules(f.policy,f.source.corpus),manifest,method:f.method,execution,authorId:'editor',createdAt:'2026-11-19T05:00:00.000Z'},record={...body,requestDigest:hash(scanCommand(body))},run={...record,digest:hash(record)};return {...f,key,execution,run};}

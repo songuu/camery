@@ -104,4 +104,9 @@ export class PostgresScreenplayStore{
   }
   /** Historical callback only, without opening another transaction or claiming freshness. */
   async readHistorical(client:PoolClient,input:unknown,host:unknown):Promise<ScreenplayProgress>{const key=captureScreenplay(ScreenplayKeySchema,input,'historical screenplay key',2048);authorizeScreenplayHost(host,'screenplay:read',scopeFor(key));try{return await this.progress(client,key,false);}catch(error){return safe(error);}}
+  /** Read-only precheck source. Caller owns RC; acquire upstream locks here before any downstream scan lock. */
+  async readCurrentForPrecheck(client:PoolClient,input:unknown,host:unknown):Promise<ScreenplayProgress>{
+    const key=freezeScreenplay(captureScreenplay(ScreenplayKeySchema,input,'current screenplay precheck key',2048));authorizeScreenplayHost(host,'screenplay:read',scopeFor(key));
+    try{const isolation=await client.query('SHOW transaction_isolation');if(isolation.rows.length!==1||isolation.rows[0].transaction_isolation!=='read committed')fail('CONFLICT','transaction_isolation');const initial=await this.progress(client,key,false);await this.fresh(client,initial);await this.lock(client,key);const progress=await this.progress(client,key,false);return freezeScreenplay({...progress,current:true});}catch(error){return safe(error);}
+  }
 }

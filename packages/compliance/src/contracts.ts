@@ -1,0 +1,33 @@
+import {z} from 'zod';
+import {StableId} from '@camery/ir';
+export const Id=z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$(?![\s\S])/);
+export const Hash=z.string().regex(/^[a-f0-9]{64}$(?![\s\S])/);
+export const Integer=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+export const Text=(max:number)=>z.string().min(1).max(max).refine(value=>value.trim().length>0&&value.isWellFormed()&&!value.includes('\0'));
+export const POLICY_BYTES=262144,CORPUS_BYTES=8388608,REPORT_BYTES=16777216,MODEL_INPUT_BYTES=2097152,MODEL_OUTPUT_BYTES=524288,MODEL_BATCH_SEGMENTS=32,MODEL_BATCH_PAIRS=256;
+export const Field=z.enum(['episode_title','scene_title','scene_start','scene_end','beat','line','delivery','origin','citation','hook','continuity','speaker_name']);
+export type Field=z.infer<typeof Field>;
+export const Risk=z.enum(['low','medium','high']);
+const Reference=z.strictObject({label:Text(120),url:z.url().max(2048).refine(value=>{const url=new URL(value);return ['http:','https:'].includes(url.protocol)&&!url.username&&!url.password;}),locator:Text(500)});
+export const CategorySchema=z.strictObject({id:Id,label:Text(120),description:Text(1000),risk:Risk});
+export const LiteralRuleSchema=z.strictObject({id:Id,categoryId:Id,label:Text(120),literal:Text(200),mode:z.enum(['exact','ascii_insensitive']),fields:z.array(Field).min(1).max(12),references:z.array(Reference).max(16)});
+/** All packs are advisory configuration. JSON cannot assert legal activation, approval or clearance. */
+export const PolicySchema=z.strictObject({version:z.literal(1),id:Id,revision:Integer.min(1),label:Text(120),authority:z.literal('unverified_configuration'),categories:z.array(CategorySchema).min(1).max(32),rules:z.array(LiteralRuleSchema).max(256)});
+export type Policy=z.infer<typeof PolicySchema>;
+export const SegmentSchema=z.strictObject({id:Id,path:Text(512),field:Field,sceneId:Id.nullable(),beatId:Id.nullable(),lineId:Id.nullable(),voice:z.enum(['on_screen','inner_monologue','off_screen','narration']).nullable(),speakerId:StableId.nullable(),text:Text(8000)});
+export type Segment=z.infer<typeof SegmentSchema>;
+export const SpeakerNameSchema=z.strictObject({id:StableId,name:Text(120)});
+export type SpeakerName=z.infer<typeof SpeakerNameSchema>;
+export const CorpusSchema=z.strictObject({version:z.literal(1),episodeId:StableId,segments:z.array(SegmentSchema).min(1).max(65536)});
+export type Corpus=z.infer<typeof CorpusSchema>;
+export const FindingSchema=z.strictObject({id:Text(512),origin:z.enum(['literal','model']),ruleId:Id.nullable(),categoryId:Id,risk:Risk,segmentId:Id,path:Text(512),start:Integer,end:Integer,quote:Text(8000),reason:Text(1000),uncertain:z.boolean()});
+export type Finding=z.infer<typeof FindingSchema>;
+export const LiteralReportSchema=z.strictObject({version:z.literal(1),kind:z.literal('advisory_precheck'),authority:z.literal('unverified_configuration'),policy:z.strictObject({id:Id,revision:Integer.min(1)}),episodeId:StableId,coveredSegments:z.array(Id).min(1).max(65536),findings:z.array(FindingSchema).max(65536),requiresHumanReview:z.literal(true)});
+export type LiteralReport=z.infer<typeof LiteralReportSchema>;
+export const AssessmentSchema=z.strictObject({segmentId:Id,categoryId:Id,verdict:z.enum(['flag','not_flagged','uncertain']),start:Integer,end:Integer,quote:Text(120).nullable(),reason:Text(200)});
+export type Assessment=z.infer<typeof AssessmentSchema>;
+export const ModelOutputSchema=z.strictObject({version:z.literal(1),assessments:z.array(AssessmentSchema).min(1).max(MODEL_BATCH_PAIRS)});
+export type ModelOutput=z.infer<typeof ModelOutputSchema>;
+export const BatchSchema=z.strictObject({version:z.literal(1),index:Integer,segments:z.array(SegmentSchema).min(1).max(MODEL_BATCH_SEGMENTS)});
+export type Batch=z.infer<typeof BatchSchema>;
+export class ComplianceError extends Error{override readonly name='ComplianceError';constructor(readonly code:'INVALID_INPUT'|'INPUT_LIMIT'|'INVALID_REFERENCE'|'CONFLICT'|'INCOMPLETE'|'FORBIDDEN'|'NOT_FOUND'|'STORAGE_FAILED',readonly operation:string,readonly path:string){super(`Compliance ${operation} failed (${code}) at ${path}`);}}
