@@ -113,12 +113,13 @@ it('restores reviewed progress over two MiB from a new pool without truncation o
   }finally{await replacement.end();}
   expect(calls).toBe(1);expect(await allocationCount(f.key.tenantId)).toBe(1);
 });
+// Cold tsx imports happen before fixture-loaded; keep a bounded startup window without weakening recovery checks.
 it('restores a SIGKILLed outline decision from a new pool without model credentials or duplicated allocation',async()=>{
   const f=await fixture({live:true});const child=spawn(process.execPath,['--import',import.meta.resolve('tsx'),'--input-type=module','-e',"process.send?.({event:'child-started'});await import(process.argv[1]);",new URL('./fixtures/crash-outline-worker.ts',import.meta.url).href],{cwd:fileURLToPath(new URL('../',import.meta.url)),env:{...process.env,CAMERY_OUTLINE_CRASH_TENANT:f.key.tenantId,CAMERY_OUTLINE_CRASH_TASK:f.task.taskId},stdio:['ignore','ignore','ignore','ipc'],windowsHide:true});
   const exited=once(child,'exit');let resolve!:(calls:number)=>void;const observed:string[]=[];const checkpoint=new Promise<number>(done=>{resolve=done;});let timer:ReturnType<typeof setTimeout>|undefined;
   child.on('message',message=>{if(message&&typeof message==='object'&&'event' in message){observed.push(String(message.event));if(message.event==='decision-saved'&&'calls' in message)resolve(message.calls as number);}});
   try{
-    expect(await Promise.race([checkpoint,exited.then(()=>{throw new Error('Owned outline child exited before commit ('+observed.join(' > ')+')');}),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Owned outline child did not reach committed decision ('+observed.join(' > ')+')')),20000);})])).toBe(1);
+    expect(await Promise.race([checkpoint,exited.then(()=>{throw new Error('Owned outline child exited before commit ('+observed.join(' > ')+')');}),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Owned outline child did not reach committed decision ('+observed.join(' > ')+')')),120000);})])).toBe(1);
     child.kill('SIGKILL');const exit=await exited;expect(exit[1]==='SIGKILL'||exit[0]!==0).toBe(true);expect((await f.durable.steps(f.task)).find(step=>step.key==='agent.0.decision')?.status).toBe('completed');expect((await f.store.read(f.key)).candidate).toBeNull();
     await pool.query("UPDATE camery_durable.tasks SET lease_until=clock_timestamp()-interval '1 second' WHERE tenant_id=$1 AND task_id=$2",[f.task.tenantId,f.task.taskId]);
     if(!('put' in f.source))throw new Error('Expected Development source');await f.source.store.putBrief({...f.source.put,expectedRevision:1,idea:'强杀恢复前修改的来源。'});
@@ -130,4 +131,4 @@ it('restores a SIGKILLed outline decision from a new pool without model credenti
     }finally{await replacement.end();}
     expect(await allocationCount(f.key.tenantId)).toBe(1);
   }finally{if(timer)clearTimeout(timer);if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');await exited;}
-});
+},240000);

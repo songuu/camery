@@ -20,8 +20,9 @@ class CrashAfterOutlineDecision extends PostgresDurableStore{
 }
 const tenantId=process.env['CAMERY_OUTLINE_CRASH_TENANT'],taskId=process.env['CAMERY_OUTLINE_CRASH_TASK'];
 if(!tenantId||!taskId)throw new Error('Missing owned outline crash identity');
+// Use the normal 30s lease: the parent forces expiry after the committed-decision SIGKILL.
 try{
-  const worker=new DurableWorker(new CrashAfterOutlineDecision(pool),{leaseMs:1000,runTimeoutMs:60000});
+  const worker=new DurableWorker(new CrashAfterOutlineDecision(pool),{runTimeoutMs:180000});
   worker.register(createOutlineWorkflow({store:new PostgresOutlineStore(pool),ledger:new PostgresBudgetLedger(pool),sessionFor:outlineSessionFactory(outlineProtocolTransport(()=>{calls++;process.send?.({event:'provider-called'});}))}));
   process.send?.({event:'dispatching'});const result=await worker.runTask({tenantId,taskId},'owned-outline-crash');process.send?.({event:'task-finished',status:result?.status??'not-claimed'});
 }finally{await pool.end();}

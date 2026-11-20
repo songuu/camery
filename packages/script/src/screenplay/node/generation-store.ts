@@ -61,6 +61,8 @@ export class PostgresScreenplayGenerationStore{
     });
   }
   async read(input:unknown,hostInput:unknown){const key=keyFor(input),host=authorizeScreenplayHost(hostInput,'screenplay:read',scopeFor(key));return this.transaction(client=>this.progress(client,key,host));}
+  /** Read actual immutable provenance for quality on the caller connection; this never claims currentness or owns the transaction. */
+  async readHistoricalForQuality(client:PoolClient,input:unknown,hostInput:unknown){const key=keyFor(input),host=authorizeScreenplayHost(hostInput,'screenplay:read',scopeFor(key));try{return await this.progress(client,key,host);}catch(error){return safe(error);}}
   private async fresh(client:PoolClient,run:ScreenplayGenerationRun){const view=await readScreenplaySource(client,{scope:{tenantId:run.tenantId,projectId:run.projectId},target:run.source.native.target,episodeId:run.context.episode.id,rules:run.context.rules},this.outline);if(!equal(view.source,run.source))fail('CONFLICT','stale generation source');}
   async isCurrent(input:unknown,hostInput:unknown):Promise<boolean>{const key=keyFor(input);authorizeScreenplayHost(hostInput,'screenplay:read',scopeFor(key));return this.transaction(async client=>{const run=await this.run(client,key);if(!run)fail('NOT_FOUND','run');try{await this.fresh(client,run);return true;}catch(error){if(error instanceof ScreenplayError&&['CONFLICT','INCOMPLETE'].includes(error.code))return false;throw error;}});}
   /** Paid output is historical evidence; source advancement must not discard it or trigger another request. */

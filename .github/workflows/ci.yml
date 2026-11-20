@@ -15,7 +15,8 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Script and Compliance both run complete native/source proofs under V8 coverage.
+    timeout-minutes: 150
     services:
       postgres:
         image: pgvector/pgvector:pg16

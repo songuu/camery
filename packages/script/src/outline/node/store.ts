@@ -122,6 +122,21 @@ export class PostgresOutlineStore implements OutlineStore {
     });
   }
   async read(input:OutlineRunKey):Promise<OutlineProgress>{const key=capture(OutlineKeySchema,input,'run key',2048);return this.transaction(key,null,client=>this.progress(client,key));}
+  /** Internal quality reader: caller supplies source authorization and owns BEGIN/COMMIT; a candidate need not already be human-reviewed. */
+  async readCurrentForQuality(client:PoolClient,input:unknown):Promise<OutlineProgress>{
+    const key=deepFreeze(capture(OutlineKeySchema,input,'quality outline key',2048));
+    try{
+      const isolation=await client.query('SHOW transaction_isolation');if(isolation.rows.length!==1||isolation.rows[0]?.transaction_isolation!=='read committed')throw new OutlineError('CONFLICT','current quality isolation','transaction_isolation');
+      await client.query('SET LOCAL search_path = pg_catalog');const brief=await this.briefKey(key,client);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_outline:brief',...briefKeys(brief)])]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify(['camery_outline:run',...runKeys(key)])]);
+      const progress=await this.progress(client,key);if(progress.run.brief.briefId!==brief.briefId)failed('quality parent binding');if(!await this.current(client,progress.run))throw new OutlineError('CONFLICT','quality current source','source');return progress;
+    }catch(error){let known=false;try{known=error instanceof OutlineError;}catch{/* Driver diagnostics never leave this internal read boundary. */}if(known)throw error;return failed('quality current outline');}
+  }
+  /** Historical integrity only. No locks, currentness claim or independent connection are added. */
+  async readHistoricalForQuality(client:PoolClient,input:unknown):Promise<OutlineProgress>{
+    const key=deepFreeze(capture(OutlineKeySchema,input,'historical quality outline key',2048));try{return await this.progress(client,key);}catch(error){let known=false;try{known=error instanceof OutlineError;}catch{/* Opaque dependency failures stay private. */}if(known)throw error;return failed('historical quality outline');}
+  }
   /** Historical integrity only on a caller-owned connection; no current-source claim or independent transaction. */
   async readHistoricalForAdoption(client:PoolClient,input:unknown):Promise<OutlineProgress>{
     const source=deepFreeze(capture(OutlineAdoptionSourceSchema,input,'historical adoption source',4096));
@@ -143,8 +158,8 @@ export class PostgresOutlineStore implements OutlineStore {
       if(actual.digest!==progress.run.source.digest||hash(actual.descriptor)!==hash(progress.run.source.descriptor))throw new OutlineError('CONFLICT','adoption upstream source','source');return progress;
     }catch(error){if(error instanceof OutlineError)throw error;return failed('adoption source transaction');}
   }
-  private async briefKey(key:OutlineRunKey):Promise<OutlineBriefKey>{
-    try{const rows=await this.pool.query<{brief_id:string}>('SELECT brief_id FROM camery_outline.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));if(rows.rows.length===0)throw new OutlineError('NOT_FOUND','outline run','run');if(rows.rows.length!==1)failed('brief key cardinality');return capture(OutlineBriefKeySchema,{tenantId:key.tenantId,projectId:key.projectId,briefId:rows.rows[0]!.brief_id},'run brief key',2048);}
+  private async briefKey(key:OutlineRunKey,client?:PoolClient):Promise<OutlineBriefKey>{
+    try{const rows=await (client??this.pool).query<{brief_id:string}>('SELECT brief_id FROM camery_outline.runs WHERE tenant_id=$1 AND project_id=$2 AND run_id=$3',runKeys(key));if(rows.rows.length===0)throw new OutlineError('NOT_FOUND','outline run','run');if(rows.rows.length!==1)failed('brief key cardinality');return capture(OutlineBriefKeySchema,{tenantId:key.tenantId,projectId:key.projectId,briefId:rows.rows[0]!.brief_id},'run brief key',2048);}
     catch(error){if(error instanceof OutlineError&&error.code==='NOT_FOUND')throw error;return failed('brief key');}
   }
   private async current(client:PoolClient,run:OutlineRun):Promise<boolean>{

@@ -79,6 +79,7 @@ it('holds an unknown external result for explicit full-receipt reconciliation an
   expect((await replacement.runTask(reconciled.task,'reconciled'))?.status).toBe('succeeded');expect(replacementCalls).toBe(0);const progress=await f.store.read(f.key);expect(progress.foundation.candidate?.model).toEqual(modelCall);expect(progress.run.brief.revision).toBe(1);
   expect(await enqueueNextDevelopmentTask(f.store,f.durable,f.key)).toEqual({state:'stale'});expect((await f.ledger.project({tenantId:f.key.tenantId,projectId:f.key.projectId})).used.tokens).toBe('100');
 });
+// Cold imports precede decision IPC; recovery still explicitly expires the killed worker lease.
 it.each(['foundation','episodes-redo'] as const)('survives actual %s SIGKILL after decision SQL commit and resumes with new pools without provider replay',async kind=>{
   const source=await fixture(true,kind==='episodes-redo'?3:2);let f=source;const stage=kind==='foundation'?'foundation':'episodes';let original:Awaited<ReturnType<typeof source.store.read>>|undefined;
   if(kind==='episodes-redo'){
@@ -93,7 +94,7 @@ it.each(['foundation','episodes-redo'] as const)('survives actual %s SIGKILL aft
   const child=spawn(process.execPath,['--import',import.meta.resolve('tsx'),'--input-type=module','-e',"process.send?.({event:'child-started'});await import(process.argv[1]);",new URL('./fixtures/crash-development-worker.ts',import.meta.url).href],{cwd:fileURLToPath(new URL('../',import.meta.url)),env:{...process.env,CAMERY_DEVELOPMENT_CRASH_TENANT:f.key.tenantId,CAMERY_DEVELOPMENT_CRASH_TASK:f.task.taskId},stdio:['ignore','ignore','ignore','ipc'],windowsHide:true});
   const exited=once(child,'exit');let resolve:((calls:number)=>void)|undefined;const observed:string[]=[];const checkpoint=new Promise<number>(done=>{resolve=done;});child.on('message',message=>{if(message&&typeof message==='object'&&'event' in message){observed.push(String(message.event)+('key' in message?':'+String(message.key):'status' in message?':'+String(message.status):''));if(message.event==='decision-saved'&&'calls' in message)resolve?.(message.calls as number);}});let timer:ReturnType<typeof setTimeout>|undefined;
   try{
-    expect(await Promise.race([checkpoint,exited.then(()=>{throw new Error('Owned crash child exited before decision commit ('+observed.join(' > ')+')');}),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Owned crash child did not reach decision checkpoint ('+observed.join(' > ')+')')),20000);})])).toBe(1);
+    expect(await Promise.race([checkpoint,exited.then(()=>{throw new Error('Owned crash child exited before decision commit ('+observed.join(' > ')+')');}),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Owned crash child did not reach decision checkpoint ('+observed.join(' > ')+')')),120000);})])).toBe(1);
     child.kill('SIGKILL');const exit=await exited;expect(exit[1]==='SIGKILL'||exit[0]!==0).toBe(true);expect((await f.durable.steps(f.task)).find(step=>step.key==='agent.0.decision')?.status).toBe('completed');expect((await f.store.read(f.key))[stage].candidate).toBeNull();
     await pool.query("UPDATE camery_durable.tasks SET lease_until=clock_timestamp()-interval '1 second' WHERE tenant_id=$1 AND task_id=$2",[f.task.tenantId,f.task.taskId]);
     const replacementPool=new Pool({connectionString:url});try{
@@ -104,4 +105,4 @@ it.each(['foundation','episodes-redo'] as const)('survives actual %s SIGKILL aft
       if(original){expect(restored.foundation).toEqual(original.foundation);expect(await store.read(source.key)).toEqual(original);expect(await durable.get({tenantId:f.key.tenantId,taskId:developmentStageTaskId(f.key,'foundation')})).toBeNull();expect(restored.episodes.candidate!.model).toMatchObject({connectionId:'replacement',modelIdentity:'fixture/redo'});expect((await f.ledger.project({tenantId:f.key.tenantId,projectId:f.key.projectId})).used.tokens).toBe('300');}
     }finally{await replacementPool.end();}
   }finally{if(timer)clearTimeout(timer);if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited;}}
-});
+},240000);

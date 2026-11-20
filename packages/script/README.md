@@ -86,3 +86,25 @@ pnpm check
 持久run固定简报、实际来源快照、方法及执行画像；候选必须匹配该run原始模型身份与 `outlineCallId(key)`。完整读取逐条重建候选与人审审计，存档SHA只证明完整性。首次审阅拒绝过期来源，重复同一决定仍须当前人类权限，但返回原actor/time；提交丢失ACK可重读。来源、候选或审计损坏明确失败，不伪造“已批准”。执行画像只冻结预算参数，大纲专用 BudgetLedger/Durable 宿主、SIGKILL/unknown恢复、HTTP/页面和正式 IR 采用仍待后续实施，不能从存储测试判整个 OL-3 完成。
 
 安装需先准备既有 ingest/Bible/Development schema，再由受信安装者调用 `migrateOutline(admin)`。独立LOGIN仅获得 outline四表SELECT/INSERT及来源11表SELECT，不读取迁移ledger，不修改来源或已有记录；认证、预算和任务使用其它池。追加迁移SQL固定LF，校验原始字节checksum；源表与旧迁移/角色权限保持原样。完整范围和证据见[大纲实施计划](../../docs/plan/dramaturgy-phase1.md)。
+
+## T1.8 文本质量审阅
+
+`@camery/script/quality` 提供免费结构闸门、可配置俗套分级与起名检查、13类原创反模式、完整模型矩阵/可见引文校验和故事→连贯→制作的两周期状态。规则初值仍为 `unvalidated`，分数不代表观众反馈、真实模型质量或成片验收。四类声音与真实四账上下文完整进入审阅；结构硬错不可豁免，未知人物职责会形成独立问题。
+
+`@camery/script/quality/node` 是内部宿主入口。先显式安装 Agents、Outline、Screenplay 及其来源 schema，再由安装者调用 `migrateQuality`；运行时构造器不安装或授权。`PostgresQualityStore(pool,{outline,scripts,generations})` 从同连接实际仓库读取候选、人改稿或显式 native proof，保留实际原始模型收据及直接人类作者；不能用客户端 JSON 或重算摘要冒充来源和当前性。大纲对象跨同一实际简报的生成批次稳定，剧本对象绑定实际分集。
+
+| 宿主 API | 行为 |
+| --- | --- |
+| `start({key,source,policy,executions},host)` / `read(key,host)` | 固定来源选择、规则及三个执行画像；全批次请求与各角色完整预算上限预检。三角色使用同一币种，实际项目余额和币种仍由预算账本分配时核对 |
+| `enqueueQualityBatch(store,durable,key,{cycle,phase,index},host)` | 每周期/角色/批次一个固定物理任务；返回既有 unknown 或终态任务，避免换身份重调 |
+| `createQualityWorkflow({store,ledger,hostFor,sessionFor})` | 注册进实际 DurableWorker；付费决定前及 session await 后重查来源、阶段、权限和原模型画像；原始 DTO/收据与归一化问题分开保存 |
+| `completeStage(key,cycle,phase,host)` | 完整读回本阶段所有批次、原始收据和覆盖，再按固定顺序追加阶段证明；漏批不能完成 |
+| `waive(key,{cycle,target,resultDigest,findings:[{id,reason}]},host)` | 有权限的人类逐实际问题记录不可变理由。target 为 `free` 或指定模型 phase/index；不能豁免硬错、外来问题或改写旧理由，周期结束后不再新增理由 |
+| `resolveCycle(key,cycle,expectedStateDigest,host)` / `revise(key,{source,expectedStateDigest},host)` | 从实际问题与人类记录推导未解数量；首次可显式绑定真实新稿进入第二周期，第二次仍未解则产生 Question，无自动第三周期、改稿、解锁或采用 |
+| `relayPending(key,limit,host)` / `consumeCurrent(key,host)` | 质量结果与 outbox 原子保存；释放源锁后向实际 Agents 黑板幂等投递并读回 Issue/Question，再确认有界页。消费重放全部证明、理由及实际共享结果，并再次核对当前来源；即使无问题也须先 relay 建立实际逻辑任务 |
+
+宿主从 `read` 的当前状态和该周期 manifest 选择待执行批次：先排空 story 的全部固定任务并完成该阶段，再处理 continuity、production，最后等待人类处置并显式 resolve。`blocked` 周期没有模型 manifest。单独读取是历史完整性，首次模型调用、阶段完成、人类处置及当前消费另做当前性校验；过期源的已付结果仍可按原任务保存和恢复，不能据此发起新调用或当前消费。
+
+完整来源≤64MiB、规则≤256KiB、免费报告≤16MiB，控制引用独立有界。模型请求使用实际 Methods 封套≤2MiB、输出≤512KiB，每批≤8单元且单元×主题≤128项；长上下文穷尽分批，字符串保留原 UTF-16 连续范围。完整公共正文若无法容纳会明确拒绝，不裁剪后宣称覆盖。原始 source/result 按组件捕获，Durable只保存≤1MiB的小任务/日志封套及结果引用；不要将 `read` 含全文与计划的内部对象直接暴露为 HTTP 投影。
+
+真实文本模型由受信宿主配置，并明确设置 SDK 输入/输出容量；ComfyUI图像连接不能替代文本审阅。当前新增认证 HTTP/UI、真人质量、编辑器、法务和设计伙伴验收按用户安排后补；内部同步授权与租户/来源完整性检查持续生效。实现边界及验收证据见[质量流程计划](../../docs/plan/quality-phase1.md)。

@@ -1,0 +1,60 @@
+import {z} from 'zod';
+import {AgentRegistry} from '@camery/agents';
+import {MethodRegistry} from '@camery/methods';
+import {stepIdempotencyKey} from '@camery/durable';
+import {Id,Hash,Integer,Text,DevelopmentError} from '../../contracts.js';
+import {EpisodeExecutionSchema,executionForEpisodes} from '../../node/contracts.js';
+import {QualityError,QualityPolicySchema,QualityPhaseSchema} from '../contracts.js';
+import {QualityReviewerSchema,QualityStageProofSchema,createQualityReview} from '../state.js';
+import type {QualityReview} from '../state.js';
+import {captureQuality,freezeQuality} from '../boundary.js';
+import {validateQualityPolicy} from '../catalog.js';
+import {QualitySourceSelectionSchema,qualitySourceReference,validateQualitySource} from './source.js';
+import type {QualitySource} from './source.js';
+import {prepareQualityChecks} from './preparation.js';
+import {prepareQualityReviewPlan} from './plan.js';
+import type {QualityReviewPlan} from './plan.js';
+import {createQualityReviewMethodPack} from './method-assets.js';
+import {qualityAgentDefinition} from './agent-assets.js';
+import {qualityDigest,equalQualityData} from './data.js';
+
+export const QUALITY_WORKFLOW='quality.review-batch',QUALITY_WORKFLOW_VERSION=1;
+export const QualityKeySchema=z.strictObject({tenantId:Id,projectId:Id,runId:Id});
+export type QualityKey=z.infer<typeof QualityKeySchema>;
+export const QualityCycleNumberSchema=z.union([z.literal(1),z.literal(2)]);
+export const QualityBatchAddressSchema=z.strictObject({cycle:QualityCycleNumberSchema,phase:QualityPhaseSchema,index:Integer.max(8191)});
+export type QualityBatchAddress=z.infer<typeof QualityBatchAddressSchema>;
+export const QualityExecutionsSchema=z.strictObject({story:EpisodeExecutionSchema,continuity:EpisodeExecutionSchema,production:EpisodeExecutionSchema});
+const Reviewer=QualityReviewerSchema.extend({execution:EpisodeExecutionSchema});
+export const QualityReviewersSchema=z.strictObject({story:Reviewer,continuity:Reviewer,production:Reviewer});
+export type QualityReviewers=z.infer<typeof QualityReviewersSchema>;
+const phases=['story','continuity','production'] as const;
+const ownedMaterials=new WeakSet<object>();
+export const StartQualitySchema=z.strictObject({key:QualityKeySchema,source:QualitySourceSelectionSchema,policy:QualityPolicySchema,executions:QualityExecutionsSchema});
+export const QualityManifestSummarySchema=z.strictObject({digest:Hash,count:Integer.min(1).max(8192)});
+export const QualityManifestsSchema=z.strictObject({story:QualityManifestSummarySchema,continuity:QualityManifestSummarySchema,production:QualityManifestSummarySchema});
+export const QualityCycleSchema=z.strictObject({version:z.literal(1),key:QualityKeySchema,number:QualityCycleNumberSchema,runDigest:Hash,sourceDigest:Hash,preparationDigest:Hash,manifests:QualityManifestsSchema.nullable(),actorId:Id,at:z.iso.datetime({precision:3}),digest:Hash});
+export type StoredQualityCycle=z.infer<typeof QualityCycleSchema>;
+export const QualityRunSchema=z.strictObject({version:z.literal(1),key:QualityKeySchema,policy:QualityPolicySchema,reviewers:QualityReviewersSchema,sourceSelection:QualitySourceSelectionSchema,initialSourceDigest:Hash,initialPreparationDigest:Hash,initialState:z.unknown(),authorId:Id,createdAt:z.iso.datetime({precision:3}),requestDigest:Hash,digest:Hash});
+export type QualityRun=Omit<z.infer<typeof QualityRunSchema>,'initialState'>&{initialState:QualityReview};
+export const QualityStageCompletionSchema=z.strictObject({version:z.literal(1),key:QualityKeySchema,runDigest:Hash,cycle:QualityCycleNumberSchema,proof:QualityStageProofSchema,batchDigests:z.array(Hash).min(1).max(8192),actorId:Id,at:z.iso.datetime({precision:3}),digest:Hash});
+export type QualityStageCompletion=z.infer<typeof QualityStageCompletionSchema>;
+export const QualityWaiverInputSchema=z.strictObject({cycle:QualityCycleNumberSchema,target:z.discriminatedUnion('kind',[z.strictObject({kind:z.literal('free')}),z.strictObject({kind:z.literal('model'),phase:QualityPhaseSchema,index:Integer.max(8191)})]),resultDigest:Hash,findings:z.array(z.strictObject({id:Id,reason:Text(2000)})).min(1).max(1024)});
+export const QualityWaiverSchema=QualityWaiverInputSchema.omit({findings:true}).extend({version:z.literal(1),key:QualityKeySchema,runDigest:Hash,sourceDigest:Hash,findingId:Id,reason:Text(2000),actorId:Id,at:z.iso.datetime({precision:3}),digest:Hash});
+export type QualityWaiver=z.infer<typeof QualityWaiverSchema>;
+export const QualityControlSchema=z.strictObject({version:z.literal(1),key:QualityKeySchema,runDigest:Hash,sequence:Integer.min(1).max(9),state:z.unknown(),actorId:Id,at:z.iso.datetime({precision:3}),requestDigest:Hash,digest:Hash});
+export type QualityControl=z.infer<typeof QualityControlSchema>;
+export const QualityBatchReferenceSchema=QualityKeySchema.omit({tenantId:true}).extend({...QualityBatchAddressSchema.shape,runDigest:Hash,sourceDigest:Hash,preparationDigest:Hash,manifestDigest:Hash});
+
+function fail(code:QualityError['code'],path:string):never{throw new QualityError(code,'quality repository protocol',path);}
+export function qualityExecution(input:unknown,count:number){try{const execution=executionForEpisodes(input);if(!Number.isSafeInteger(count)||count<0||count>16384||execution.limits.steps<count||BigInt(count)*BigInt(execution.reservation.tokens)>BigInt(execution.limits.tokens)||BigInt(count)*BigInt(execution.reservation.costMicros)>BigInt(execution.limits.costMicros))fail('INPUT_LIMIT','complete role reservations');return execution;}catch(error){let known=false,limit=false;try{known=error instanceof QualityError;limit=error instanceof DevelopmentError&&error.code==='INPUT_LIMIT';}catch{/* Profile diagnostics remain private. */}if(known)throw error;return fail(limit?'INPUT_LIMIT':'INVALID_INPUT','execution');}}
+export function qualityReviewers(input:unknown):QualityReviewers{const executions=captureQuality(QualityExecutionsSchema,input,'quality reviewers',16384),rows={} as QualityReviewers;if(new Set(phases.map(phase=>executions[phase].currency)).size!==1)fail('INVALID_INPUT','reviewer currencies');for(const phase of phases){const execution=qualityExecution(executions[phase],0),method=new MethodRegistry().register(createQualityReviewMethodPack(phase)),agent=new AgentRegistry().register(qualityAgentDefinition(phase,execution));rows[phase]={agent,method,execution,connectionId:execution.connectionId,modeDigest:execution.modeDigest,modelIdentity:execution.modelIdentity,evidence:execution.evidence};}return freezeQuality(rows);}
+export function qualityReviewTaskId(input:unknown){return 'quality-'+qualityDigest(captureQuality(QualityKeySchema,input,'quality task key',2048));}
+export function qualityBatchTaskId(input:unknown,cycle:unknown,phase:unknown,index:unknown){const key=captureQuality(QualityKeySchema,input,'quality batch key',2048),address=captureQuality(QualityBatchAddressSchema,{cycle,phase,index},'quality batch address',256);return 'quality-batch-'+qualityDigest({key,...address});}
+export function qualityBatchCallId(input:unknown,cycle:unknown,phase:unknown,index:unknown){const key=captureQuality(QualityKeySchema,input,'quality call key',2048);return stepIdempotencyKey({tenantId:key.tenantId,taskId:qualityBatchTaskId(key,cycle,phase,index)},'agent.0.decision');}
+export function qualityCycleMaterial(keyInput:unknown,sourceInput:unknown,policyInput:unknown){const key=captureQuality(QualityKeySchema,keyInput,'quality material key',2048),source=validateQualitySource(sourceInput),policy=validateQualityPolicy(policyInput);if(!equalQualityData(source.scope,{tenantId:key.tenantId,projectId:key.projectId}))fail('FORBIDDEN','source scope');const preparation=prepareQualityChecks(qualityReviewTaskId(key),source,policy),plan:QualityReviewPlan|null=preparation.summary.nonWaivable?null:prepareQualityReviewPlan(qualityReviewTaskId(key),source,policy),manifests=plan?Object.fromEntries(phases.map(phase=>[phase,{digest:plan.phases[phase].manifestDigest,count:plan.phases[phase].batches.length}])) as z.infer<typeof QualityManifestsSchema>:null;const material=freezeQuality({source,preparation,plan,manifests});ownedMaterials.add(material);return material;}
+function pureReviewers(rows:QualityReviewers){return Object.fromEntries(phases.map(phase=>{const {execution:_execution,...reviewer}=rows[phase];return [phase,reviewer];})) as QualityReview['definition']['reviewers'];}
+export function qualityInitialState(keyInput:unknown,reviewersInput:unknown,material:ReturnType<typeof qualityCycleMaterial>){const key=captureQuality(QualityKeySchema,keyInput,'quality state key',2048),reviewers=captureQuality(QualityReviewersSchema,reviewersInput,'quality state reviewers',16384);if(!ownedMaterials.has(material))fail('INVALID_INPUT','captured cycle material');const p=material.preparation,taskId=qualityReviewTaskId(key);if(!equalQualityData(material.source.scope,{tenantId:key.tenantId,projectId:key.projectId})||p.scope.taskId!==taskId||p.scope.sourceDigest!==material.source.digest||p.scope.objectId!==material.source.objectId)fail('CONFLICT','quality state material scope');if(!equalQualityData(reviewers,qualityReviewers(Object.fromEntries(phases.map(phase=>[phase,reviewers[phase].execution])))))fail('CONFLICT','fixed quality reviewers');return createQualityReview({scope:{tenantId:key.tenantId,projectId:key.projectId,taskId,objectId:material.source.objectId},policyDigest:p.policyDigest,reviewers:pureReviewers(reviewers),source:qualitySourceReference(material.source),gates:p.summary});}
+export function qualityRunRequest(input:Pick<QualityRun,'key'|'sourceSelection'|'policy'|'reviewers'|'authorId'>){return {key:input.key,source:input.sourceSelection,policy:input.policy,executions:Object.fromEntries(phases.map(phase=>[phase,input.reviewers[phase].execution])),authorId:input.authorId};}
+export function validateQualityRun(key:QualityKey,input:unknown,sourceInput:QualitySource){const raw=captureQuality(QualityRunSchema,input,'stored quality run',1048576),policy=validateQualityPolicy(raw.policy),reviewers=qualityReviewers(Object.fromEntries(phases.map(phase=>[phase,raw.reviewers[phase].execution]))),material=qualityCycleMaterial(key,sourceInput,policy),source=material.source,initialState=qualityInitialState(key,reviewers,material),{digest,...body}=raw;if(!equalQualityData(raw.key,key)||!equalQualityData(raw.sourceSelection,source.selection)||raw.initialSourceDigest!==source.digest||raw.initialPreparationDigest!==material.preparation.digest||!equalQualityData(reviewers,raw.reviewers)||!equalQualityData(raw.initialState,initialState)||qualityDigest(qualityRunRequest({...raw,policy,reviewers}))!==raw.requestDigest||qualityDigest(body)!==digest)fail('CONFLICT','run binding');for(const phase of phases)qualityExecution(reviewers[phase].execution,material.manifests?.[phase].count??0);return freezeQuality({...raw,policy,reviewers,initialState});}
+export function qualityBatchReference(runInput:unknown,cycleInput:unknown,addressInput:unknown){const run=captureQuality(QualityRunSchema,runInput,'quality reference run',1048576),cycle=captureQuality(QualityCycleSchema,cycleInput,'quality reference cycle',524288),address=captureQuality(QualityBatchAddressSchema,addressInput,'quality reference address',256),{digest:runDigest,...runBody}=run,{digest:cycleDigest,...cycleBody}=cycle;if(!equalQualityData(cycle.key,run.key)||cycle.runDigest!==run.digest||qualityDigest(runBody)!==runDigest||qualityDigest(cycleBody)!==cycleDigest||cycle.number===1&&(cycle.sourceDigest!==run.initialSourceDigest||cycle.preparationDigest!==run.initialPreparationDigest))fail('CONFLICT','quality batch source binding');if(address.cycle!==cycle.number||!cycle.manifests||address.index>=cycle.manifests[address.phase].count)fail('INVALID_REFERENCE','quality batch reference');return freezeQuality({projectId:run.key.projectId,runId:run.key.runId,...address,runDigest:run.digest,sourceDigest:cycle.sourceDigest,preparationDigest:cycle.preparationDigest,manifestDigest:cycle.manifests[address.phase].digest});}

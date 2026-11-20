@@ -72,6 +72,7 @@ const IssueSchema = z.strictObject({ issueId: identity, taskId: identity, scope:
   severity: z.enum(['minor', 'major', 'critical']), problem: text, audienceImpact: text, suggestion: text,
   ripple: z.array(text).max(100), evidenceScope: z.enum(['text', 'media']),
 });
+export {IssueSchema as AgentIssueSchema};
 export type AgentIssue = z.infer<typeof IssueSchema>;
 /** Evidence scope is explicit: a text observation is not a rendered-media approval. */
 export function createIssue(input: AgentIssue): AgentIssue {
