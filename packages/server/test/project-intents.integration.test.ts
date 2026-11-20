@@ -65,10 +65,14 @@ it('recovers a partial candidate after actual COMMIT ACK loss and new pool, adop
   const original=await application.submitCandidate({subject:editor,projectId:f.scope.projectId,command:{applicationId:'manual-original',change,expectedSnapshotRevision:1,expectedWriteVersion:1}});expect(original.status).toBe('candidate');
   const selection={applicationId:'selected-original',changeId:allocation(),operationIds:[change.ops[0]!.op_id],expectedSnapshotRevision:1,expectedWriteVersion:2},input={subject:editor,projectId:f.scope.projectId,candidateId:change.id,command:selection};
   const before=await counts(f);expect((await application.previewSelection(input)).status).toBe('candidate');expect(await counts(f)).toEqual(before);
-  let lost=false;const lossy=applicationFor(f,pool,observedPool(async()=>{},()=>{if(!lost){lost=true;throw new Error('Injected selection COMMIT ACK loss');}}));
+  // The host reads through separate read-only transactions before submitting; inject only after this receipt is written.
+  let receiptWritten=false,lost=false;const lossy=applicationFor(f,pool,observedPool(async(_client,text)=>{if(text.startsWith('INSERT INTO camery_projects.candidate_receipts'))receiptWritten=true;},()=>{if(receiptWritten&&!lost){lost=true;throw new Error('Injected selection COMMIT ACK loss');}}));
   await expect(lossy.prepareSelection(input)).rejects.toMatchObject({code:'DATABASE_ERROR'});expect(lost).toBe(true);
+  const committed=await intents.findCandidate({scope:f.scope,applicationId:selection.applicationId});expect(committed?.changeId).toBe(selection.changeId);
+  expect((await versions.read(f.target))!.state.changes.find(row=>row.request.id===selection.changeId)?.status).toBe('candidate');
+  expect((await intents.readPreparationReceipt({scope:f.scope,applicationId:selection.applicationId}))?.status).toBe('candidate');
   const reopened=new Pool({connectionString:databaseUrl,max:2});try{
-    const host=applicationFor(f,reopened),partial=await host.prepareSelection(input);expect(partial.derivation).toMatchObject({sourceChangeId:change.id,operationIds:selection.operationIds});expect(partial.differences.map(row=>row.id)).toEqual([firstProp]);
+    const committedCounts=await counts(f),host=applicationFor(f,reopened),partial=await host.prepareSelection(input);expect(await counts(f)).toEqual(committedCounts);expect(partial.derivation).toMatchObject({sourceChangeId:change.id,operationIds:selection.operationIds});expect(partial.differences.map(row=>row.id)).toEqual([firstProp]);
     const comparison=await host.compareCandidates({subject:reviewer,projectId:f.scope.projectId,command:{left:{kind:'candidate',candidateId:change.id},right:{kind:'candidate',candidateId:partial.candidateId},expectedSnapshotRevision:1,expectedWriteVersion:3}});expect(comparison.differences.map(row=>row.id)).toEqual([secondProp]);
     const decision={subject:reviewer,projectId:f.scope.projectId,candidateId:partial.candidateId,requestId:'adopt-selection',command:{scope:partial.scope,expectedSnapshotRevision:1,expectedWriteVersion:3}};
     const receipt=await host.adoptCandidate(decision);expect(receipt.status).toBe('adopted');const state=(await versions.read(f.target))!;expect(state.state.head.props.map(row=>row.id)).toEqual([firstProp]);expect(state.state.changes.find(row=>row.request.id===change.id)!.status).toBe('candidate');
