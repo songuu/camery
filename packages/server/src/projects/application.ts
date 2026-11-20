@@ -2,11 +2,12 @@ import {z} from 'zod';
 import {AccessError,authorize,parseIdentity,permissionsFor} from '@camery/access';
 import type {Permission,SessionIdentity} from '@camery/access';
 import {Asset,ChangeSet,StableId,OUTLINE_COLLECTIONS} from '@camery/ir';
-import {WorkbenchStateSchema,WorkbenchPreviewSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,DevelopmentCandidatePrepareSchema,WorkbenchCandidateListQuerySchema,WorkbenchReadQuerySchema,WorkbenchHistoryQuerySchema,WorkbenchObjectHistorySchema,WorkbenchCollectionSchema,WorkbenchReadyAssetQuerySchema} from '@camery/ir/workbench';
+import {WorkbenchStateSchema,WorkbenchPreviewSchema,WorkbenchSubmitSchema,WorkbenchUpgradeSchema,WorkbenchAdoptSchema,WorkbenchRejectSchema,DevelopmentCandidatePrepareSchema,WorkbenchCandidateListQuerySchema,WorkbenchReadQuerySchema,WorkbenchHistoryQuerySchema,WorkbenchObjectHistorySchema,WorkbenchCollectionSchema,WorkbenchReadyAssetQuerySchema,WorkbenchCompareSchema,WorkbenchCompareResultSchema,WorkbenchSelectionSchema} from '@camery/ir/workbench';
+import type {WorkbenchCompareResult,WorkbenchSelectionInput} from '@camery/ir/workbench';
 import {OutlineUpgradeCandidateSchema} from '@camery/ir/outline-adoption';
 import {freeze} from '@camery/methods';
 import {snapshotJson,JsonBoundaryError} from '@camery/methods/json';
-import {submitChangeSet} from '@camery/versioning';
+import {submitChangeSet,compareVersionSnapshots,selectChangeOperations} from '@camery/versioning';
 import type {StoredVersionState,VersionProjectKey} from '@camery/versioning/node';
 import {prepareDevelopmentDraft,finalizeDevelopmentChangeSet,createDevelopmentSourceGuard} from '@camery/script/node';
 import {Id} from '@camery/script/contracts';
@@ -15,7 +16,7 @@ import {ProjectApplicationError} from './intent-contracts.js';
 import type {CandidateIntent,CandidateIntentBody,DecisionIntentBody} from './intent-contracts.js';
 import {projectIntentDigest} from './intent-store.js';
 import {resolveProjectAuthority} from './authority.js';
-import {projectCandidateDetail,projectPreview} from './projection.js';
+import {projectCandidateDetail,projectPreview,redactDifference} from './projection.js';
 import type {ProjectApplicationOptions} from './options.js';
 import {projectReadSnapshot,redactReadObject} from './read-projection.js';
 import {encodeReadCursor,decodeReadCursor} from './read-cursor.js';
@@ -102,6 +103,55 @@ export class ProjectApplication{
     return this.options.intents.listCandidateHeaders({scope:{tenantId:subject.tenantId,projectId},target:binding.versionKey,subjectId:subject.userId,...query});
   }
   async candidate(input:Context&{candidateId:string}){return (await this.candidateData(input)).detail;}
+  /** Compare immutable previews against one captured native state; never rebuild snapshots from object history. */
+  async compareCandidates(input:Context&{command:unknown}){
+    const command=capture(WorkbenchCompareSchema,input.command),subject=this.subject(input,'project:read'),projectId=input.projectId;
+    const binding=await this.options.identities.resolveProject({tenantId:subject.tenantId,projectId}),stored=await this.read(binding.versionKey);this.checkBase(stored,command);
+    const capabilities=await this.readCapabilities(subject,projectId);
+    const side=async(selector:typeof command.left):Promise<{snapshot:typeof stored.state.head;view:WorkbenchCompareResult['left']}>=>{
+      if(selector.kind==='head')return {snapshot:stored.state.head,view:{kind:'head',revision:stored.state.head.revision.number}};
+      const native=stored.state.changes.find(row=>row.request.id===selector.candidateId);if(!native)throw new ProjectApplicationError('NOT_FOUND','comparison candidate');
+      if(!native.preview)throw new ProjectApplicationError('CONFLICT','comparison preview unavailable');
+      const scope={tenantId:subject.tenantId,projectId},intent=await this.options.intents.candidateForChange({scope,changeId:selector.candidateId});
+      if(intent&&(!sameTarget(intent.target,binding.versionKey)||projectIntentDigest(intent.request)!==projectIntentDigest(native.request)))throw new ProjectApplicationError('STORAGE_FAILED','comparison source binding');
+      const preparation=intent?await this.options.intents.readPreparationReceipt({scope,applicationId:intent.applicationId}):null;
+      const detail=projectCandidateDetail({projectKey:projectId,state:stored.state,writeVersion:stored.writeVersion,candidateId:selector.candidateId,intent,preparation,canReview:capabilities.canReview,sourceState:await this.sourceState(intent)});
+      const {candidateId,status,managed,source,baseRevision,issues,warnings,blockingReasons}=detail;
+      return {snapshot:native.preview,view:{kind:'candidate',candidateId,status,managed,source,baseRevision,issues,warnings,blockingReasons}};
+    };
+    const left=await side(command.left),right=await side(command.right);
+    const result=WorkbenchCompareResultSchema.parse({contractVersion:1,projectKey:projectId,projectId:binding.versionKey.projectId,snapshotRevision:stored.state.head.revision.number,writeVersion:stored.writeVersion,left:left.view,right:right.view,differences:compareVersionSnapshots(left.snapshot,right.snapshot).map(redactDifference)});
+    try{return freeze(snapshotJson(result,983040,65536)) as WorkbenchCompareResult;}catch(error){if(error instanceof JsonBoundaryError&&error.code==='INPUT_LIMIT')throw new ProjectApplicationError('INPUT_LIMIT','comparison response');throw error;}
+  }
+  private async selectionRequest(authority:Awaited<ReturnType<ProjectApplication['authority']>>,candidateId:string,command:WorkbenchSelectionInput){
+    const stored=await this.read(authority.versionKey);this.checkBase(stored,command);
+    const origin=await this.options.intents.candidateForChange({scope:authority.scope,changeId:candidateId});
+    if(!origin)throw new ProjectApplicationError('SOURCE_POLICY_MISSING','selection source');
+    if(!sameTarget(origin.target,authority.versionKey))throw new ProjectApplicationError('STORAGE_FAILED','selection target');
+    const native=stored.state.changes.find(row=>row.request.id===candidateId);
+    if(!origin.request||!native||projectIntentDigest(origin.request)!==projectIntentDigest(native.request))throw new ProjectApplicationError('STORAGE_FAILED','selection original request');
+    // A single immutable source link is sufficient here; nested selections require an explicit future lineage contract.
+    if(origin.derivation)throw new ProjectApplicationError('CONFLICT','nested selection');
+    if(await this.sourceState(origin)!=='current')throw new ProjectApplicationError('CONFLICT','selection source no longer current');
+    const request=selectChangeOperations(stored.state,{sourceChangeId:candidateId,operationIds:command.operationIds,changeId:command.changeId,author:authority.principal});
+    if(origin.source.kind==='manual')this.manualPolicy(request,stored);
+    return {stored,origin,request};
+  }
+  async previewSelection(input:Context&{candidateId:string;command:unknown}){
+    const command=capture(WorkbenchSelectionSchema,input.command),candidateId=capture(stable,input.candidateId),authority=await this.authority(input,'candidate:write');
+    const {stored,request}=await this.selectionRequest(authority,candidateId,command);
+    return projectPreview({state:stored.state,writeVersion:stored.writeVersion,result:submitChangeSet(stored.state,request),candidateId:request.id});
+  }
+  async prepareSelection(input:Context&{candidateId:string;command:unknown}){
+    const command=capture(WorkbenchSelectionSchema,input.command),candidateId=capture(stable,input.candidateId),authority=await this.authority(input,'candidate:write');
+    const context={subject:authority.subject,projectId:authority.scope.projectId},digest=this.digest(authority,'selection',{candidateId,command});
+    const existing=await this.existing(authority,command.applicationId,digest);if(existing)return this.finishCandidate(context,existing);
+    const {origin,request}=await this.selectionRequest(authority,candidateId,command);
+    // The existing native transaction records validation failures with their actual receipt; a failed selection is never adoptable.
+    const derivation={sourceChangeId:candidateId,requestDigest:projectIntentDigest(origin.request),operationIds:request.ops.map(op=>op.op_id)};
+    const saved=await this.options.intents.putCandidate({version:1,scope:authority.scope,applicationId:command.applicationId,actor:authority.actor,target:authority.versionKey,commandDigest:digest,source:origin.source,derivation,expectation:expectation(command),changeId:request.id,request});
+    return this.finishCandidate(context,saved);
+  }
   async upgradeCandidate(input:Context&{candidateId:string}){
     const {intent,detail}=await this.candidateData(input,true),op=intent!.request!.ops[0]!;
     if(op.op!=='upgrade_schema')throw new ProjectApplicationError('STORAGE_FAILED','upgrade operation');
@@ -117,6 +167,10 @@ export class ProjectApplication{
     if(upgradeOnly){const native=stored.state.changes.find(change=>change.request.id===candidateId);if(native&&projectIntentDigest(native.request)!==projectIntentDigest(intent!.request))throw new ProjectApplicationError('STORAGE_FAILED','upgrade native request');}
     let canReview=permissionsFor(subject,this.options.tenantId,projectId).includes('candidate:review');
     if(canReview){try{await this.options.identities.resolvePrincipal({tenantId:subject.tenantId,kind:'user',key:subject.userId});}catch(error){if(error instanceof ProjectIdentityError&&error.code==='PRINCIPAL_BINDING_MISSING')canReview=false;else throw error;}}
+    const sourceState=await this.sourceState(intent);
+    return {intent,detail:projectCandidateDetail({projectKey:projectId,state:stored.state,writeVersion:stored.writeVersion,candidateId,intent,preparation,canReview,sourceState})};
+  }
+  private async sourceState(intent:CandidateIntent|null):Promise<'current'|'stale'|'unavailable'>{
     let sourceState:'current'|'stale'|'unavailable'='current';
     if(intent?.source.kind==='development'){
       const source=intent.source.source;
@@ -126,7 +180,7 @@ export class ProjectApplication{
         sourceState=current&&progress.run.digest===source.runDigest&&progress.run.brief.digest===source.briefDigest&&progress.foundation.review?.status==='reviewed'&&progress.foundation.review.digest===source.foundationReviewDigest&&progress.episodes.review?.status==='reviewed'&&progress.episodes.review.digest===source.episodesReviewDigest?'current':'stale';
       }catch{sourceState='unavailable';}
     }
-    return {intent,detail:projectCandidateDetail({projectKey:projectId,state:stored.state,writeVersion:stored.writeVersion,candidateId,intent,preparation,canReview,sourceState})};
+    return sourceState;
   }
   private manualPolicy(request:ChangeSet,stored:StoredVersionState):void{
     // A manual command cannot manufacture or rewrite a reviewed development source receipt.

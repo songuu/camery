@@ -14,6 +14,8 @@ import {PostgresProjectIdentityStore,ProjectIdentityRegistrar} from '../src/proj
 import {resolveProjectAuthority} from '../src/projects/authority.js';
 import {PostgresProjectIntents,projectIntentDigest} from '../src/projects/intent-store.js';
 import type {CandidateIntentBody,DecisionIntentBody} from '../src/projects/intent-contracts.js';
+import {ProjectApplication} from '../src/projects/application.js';
+import {PostgresProjectReadStore} from '../src/projects/read-store.js';
 
 const databaseUrl=process.env['CAMERY_TEST_DATABASE_URL'];if(!databaseUrl)throw new Error('CAMERY_TEST_DATABASE_URL required for immutable candidate intents integration');
 const pool=new Pool({connectionString:databaseUrl,max:12,connectionTimeoutMillis:5000});const owned:string[]=[];
@@ -52,6 +54,40 @@ async function fixture(v07=false){
 }
 async function counts(f:Awaited<ReturnType<typeof fixture>>){return Promise.all(['snapshots','changes','object_revisions','adoptions'].map(async table=>Number((await pool.query<{count:string}>(`SELECT count(*)::text count FROM camery_versioning.${table} WHERE tenant_id=$1 AND project_id=$2`,[f.target.tenantId,f.target.projectId])).rows[0]!.count)));}
 function observedPool(observe:(client:PoolClient,text:string)=>Promise<void>,afterCommit?:()=>void):Pool{return new Proxy(pool,{get(target,property){if(property==='connect')return async()=>{const client=await target.connect();return new Proxy(client,{get(connection,field){if(field==='query')return async(input:string|QueryConfig,values?:unknown[])=>{const text=typeof input==='string'?input:input.text;const result=await connection.query(input,values);await observe(connection,text);if(text.trim().toUpperCase()==='COMMIT')afterCommit?.();return result;};const value:unknown=Reflect.get(connection,field);return typeof value==='function'?value.bind(connection):value;}});};const value:unknown=Reflect.get(target,property);return typeof value==='function'?value.bind(target):value;}});}
+function applicationFor(f:Awaited<ReturnType<typeof fixture>>,database=pool,versionDatabase=database){return new ProjectApplication({tenantId:f.scope.tenantId,identities:new PostgresProjectIdentityStore(database),versions:new PostgresVersionStore(versionDatabase),reads:new PostgresProjectReadStore(database),intents:new PostgresProjectIntents(database),development:{store:f.store,identities:new PostgresDevelopmentIrIdentities(database,f.store,allocation)},newId:allocation,now:()=> '2026-11-20T07:00:00.000Z'});}
+async function applicationSubject(f:Awaited<ReturnType<typeof fixture>>,userId:'editor'|'reviewer'){
+  const token=(await issueSession({tenantId:f.scope.tenantId,userId,ttlSeconds:3600},f.sessions)).token;
+  return new AccessService({tenantId:f.scope.tenantId,store:f.sessions}).authenticate('Bearer '+token);
+}
+it('recovers a partial candidate after actual COMMIT ACK loss and new pool, adopting only selected content through the shared host',async()=>{
+  const f=await fixture(),application=applicationFor(f),editor=await applicationSubject(f,'editor'),reviewer=await applicationSubject(f,'reviewer'),actor=await f.authority('editor');
+  const firstProp=allocation(),secondProp=allocation(),change=changeSet([firstProp,secondProp].map((prop,index)=>({op:'add' as const,op_id:allocation(),collection:'props' as const,value:{id:prop,version:1,name:'方案'+index,description:'独立候选内容'}})),{schema_version:'0.6.0-draft',id:allocation(),author:actor.principal,base_revision:1,base_revisions:[]});
+  const original=await application.submitCandidate({subject:editor,projectId:f.scope.projectId,command:{applicationId:'manual-original',change,expectedSnapshotRevision:1,expectedWriteVersion:1}});expect(original.status).toBe('candidate');
+  const selection={applicationId:'selected-original',changeId:allocation(),operationIds:[change.ops[0]!.op_id],expectedSnapshotRevision:1,expectedWriteVersion:2},input={subject:editor,projectId:f.scope.projectId,candidateId:change.id,command:selection};
+  const before=await counts(f);expect((await application.previewSelection(input)).status).toBe('candidate');expect(await counts(f)).toEqual(before);
+  let lost=false;const lossy=applicationFor(f,pool,observedPool(async()=>{},()=>{if(!lost){lost=true;throw new Error('Injected selection COMMIT ACK loss');}}));
+  await expect(lossy.prepareSelection(input)).rejects.toMatchObject({code:'DATABASE_ERROR'});expect(lost).toBe(true);
+  const reopened=new Pool({connectionString:databaseUrl,max:2});try{
+    const host=applicationFor(f,reopened),partial=await host.prepareSelection(input);expect(partial.derivation).toMatchObject({sourceChangeId:change.id,operationIds:selection.operationIds});expect(partial.differences.map(row=>row.id)).toEqual([firstProp]);
+    const comparison=await host.compareCandidates({subject:reviewer,projectId:f.scope.projectId,command:{left:{kind:'candidate',candidateId:change.id},right:{kind:'candidate',candidateId:partial.candidateId},expectedSnapshotRevision:1,expectedWriteVersion:3}});expect(comparison.differences.map(row=>row.id)).toEqual([secondProp]);
+    const decision={subject:reviewer,projectId:f.scope.projectId,candidateId:partial.candidateId,requestId:'adopt-selection',command:{scope:partial.scope,expectedSnapshotRevision:1,expectedWriteVersion:3}};
+    const receipt=await host.adoptCandidate(decision);expect(receipt.status).toBe('adopted');const state=(await versions.read(f.target))!;expect(state.state.head.props.map(row=>row.id)).toEqual([firstProp]);expect(state.state.changes.find(row=>row.request.id===change.id)!.status).toBe('candidate');
+    const stable=await counts(f);expect(await host.adoptCandidate(decision)).toEqual(receipt);expect(await counts(f)).toEqual(stable);expect((await host.prepareSelection(input)).preparation).toEqual(partial.preparation);
+    await f.sessions.provisionMember({...f.scope,userId:'reviewer',role:'viewer'});await expect(host.adoptCandidate({...decision,subject:await applicationSubject(f,'reviewer')})).rejects.toMatchObject({code:'FORBIDDEN'});expect(f.calls()).toBe(2);
+  }finally{await reopened.end();}
+});
+it('inherits real development source authority for selected operations and refuses stale source adoption atomically',async()=>{
+  const f=await fixture();await f.submit();const host=applicationFor(f),editor=await applicationSubject(f,'editor'),reviewer=await applicationSubject(f,'reviewer');
+  const command={applicationId:'development-selection',changeId:allocation(),operationIds:f.candidate.request!.ops.map(op=>op.op_id),expectedSnapshotRevision:1,expectedWriteVersion:2};
+  const partial=await host.prepareSelection({subject:editor,projectId:f.scope.projectId,candidateId:f.candidate.changeId,command});expect(partial.status).toBe('candidate');expect(partial.source).toMatchObject({kind:'development',state:'current'});
+  const saved=await intents.findCandidate({scope:f.scope,applicationId:command.applicationId});expect(saved?.source).toEqual(f.candidate.source);expect(saved?.derivation?.requestDigest).toBe(projectIntentDigest(f.candidate.request));
+  await f.store.putBrief({...f.put,expectedRevision:1,idea:'已经变更的真实来源'});const before=await counts(f);
+  const decision={subject:reviewer,projectId:f.scope.projectId,candidateId:partial.candidateId,requestId:'stale-partial',command:{scope:partial.scope,expectedSnapshotRevision:1,expectedWriteVersion:3}};
+  await expect(host.adoptCandidate(decision)).rejects.toMatchObject({code:'ADOPTION_SOURCE_CHANGED'});expect(await counts(f)).toEqual(before);expect(await intents.readDecisionReceipt({scope:f.scope,actorKind:'user',actorKey:'reviewer',requestId:decision.requestId})).toBeNull();
+  expect((await host.prepareSelection({subject:editor,projectId:f.scope.projectId,candidateId:f.candidate.changeId,command})).source).toMatchObject({state:'stale'});
+  await expect(host.prepareSelection({subject:editor,projectId:f.scope.projectId,candidateId:f.candidate.changeId,command:{...command,applicationId:'new-stale-selection',changeId:allocation(),expectedWriteVersion:3}})).rejects.toMatchObject({code:'CONFLICT'});
+  expect((await host.rejectCandidate({...decision,requestId:'reject-stale-partial',command:{...decision.command,reason:'来源已变更，明确拒绝'}})).status).toBe('rejected');expect(f.calls()).toBe(2);
+});
 it.each([false,true])('adopts the complete reviewed development into typed IR with v07=%s and atomically persists actual preparation and adoption receipts',async v07=>{
   const f=await fixture(v07);expect((await f.submit()).status).toBe('candidate');const decision=await f.decision();const adopted=await versions.adoptGuarded(f.target,f.candidate.changeId,decision.options,createDevelopmentSourceGuard(f.store,f.source),decision.receipt);expect(adopted.status).toBe('adopted');
   const head=adopted.state.head;expect(head.schema_version).toBe(v07?'0.7.0-draft':'0.6.0-draft');if(head.schema_version==='0.5.0-draft')throw new Error('Expected complete development schema');expect(head.worlds).toHaveLength(1);expect(head.development_plans).toHaveLength(1);expect(head.episode_plans).toHaveLength(10);expect(head.episodes).toHaveLength(10);expect(head.scenes).toEqual([]);expect(head.shots).toEqual([]);expect(head.assets).toEqual([]);

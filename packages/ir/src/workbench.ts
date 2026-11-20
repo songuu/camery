@@ -28,9 +28,12 @@ export const WorkbenchCandidateSummarySchema=z.strictObject({contractVersion:z.l
 });
 export type WorkbenchCandidateSummary=z.infer<typeof WorkbenchCandidateSummarySchema>;
 export const WorkbenchDifferenceSchema=z.strictObject({collection:text(64),id:StableId,kind:z.enum(['add','replace','remove']),before:z.record(z.string(),z.unknown()).nullable(),after:z.record(z.string(),z.unknown()).nullable()});
+export const WorkbenchDerivationSchema=z.strictObject({sourceChangeId:StableId,requestDigest:hash,operationIds:z.array(StableId).min(1).max(500)})
+  .refine(value=>new Set(value.operationIds).size===value.operationIds.length,{message:'Selection operations must be unique'});
+export const WorkbenchOperationSummarySchema=z.strictObject({operationId:StableId,kind:text(64),collection:text(64).nullable(),target:StableId.nullable(),selectable:z.boolean()});
 export const WorkbenchCandidateDetailSchema=WorkbenchCandidateSummarySchema.extend({snapshotRevision:revision,writeVersion:revision,baseWriteVersion:revision.nullable(),scope:WorkbenchScopeSchema,
   differences:z.array(WorkbenchDifferenceSchema).max(500),issues:z.array(WorkbenchIssueSchema).max(500),warnings:z.array(WorkbenchIssueSchema).max(500),canAdopt:z.boolean(),canReject:z.boolean(),
-  blockingReasons:z.array(text(128)).max(32),preparation:WorkbenchActionReceiptSchema.nullable(),
+  blockingReasons:z.array(text(128)).max(32),preparation:WorkbenchActionReceiptSchema.nullable(),derivation:WorkbenchDerivationSchema.optional(),operations:z.array(WorkbenchOperationSummarySchema).max(500).optional(),
 });
 export type WorkbenchCandidateDetail=z.infer<typeof WorkbenchCandidateDetailSchema>;
 export const WorkbenchCandidateListQuerySchema=z.strictObject({runId:id.optional(),cursor:z.string().min(1).max(4096).optional(),limit:z.coerce.number().int().min(1).max(50).optional()});
@@ -81,3 +84,15 @@ export const WorkbenchObjectHistorySchema=z.strictObject({contractVersion:z.lite
 });
 export type WorkbenchObjectHistory=z.infer<typeof WorkbenchObjectHistorySchema>;
 export const WorkbenchReadyAssetQuerySchema=z.strictObject({expectedRevision:z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional()});
+
+export const WorkbenchCompareSelectorSchema=z.discriminatedUnion('kind',[z.strictObject({kind:z.literal('head')}),z.strictObject({kind:z.literal('candidate'),candidateId:StableId})]);
+export const WorkbenchCompareSchema=WorkbenchExpectationSchema.extend({left:WorkbenchCompareSelectorSchema,right:WorkbenchCompareSelectorSchema});
+const compareSide=z.discriminatedUnion('kind',[
+  z.strictObject({kind:z.literal('head'),revision}),
+  z.strictObject({kind:z.literal('candidate'),candidateId:StableId,status:WorkbenchCandidateSummarySchema.shape.status,managed:z.boolean(),source,baseRevision:revision,issues:z.array(WorkbenchIssueSchema).max(500),warnings:z.array(WorkbenchIssueSchema).max(500),blockingReasons:z.array(text(128)).max(32)}),
+]);
+export const WorkbenchCompareResultSchema=z.strictObject({contractVersion:z.literal(1),projectKey:id,projectId:StableId,snapshotRevision:revision,writeVersion:revision,left:compareSide,right:compareSide,differences:z.array(WorkbenchDifferenceSchema).max(500)});
+export type WorkbenchCompareResult=z.infer<typeof WorkbenchCompareResultSchema>;
+export const WorkbenchSelectionSchema=WorkbenchExpectationSchema.extend({applicationId:id,changeId:StableId,operationIds:z.array(StableId).min(1).max(500)})
+  .refine(value=>new Set(value.operationIds).size===value.operationIds.length,{message:'Selection operations must be unique'});
+export type WorkbenchSelectionInput=z.infer<typeof WorkbenchSelectionSchema>;

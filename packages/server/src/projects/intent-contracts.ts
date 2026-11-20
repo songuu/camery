@@ -3,7 +3,7 @@ import {ChangeSet,StableId} from '@camery/ir';
 import {Id,Hash,Text,Integer} from '@camery/script/contracts';
 import {DevelopmentAdoptionSourceSchema,DevelopmentFormalIdentitiesSchema,DevelopmentReviewerBindingsSchema,DevelopmentVersionKeySchema} from '@camery/script/node';
 import {ProjectIdentityScopeSchema} from './contracts.js';
-import {WorkbenchActionReceiptSchema} from '@camery/ir/workbench';
+import {WorkbenchActionReceiptSchema,WorkbenchDerivationSchema} from '@camery/ir/workbench';
 
 export const APPLICATION_BYTES=1048576;
 export const ApplicationActorSchema=z.strictObject({kind:z.enum(['user','agent_run','system']),key:Id,id:StableId.refine(value=>value.length===26)});
@@ -16,9 +16,10 @@ export const CandidateSourceSchema=z.discriminatedUnion('kind',[
 export const CandidateIntentKeySchema=z.strictObject({scope:ProjectIdentityScopeSchema,applicationId:Id});
 export const CandidateChangeKeySchema=z.strictObject({scope:ProjectIdentityScopeSchema,changeId:StableId});
 export const CandidateIntentBodySchema=CandidateIntentKeySchema.extend({version:z.literal(1),actor:ApplicationActorSchema,target:DevelopmentVersionKeySchema,commandDigest:Hash,
-  source:CandidateSourceSchema,expectation:ApplicationExpectationSchema,changeId:StableId,request:ChangeSet.nullable(),
+  source:CandidateSourceSchema,expectation:ApplicationExpectationSchema,changeId:StableId,request:ChangeSet.nullable(),derivation:WorkbenchDerivationSchema.optional(),
 }).superRefine((value,context)=>{
   const request=value.request;
+  if(value.derivation&&(!request||value.derivation.sourceChangeId===value.changeId||request.ops.length!==value.derivation.operationIds.length||request.ops.some((op,index)=>op.op_id!==value.derivation!.operationIds[index])))context.addIssue({code:'custom',message:'Selection provenance binding'});
   if(request&&(request.id!==value.changeId||request.author.kind!==value.actor.kind||request.author.id!==value.actor.id||request.base_revision!==value.expectation.expectedSnapshotRevision||request.status!=='candidate'||request.ops.length>500))context.addIssue({code:'custom',message:'Candidate request binding'});
   if(value.source.kind==='development'){
     const source=value.source.source;const identities=value.source.identities;

@@ -16,6 +16,101 @@ import type {ProjectApplicationOptions} from '../src/projects/options.js';
 
 const key={tenantId:id('application-tenant'),projectId:id('prj_demo')};
 const actor={kind:'user' as const,id:id('user_1')};
+async function selectionFixture(){
+  const f=memory(),command=f.command();
+  command.change.ops.push({op:'update',op_id:id('selection-second-op'),collection:'shots',target:id('sh_3'),set:{action:'保留另一写法'}});
+  command.change.base_revisions.push({id:id('sh_3'),version:1});
+  const candidate=await f.application.submitCandidate({subject:subject(),projectId:'project',command});
+  return {...f,original:command.change,candidate,selection:{applicationId:'partial',changeId:id('selected-change'),operationIds:[command.change.ops[0]!.op_id],expectedSnapshotRevision:5,expectedWriteVersion:2}};
+}
+it('compares candidate versions without writing or losing unrelated original operations',async()=>{
+  const f=await selectionFixture(),before=structuredClone(f.getState());
+  const result=await f.application.compareCandidates({subject:subject('viewer'),projectId:'project',command:{left:{kind:'head'},right:{kind:'candidate',candidateId:f.candidate.candidateId},expectedSnapshotRevision:5,expectedWriteVersion:2}});
+  expect(result.differences.filter(row=>row.collection==='shots')).toHaveLength(2);expect(result.right).toMatchObject({kind:'candidate',candidateId:f.candidate.candidateId,status:'candidate',managed:true});
+  expect(f.getState()).toEqual(before);expect(f.versions.submitWithReceipt).toHaveBeenCalledTimes(1);expect(f.newId).not.toHaveBeenCalled();
+});
+it('previews an independent selection and adopts it without changing the original candidate or other scene',async()=>{
+  const f=await selectionFixture(),before=structuredClone(f.getState()),input={subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection};
+  const preview=await f.application.previewSelection(input);expect(preview.status).toBe('candidate');expect(preview.differences.map(row=>row.id)).toEqual([id('sh_1')]);expect(f.getState()).toEqual(before);expect(f.candidates.size).toBe(1);expect(f.newId).not.toHaveBeenCalled();
+  const partial=await f.application.prepareSelection(input);expect(partial.derivation).toMatchObject({sourceChangeId:f.candidate.candidateId,operationIds:f.selection.operationIds});
+  const saved=f.candidates.get('partial')!;expect(saved.request!.ops).toEqual([f.original.ops[0]]);expect(saved.request!.base_revisions).toEqual(f.original.base_revisions);
+  const decision={subject:subject('reviewer'),projectId:'project',candidateId:partial.candidateId,requestId:'partial-adopt',command:{scope:partial.scope,expectedSnapshotRevision:5,expectedWriteVersion:3}};
+  expect((await f.application.adoptCandidate(decision)).status).toBe('adopted');expect(f.getState().head.shots.find(row=>row.id===id('sh_1'))!.action).toBe('人工审阅变更');expect(f.getState().head.shots.find(row=>row.id===id('sh_3'))!.action).toBe(before.head.shots.find(row=>row.id===id('sh_3'))!.action);
+  expect(f.getState().changes.find(row=>row.request.id===f.original.id)!.status).toBe('candidate');expect(f.getState().changes.find(row=>row.request.id===f.original.id)!.request).toEqual(f.original);
+});
+it('recovers the exact selection preparation after lost ACK and rejects a changed same-key command',async()=>{
+  const f=await selectionFixture(),input={subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection},real=f.versions.submitWithReceipt.getMockImplementation()!;
+  f.versions.submitWithReceipt.mockImplementationOnce(async(...args:Parameters<typeof real>)=>{await real(...args);throw new Error('ACK lost');});
+  await expect(f.application.prepareSelection(input)).rejects.toThrow('ACK lost');const retry=await f.application.prepareSelection(input);expect(retry.candidateId).toBe(f.selection.changeId);expect(f.versions.submitWithReceipt).toHaveBeenCalledTimes(2);
+  await expect(f.application.prepareSelection({...input,command:{...f.selection,operationIds:[f.original.ops[1]!.op_id]}})).rejects.toMatchObject({code:'CONFLICT'});expect(f.candidates.size).toBe(2);
+});
+it.each(['previewSelection','prepareSelection'] as const)('requires current candidate write permission for %s including retries',async method=>{
+  const f=await selectionFixture(),calls=f.versions.read.mock.calls.length;
+  await expect(f.application[method]({subject:subject('viewer'),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection})).rejects.toMatchObject({code:'FORBIDDEN'});expect(f.versions.read).toHaveBeenCalledTimes(calls);expect(f.candidates.size).toBe(1);
+});
+it('rejects stale snapshot and write expectations and untrusted source candidates before storing selections',async()=>{
+  const f=await selectionFixture(),input={subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection};
+  await expect(f.application.prepareSelection({...input,command:{...f.selection,expectedSnapshotRevision:4}})).rejects.toMatchObject({code:'SNAPSHOT_STALE'});
+  await expect(f.application.prepareSelection({...input,command:{...f.selection,expectedWriteVersion:1}})).rejects.toMatchObject({code:'WRITE_VERSION_CONFLICT'});
+  f.candidates.clear();await expect(f.application.prepareSelection(input)).rejects.toMatchObject({code:'SOURCE_POLICY_MISSING'});expect(f.versions.submitWithReceipt).toHaveBeenCalledTimes(1);
+});
+it('refuses source request substitution, invalid selection and source identity collisions without writes',async()=>{
+  const f=await selectionFixture(),input={subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection};
+  for(const operationIds of [[],[id('missing')],[f.selection.operationIds[0]!,f.selection.operationIds[0]!]])await expect(f.application.prepareSelection({...input,command:{...f.selection,operationIds}})).rejects.toBeDefined();
+  await expect(f.application.prepareSelection({...input,command:{...f.selection,changeId:f.candidate.candidateId}})).rejects.toBeDefined();
+  const state=structuredClone(f.getState());state.changes[0]!.request.ops[0]={...state.changes[0]!.request.ops[0]!,op_id:id('substituted-op')};f.setState(state,2);
+  await expect(f.application.prepareSelection(input)).rejects.toMatchObject({code:'STORAGE_FAILED'});expect(f.candidates.size).toBe(1);
+});
+it('keeps native read-only comparisons available and refuses unavailable previews and project/source substitutions',async()=>{
+  const f=await selectionFixture(),command={left:{kind:'candidate' as const,candidateId:f.candidate.candidateId},right:{kind:'head' as const},expectedSnapshotRevision:5,expectedWriteVersion:2};
+  const admin=await f.application.compareCandidates({subject:subject(),projectId:'project',command});expect(admin.left.kind==='candidate'&&admin.left.blockingReasons).not.toContain('REVIEW_PERMISSION_REQUIRED');
+  const original=f.candidates.get('manual-command')!;f.candidates.clear();expect((await f.application.compareCandidates({subject:subject('viewer'),projectId:'project',command})).left).toMatchObject({managed:false,source:{kind:'unmanaged'}});
+  await expect(f.application.compareCandidates({subject:subject(),projectId:'project',command:{...command,left:{kind:'candidate',candidateId:id('absent')}}})).rejects.toMatchObject({code:'NOT_FOUND'});
+  f.candidates.set('manual-command',{...original,target:{...original.target,projectId:id('other-project')}});await expect(f.application.compareCandidates({subject:subject(),projectId:'project',command})).rejects.toMatchObject({code:'STORAGE_FAILED'});
+  await expect(f.application.prepareSelection({subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection})).rejects.toMatchObject({code:'STORAGE_FAILED'});
+  f.candidates.set('manual-command',original);const state=structuredClone(f.getState());state.changes[0]!.preview=null;state.changes[0]!.status='rejected';f.setState(state,2);
+  await expect(f.application.compareCandidates({subject:subject(),projectId:'project',command})).rejects.toMatchObject({code:'CONFLICT'});
+});
+it('exposes bounded original operation identities, refuses nested selections and rechecks read-only permission on ACK recovery',async()=>{
+  const f=await selectionFixture();expect(f.candidate.operations).toContainEqual({operationId:f.original.ops[0]!.op_id,kind:'update',collection:'shots',target:id('sh_1'),selectable:true});
+  const input={subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection},partial=await f.application.prepareSelection(input);
+  expect(partial.operations?.every(row=>!row.selectable)).toBe(true);
+  await expect(f.application.prepareSelection({...input,candidateId:partial.candidateId,command:{...f.selection,applicationId:'nested',changeId:id('nested'),expectedWriteVersion:3}})).rejects.toMatchObject({code:'CONFLICT'});
+  await expect(f.application.prepareSelection({...input,subject:subject('viewer')})).rejects.toMatchObject({code:'FORBIDDEN'});expect(f.candidates.size).toBe(2);
+});
+it('redacts asset storage paths from comparisons, detail and previews without mutating the source evidence',async()=>{
+  const f=memory(),command=f.command();command.change.ops=[{op:'update',op_id:id('asset-description'),collection:'assets',target:id('as_img'),set:{description:'另一个已归档版本'}}];command.change.base_revisions=[{id:id('as_img'),version:1}];
+  const preview=await f.application.previewChange({subject:subject(),projectId:'project',command:{change:command.change,expectedSnapshotRevision:5}}),candidate=await f.application.submitCandidate({subject:subject(),projectId:'project',command});
+  const comparison=await f.application.compareCandidates({subject:subject(),projectId:'project',command:{left:{kind:'head'},right:{kind:'candidate',candidateId:candidate.candidateId},expectedSnapshotRevision:5,expectedWriteVersion:2}});
+  for(const value of [preview.differences,candidate.differences,comparison.differences]){expect(JSON.stringify(value)).not.toContain('img/a.png');expect(value[0]!.before).toMatchObject({file:{sha256:'a'.repeat(64)}});}
+  expect(f.getState().head.assets.find(row=>row.id===id('as_img'))!.file?.path).toBe('img/a.png');
+});
+it('retains unselected read dependencies and new locks when validating a selection',async()=>{
+  const f=await selectionFixture(),state=structuredClone(f.getState());state.head.locks.push({id:id('late-lock'),version:1,target:id('sh_1'),fields:['action'],owner_id:actor.id,reason:'人工锁'});f.setState(state,2);
+  const input={subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:f.selection};expect((await f.application.previewSelection(input)).status).toBe('rejected');
+  const refused=await f.application.prepareSelection(input);expect(refused.canAdopt).toBe(false);expect(refused.issues.some(row=>row.code==='LOCKED')).toBe(true);expect(f.getState().head.shots.find(row=>row.id===id('sh_1'))!.version).toBe(1);
+});
+it('shows a changed read dependency before selection even when it belongs to an unselected scene',async()=>{
+  const f=await selectionFixture(),request=changeSet([{op:'update',op_id:id('later-read-op'),collection:'shots',target:id('sh_3'),set:{action:'保留的手工后改'}}],{id:id('later-read-change'),schema_version:'0.6.0-draft',author:actor,base_revisions:[{id:id('sh_3'),version:1}]}),prepared=submitChangeSet(f.getState(),request);
+  const changed=adoptChangeSet(prepared.state,request.id,{actor,scope:{kind:'project',id:key.projectId},at:'2026-11-20T07:00:00.000Z',authorize:()=>true});expect(changed.status).toBe('adopted');f.setState(changed.state,4);
+  const candidate=await f.application.candidate({subject:subject(),projectId:'project',candidateId:f.candidate.candidateId});expect(candidate.blockingReasons).toContain('READ_DEPENDENCY_CHANGED');expect(candidate.canAdopt).toBe(false);
+  const preview=await f.application.previewSelection({subject:subject(),projectId:'project',candidateId:f.candidate.candidateId,command:{...f.selection,expectedSnapshotRevision:6,expectedWriteVersion:4}});expect(preview.status).toBe('conflicted');expect(preview.issues.some(row=>row.code==='REVISION_CONFLICT')).toBe(true);expect(f.getState().head.shots.find(row=>row.id===id('sh_3'))!.action).toBe('保留的手工后改');
+});
+it('preserves native rejected add diagnostics and their exact ACK when the supplied object ID is invalid',async()=>{
+  const f=memory(),command=f.command();command.change.ops=[{op:'add',op_id:id('bad-id-op'),collection:'props',value:{id:'invalid',version:1,name:'拒绝示例',description:'缺少规范身份'}}];command.change.base_revisions=[];
+  const input={subject:subject(),projectId:'project',command},rejected=await f.application.submitCandidate(input);expect(rejected.status).toBe('rejected');expect(rejected.issues.some(row=>row.code==='IDENTIFIER')).toBe(true);expect(rejected.operations?.[0]?.target).toBeNull();
+  expect((await f.application.submitCandidate(input)).preparation).toEqual(rejected.preparation);expect((await f.application.candidate({subject:subject(),projectId:'project',candidateId:command.change.id})).issues).toEqual(rejected.issues);expect(f.versions.submitWithReceipt).toHaveBeenCalledTimes(1);
+});
+it('keeps a native candidate with more than 500 operations readable when its complete diff fits',async()=>{
+  const f=fixture(),request=changeSet(Array.from({length:501},(_,index)=>({op:'update' as const,op_id:id('bulk-'+index),collection:'shots' as const,target:id('sh_1'),set:{action:'更新'+index}})),{schema_version:'0.6.0-draft',base_revisions:[{id:id('sh_1'),version:1}]});
+  const result=submitChangeSet(f.state,request);expect(result.status).toBe('candidate');f.versions.read.mockResolvedValue({state:result.state,writeVersion:2});
+  const detail=await f.application.candidate({subject:subject('viewer'),projectId:'project',candidateId:request.id});expect(detail.differences).toHaveLength(1);expect(detail.operations).toBeUndefined();expect(detail.managed).toBe(false);
+});
+it('refuses an oversized complete comparison explicitly rather than silently dropping large content',async()=>{
+  const f=fixture(),request=changeSet([{op:'update',op_id:id('large-op'),collection:'shots',target:id('sh_1'),set:{action:'a'.repeat(1_000_000)}}],{schema_version:'0.6.0-draft',base_revisions:[{id:id('sh_1'),version:1}]});
+  const result=submitChangeSet(f.state,request);expect(result.status).toBe('candidate');f.versions.read.mockResolvedValue({state:result.state,writeVersion:2});
+  await expect(f.application.compareCandidates({subject:subject('viewer'),projectId:'project',command:{left:{kind:'head'},right:{kind:'candidate',candidateId:request.id},expectedSnapshotRevision:5,expectedWriteVersion:2}})).rejects.toMatchObject({code:'INPUT_LIMIT'});expect(f.versions.submitWithReceipt).not.toHaveBeenCalled();
+});
 it('identifies an actual schema upgrade for another reader without allocating identities or writing',async()=>{
   const f=memory(),prepared=await f.application.prepareUpgrade({subject:subject('editor'),projectId:'project',command:{applicationId:'verified-upgrade',expectedSnapshotRevision:5,expectedWriteVersion:1}}),writes=f.versions.submitWithReceipt.mock.calls.length,allocated=f.newId.mock.calls.length;
   const detail=await f.application.upgradeCandidate({subject:{...subject('viewer'),userId:'another-reader'},projectId:'project',candidateId:prepared.candidateId});
@@ -156,6 +251,11 @@ it('prepares complete reviewed development through durable identities and immuta
   const command={applicationId:'development',expectedSnapshotRevision:5,expectedWriteVersion:1,runDigest:source.source.runDigest,briefDigest:source.source.briefDigest,foundationReviewDigest:source.source.foundationReviewDigest,episodesReviewDigest:source.source.episodesReviewDigest};
   const view=await application.prepareDevelopment({subject:principal,projectId:ordinary.projectId,runId:source.source.runId,command});expect(view.source).toEqual({kind:'development',runId:source.source.runId,state:'current'});expect(view.differences.some(row=>row.collection==='development_plans')).toBe(true);expect(f.versions.adoptGuarded).not.toHaveBeenCalled();
   const allocations=f.newId.mock.calls.length;await application.prepareDevelopment({subject:principal,projectId:ordinary.projectId,runId:source.source.runId,command});expect(f.newId).toHaveBeenCalledTimes(allocations);expect(f.development.identities.prepare).toHaveBeenCalledTimes(1);
+  const request=f.candidates.get('development')!.request!,selection={applicationId:'selected-development',changeId:id('selected-development'),operationIds:request.ops.map(op=>op.op_id),expectedSnapshotRevision:5,expectedWriteVersion:2};
+  const selected=await application.prepareSelection({subject:principal,projectId:ordinary.projectId,candidateId:view.candidateId,command:selection});expect(selected.source).toMatchObject({kind:'development',state:'current'});expect(f.candidates.get(selection.applicationId)!.source).toEqual(f.candidates.get('development')!.source);expect(f.newId).toHaveBeenCalledTimes(allocations);
+  f.versions.adoptGuarded.mockImplementationOnce(async(...args:unknown[])=>{await (args[3] as (client:never)=>Promise<void>)(null as never);throw new Error('source guard should refuse');});f.development.store.readForAdoption.mockRejectedValue(new Error('source unavailable'));
+  await expect(application.adoptCandidate({subject:principal,projectId:ordinary.projectId,candidateId:selected.candidateId,requestId:'selected-development-decision',command:{scope:selected.scope,expectedSnapshotRevision:5,expectedWriteVersion:3}})).rejects.toMatchObject({code:'DEVELOPMENT_SOURCE_UNAVAILABLE'});const selectedSource=f.candidates.get('development')!.source;expect(f.development.store.readForAdoption).toHaveBeenCalledWith(null,selectedSource.kind==='development'?selectedSource.source:undefined);
+  f.development.store.isCurrent.mockResolvedValue(false);await expect(application.prepareSelection({subject:principal,projectId:ordinary.projectId,candidateId:view.candidateId,command:{...selection,applicationId:'stale-selection',changeId:id('stale-selection'),expectedWriteVersion:3}})).rejects.toMatchObject({code:'CONFLICT'});
   f.development.store.isCurrent.mockResolvedValue(false);expect((await application.candidate({subject:principal,projectId:ordinary.projectId,candidateId:view.candidateId})).source).toMatchObject({state:'stale'});f.development.store.read.mockRejectedValue(new Error('offline'));expect((await application.candidate({subject:principal,projectId:ordinary.projectId,candidateId:view.candidateId})).source).toMatchObject({state:'unavailable'});
 });
 it('keeps candidate reads available to viewers and unmapped reviewers, but propagates a broken registry',async()=>{

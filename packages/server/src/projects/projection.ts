@@ -1,13 +1,15 @@
 import {isDeepStrictEqual} from 'node:util';
-import type {StoryboardPackage} from '@camery/ir';
+import {StableId,type StoryboardPackage} from '@camery/ir';
 import {WorkbenchCandidateDetailSchema,WorkbenchPreviewResultSchema} from '@camery/ir/workbench';
 import type {WorkbenchCandidateDetail,WorkbenchPreviewResult} from '@camery/ir/workbench';
 import type {ChangeResult,StoredChange,VersionState} from '@camery/versioning';
 import {ProjectApplicationError} from './intent-contracts.js';
 import type {CandidateIntent,ProjectActionReceipt} from './intent-contracts.js';
+import {redactReadObject} from './read-projection.js';
 
 type Row={collection:string;value:Record<string,unknown>};
 type Difference=WorkbenchCandidateDetail['differences'][number];
+export function redactDifference(row:Difference):Difference{return {...row,before:row.before?redactReadObject(row.collection,row.before):null,after:row.after?redactReadObject(row.collection,row.after):null};}
 function previewObjects(snapshot:StoryboardPackage){
   const objects=new Map<string,Row>();
   for(const [collection,rows] of Object.entries(snapshot))if(Array.isArray(rows))for(const value of rows){
@@ -29,7 +31,7 @@ function differences(state:VersionState,stored:StoredChange):Difference[]{
   const adopted=stored.status==='adopted'?state.adoptions.find(row=>row.change_set_id===stored.request.id):undefined;
   if(stored.status==='adopted'&&!adopted)throw new ProjectApplicationError('STORAGE_FAILED','adopted difference baseline');
   const before=historyObjects(state,adopted?.from_revision??stored.prepared_from_revision);const after=previewObjects(stored.preview);const rows:Difference[]=[];
-  const push=(row:Difference)=>{if(rows.length===500)throw new ProjectApplicationError('INPUT_LIMIT','candidate differences');rows.push(structuredClone(row));};
+  const push=(row:Difference)=>{if(rows.length===500)throw new ProjectApplicationError('INPUT_LIMIT','candidate differences');rows.push(redactDifference(row));};
   const upgrade=stored.request.ops.find(op=>op.op==='upgrade_schema');const beforeSchema=upgrade?.op==='upgrade_schema'?upgrade.from:stored.request.schema_version;
   if(beforeSchema!==stored.preview.schema_version)push({collection:'projects',id:state.head.project.id,kind:'replace',before:{schema_version:beforeSchema},after:{schema_version:stored.preview.schema_version}});
   for(const id of [...new Set([...before.keys(),...after.keys()])].sort()){
@@ -53,11 +55,16 @@ export function projectCandidateDetail(input:CandidateProjectionInput):Workbench
     if(!canReview)blockingReasons.push('REVIEW_PERMISSION_REQUIRED');
   }
   const live=!!intent&&!!stored&&stored.status==='candidate';
+  const current=previewObjects(state.head),readDependenciesCurrent=!live||stored.request.base_revisions.every(ref=>current.get(ref.id)?.value['version']===ref.version);
+  if(!readDependenciesCurrent)blockingReasons.push('READ_DEPENDENCY_CHANGED');
+  const operations=intent?(stored?.request??intent.request)?.ops.map(op=>({operationId:op.op_id,kind:op.op,collection:'collection' in op?op.collection:null,
+    target:'target' in op?op.target:op.op==='add'&&StableId.safeParse(op.value['id']).success?op.value['id'] as string:null,
+    selectable:live&&!intent.derivation&&['add','update','replace','remove','move'].includes(op.op)})):undefined;
   return WorkbenchCandidateDetailSchema.parse({contractVersion:1,projectKey,candidateId,applicationId:intent?.applicationId??null,managed:!!intent,status,
     authorId:intent?.actor.id??stored!.request.author.id,authorKey:intent?.actor.key??null,createdAt:intent?.createdAt??null,baseRevision:intent?.expectation.expectedSnapshotRevision??stored!.request.base_revision,
     baseWriteVersion:intent?.expectation.expectedWriteVersion??null,source,snapshotRevision:state.head.revision.number,writeVersion,scope:{kind:'project',id:state.head.project.id},
     differences:stored?differences(state,stored):[],issues:structuredClone(stored?.issues??preparation?.issues??[]),warnings:structuredClone(stored?.warnings??preparation?.warnings??[]),
-    canAdopt:live&&canReview&&!!stored?.preview&&(source.kind!=='development'||source.state==='current'),canReject:live&&canReview,blockingReasons,preparation:structuredClone(preparation),
+    canAdopt:live&&canReview&&readDependenciesCurrent&&!!stored?.preview&&(source.kind!=='development'||source.state==='current'),canReject:live&&canReview,blockingReasons,preparation:structuredClone(preparation),...(intent?.derivation?{derivation:structuredClone(intent.derivation)}:{}),...(operations?{operations}:{}),
   });
 }
 export function projectPreview({state,writeVersion,result,candidateId}:{state:VersionState;writeVersion:number;result:ChangeResult;candidateId?:string}):WorkbenchPreviewResult{
