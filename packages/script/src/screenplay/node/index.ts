@@ -1,11 +1,12 @@
 export {PostgresScreenplayStore} from './store.js';
 export {migrateScreenplay} from './migrate.js';
 export {createScreenplayCandidate,validateScreenplayCandidate,reviewScreenplayCandidate,validateScreenplayReview} from './review.js';
-export {prepareScreenplayNativeMapping,screenplayNativeSlots} from './native-mapping.js';
+export {prepareScreenplayNativeMapping,screenplayNativeSlots,ScreenplayNativeMappingSchema} from './native-mapping.js';
 export type {ScreenplayNativeMapping} from './native-mapping.js';
+export {ScreenplayNativeIdentitySchema} from './native-contracts.js';
 export {createScreenplayNativeSubmissionReceipt,createScreenplayNativeAdoptionHooks} from './native-adoption.js';
 export {readScreenplayNativeAdoption,readScreenplayHandoff} from './handoff.js';
-export {readScreenplayNativeIntent} from './intent.js';
+export {readScreenplayNativeIntent,readScreenplayNativeIntentForChange} from './intent.js';
 export type {ScreenplaySource,ScreenplaySourceView} from './source.js';
 export type {ScreenplayHost,ScreenplayAction,ScreenplayKey,ScreenplayCandidate,ScreenplayReview} from './contracts.js';
 export type {ScreenplayPreparation,ScreenplayProgress} from './persistence-contracts.js';

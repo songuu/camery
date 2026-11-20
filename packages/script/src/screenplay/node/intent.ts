@@ -3,10 +3,13 @@ import type {PoolClient} from 'pg';
 import {StableId} from '@camery/ir';
 import {captureScreenplay,freezeScreenplay} from '../boundary.js';
 import {ScreenplayError} from '../contracts.js';
-import {ScreenplayKeySchema} from './contracts.js';
+import {ScreenplayKeySchema,ScreenplayScopeSchema} from './contracts.js';
 import {authorizeScreenplayHost} from './host.js';
 import {readScreenplayNativeBinding} from './native-records.js';
+import type {ScreenplayNativeBinding} from './native-contracts.js';
 const Pointer=z.strictObject({formal_tenant_id:StableId,formal_project_id:StableId,change_id:StableId});
+const NativeId=StableId.refine(value=>value.length===26);
+const ChangeIntent=z.strictObject({scope:ScreenplayScopeSchema,target:z.strictObject({tenantId:NativeId,projectId:NativeId}),changeId:NativeId});
 /** Discover only committed original IDs. No row means no committed domain binding; never fabricate an adoption ACK. */
 export async function readScreenplayNativeIntent(client:PoolClient,input:unknown,host:unknown){
   const key=freezeScreenplay(captureScreenplay(ScreenplayKeySchema,input,'screenplay intention key',2048));authorizeScreenplayHost(host,'screenplay:read',{tenantId:key.tenantId,projectId:key.projectId});
@@ -17,4 +20,13 @@ export async function readScreenplayNativeIntent(client:PoolClient,input:unknown
     if(!binding||binding.key.tenantId!==key.tenantId||binding.key.projectId!==key.projectId||binding.key.candidateId!==key.candidateId)throw new ScreenplayError('STORAGE_FAILED','original screenplay intention','key');
     return binding;
   }catch(error){let known=false;try{known=error instanceof ScreenplayError;}catch{/* Driver prototype traps cannot supply public diagnostics. */}if(known)throw error;throw new ScreenplayError('STORAGE_FAILED','original screenplay intention','storage');}
+}
+/** Resolve committed native proof only after checking current ordinary-project authority. */
+export async function readScreenplayNativeIntentForChange(client:PoolClient,input:unknown,host:unknown):Promise<ScreenplayNativeBinding|null>{
+  const request=freezeScreenplay(captureScreenplay(ChangeIntent,input,'screenplay native intention lookup',2048));authorizeScreenplayHost(host,'screenplay:read',request.scope);
+  try{
+    const binding=await readScreenplayNativeBinding(client,request.target,request.changeId);if(!binding)return null;
+    if(binding.key.tenantId!==request.scope.tenantId||binding.key.projectId!==request.scope.projectId||binding.mapping.target.tenantId!==request.target.tenantId||binding.mapping.target.projectId!==request.target.projectId||binding.mapping.request.id!==request.changeId)throw new ScreenplayError('STORAGE_FAILED','native screenplay intention','key');
+    return binding;
+  }catch(error){let known=false;try{known=error instanceof ScreenplayError;}catch{/* Driver prototype traps cannot supply public diagnostics. */}if(known)throw error;throw new ScreenplayError('STORAGE_FAILED','native screenplay intention','storage');}
 }

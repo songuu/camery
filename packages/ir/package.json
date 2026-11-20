@@ -7,7 +7,9 @@
     ".": "./src/index.ts",
     "./node": "./src/node/index.ts",
     "./workbench": "./src/workbench.ts",
+    "./candidate-receipts": "./src/candidate-receipts.ts",
     "./outline-adoption": "./src/outline-adoption.ts",
+    "./screenplay-adoption": "./src/screenplay-adoption.ts",
     "./outline-formal": "./src/outline-formal.ts"
   },
   "scripts": {

@@ -10,6 +10,7 @@ packages/**/src/screenplay/node/generation-migrations/*.sql text eol=lf
 packages/**/src/quality/node/migrations/*.sql text eol=lf
 packages/server/src/projects/migrations/*.sql text eol=lf
 packages/server/src/projects/outline-intent-migrations/*.sql text eol=lf
+packages/server/src/projects/screenplay-intent-migrations/*.sql text eol=lf
 # File snapshots are compared as serialized protocol fixtures.
 packages/model-modes/test/fixtures/*.json text eol=lf
 packages/methods/test/fixtures/*.json text eol=lf
